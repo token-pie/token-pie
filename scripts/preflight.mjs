@@ -11,6 +11,7 @@
  * Usage: npm run preflight
  */
 import { execFileSync } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -90,6 +91,20 @@ for (const url of images) {
   // A redirect is the failure that shipped: the Marketplace does not follow
   // them, so the image silently never appears.
   check(`${path.basename(url)} is served directly`, code === '200', `HTTP ${code}`);
+
+  // 200 only proves the URL exists. The listing renders whatever `main` serves,
+  // so a screenshot regenerated locally but not pushed shows the previous
+  // release's UI to everyone reading the Marketplace page.
+  const localFile = path.join(root, 'images', path.basename(url));
+  if (code === '200' && fs.existsSync(localFile)) {
+    const served = execFileSync('curl', ['-s', '--max-time', '20', url],
+      { maxBuffer: 64 * 1024 * 1024 });
+    const digest = b => crypto.createHash('sha256').update(b).digest('hex').slice(0, 12);
+    const mine = digest(fs.readFileSync(localFile));
+    const theirs = digest(served);
+    check(`${path.basename(url)} matches the local copy`, mine === theirs,
+      `local ${mine}, served ${theirs} — push images/ before publishing`);
+  }
 }
 
 console.log('\nmetadata agrees with itself');

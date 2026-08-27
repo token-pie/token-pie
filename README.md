@@ -584,6 +584,7 @@ npm run probe      # dump the real schema
 npm run verify     # prove content is suppressed AND usage data survives
 npm run purge      # delete the content truncation cannot reach
 npm run watch
+npm run build
 ```
 
 `npm run verify` is the one to hand a security reviewer. It asserts both halves
