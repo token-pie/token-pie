@@ -62,6 +62,13 @@ If a change makes one of those weaker, it is the wrong change.
   severity is the background colour. The click follows the mark: report when
   ready, nothing while working, the log when broken. A fourth mark, or
   `$(flame)`/`$(copilot)`/`$(graph)` anywhere in the code, fails the build.
+- **Identify as `token-pie/<version>`, never as Copilot.** Probed against a
+  live account: `copilot_internal/user` returns 200 for either user agent, so
+  the Copilot identity buys nothing and misattributes this traffic in GitHub's
+  logs.
+- **The diagnostic dump strips account identifiers** (`login`,
+  `analytics_tracking_id`, org lists). It exists to report an unfamiliar plan
+  shape; the account it came from is not part of that.
 - **Never impersonate Copilot.** No `$(copilot)` glyph, no unlabelled readouts
   of GitHub's numbers. The status bar and tooltip carry a name of our own in
   every state. See `DECISIONS.md#attribution`.
@@ -196,7 +203,7 @@ against the artefact you are about to upload.
 ## Verifying a change
 
 ```bash
-npm test            # 228 checks across nine suites
+npm test            # 244 checks across nine suites
                     #   entitlement  quota shapes, incl. an exhausted Business seat
                     #   projection   verdicts, and why "unknown" is three situations
                     #   advice       card arithmetic and the auto/manual split

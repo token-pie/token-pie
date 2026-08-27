@@ -128,6 +128,16 @@ console.log('\ntwo windows writing the same store');
   fs.rmSync(raceDir, { recursive: true, force: true });
 }
 
+console.log('\nthe extension identifies itself honestly');
+{
+  const quota = fs.readFileSync(new URL('../out/quota.js', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  // Probed against a live account: the endpoint returns 200 for either name,
+  // so claiming to be Copilot Chat buys nothing.
+  check('does not claim to be Copilot Chat', /GitHubCopilotChat/.test(quota), false);
+  check('uses its own name', /token-pie\/\$\{version\}|'token-pie'/.test(quota), true);
+}
+
 console.log('\nlogs do not carry the account name');
 // The broken state tells the user to open the log and share it, so anything
 // written there must not contain their home directory.
@@ -135,6 +145,13 @@ check('a redactor exists', /function redactPaths/.test(source), true);
 check('refresh failures go through it', /redactPaths\(message\)/.test(source), true);
 check('survived errors go through it', /result\.errors\.map\(redactPaths\)/.test(source), true);
 check('and the batched error line too', /redactPaths\(result\.errors\.join/.test(source), true);
+// The diagnostic dump exists to report an unfamiliar plan shape; the account
+// it came from is not part of that.
+check('the raw dump strips identifiers', /withoutIdentifiers\(e\.raw\)/.test(source), true);
+for (const key of ['login', 'analytics_tracking_id']) {
+  check(`${key} is on the strip list`,
+    new RegExp(`'${key}'`).test(source), true);
+}
 
 console.log('\na refresh already running is joined, not duplicated');
 check('the guard is present', /if \(inFlight\) \{/.test(source), true);

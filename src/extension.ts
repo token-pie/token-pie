@@ -115,6 +115,29 @@ function redactPaths(text: string): string {
 	return home && home !== '/' ? text.split(home).join('~') : text;
 }
 
+/**
+ * Strip account identifiers from the diagnostic dump.
+ *
+ * The dump exists so an unfamiliar plan shape can be reported, and none of
+ * that needs the account it came from. `analytics_tracking_id` in particular
+ * is a stable per-user identifier.
+ */
+const IDENTIFIER_KEYS = ['login', 'analytics_tracking_id', 'organization_login_list',
+	'organization_list', 'assigned_date'];
+
+function withoutIdentifiers(raw: unknown): unknown {
+	if (!raw || typeof raw !== 'object') {
+		return raw;
+	}
+	const out: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+	for (const key of IDENTIFIER_KEYS) {
+		if (key in out) {
+			out[key] = '(removed)';
+		}
+	}
+	return out;
+}
+
 function config() {
 	return vscode.workspace.getConfiguration('tokenPie');
 }
@@ -744,8 +767,8 @@ async function checkQuota(): Promise<void> {
 		}
 
 		output.appendLine('');
-		output.appendLine('raw response:');
-		output.appendLine(JSON.stringify(e.raw, null, 2));
+		output.appendLine('raw response (identifiers removed):');
+		output.appendLine(redactPaths(JSON.stringify(withoutIdentifiers(e.raw), null, 2)));
 		void vscode.window.showInformationMessage(
 			projection && projection.verdict !== 'unknown'
 				? `Token Pie: ${e.login ?? 'account'} — ${statusLabel(projection)} of your ` +

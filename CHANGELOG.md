@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+The extension now identifies itself to GitHub under its own name rather than
+Copilot's. Diagnostics no longer print your account name or tracking id.
+
 ## 0.1.5
 
 Fixes the screenshots not appearing on this page.

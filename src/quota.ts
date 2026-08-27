@@ -40,9 +40,25 @@ async function githubToken(interactive: boolean, chooseAccount: boolean): Promis
 	return session.accessToken;
 }
 
+/**
+ * Identifies this extension to GitHub, under its own name.
+ *
+ * It previously claimed to be Copilot Chat, which meant GitHub's logs
+ * attributed this traffic to Copilot -- the same impersonation the status bar
+ * was corrected for, one layer down and less visible. Probed against a live
+ * account: the endpoint returns 200 for both, so the Copilot identity buys
+ * nothing and is not used.
+ */
+export function userAgent(): string {
+	const version = vscode.extensions.getExtension('token-pie.token-pie')
+		?.packageJSON?.version;
+	return version ? `token-pie/${version}` : 'token-pie';
+}
+
 export async function fetchEntitlement(
 	interactive = false,
-	chooseAccount = false
+	chooseAccount = false,
+	agent: string = userAgent()
 ): Promise<Entitlement> {
 	const token = await githubToken(interactive, chooseAccount);
 
@@ -54,7 +70,7 @@ export async function fetchEntitlement(
 			Authorization: `token ${token}`,
 			Accept: 'application/json',
 			'Editor-Version': `vscode/${vscode.version}`,
-			'User-Agent': 'GitHubCopilotChat/token-pie'
+			'User-Agent': agent
 		}
 	});
 
@@ -67,7 +83,7 @@ export async function fetchEntitlement(
 	return parseEntitlement((await response.json()) as Record<string, unknown>);
 }
 
-export function parseEntitlement(body: Record<string, unknown>): Entitlement {
+function parseEntitlement(body: Record<string, unknown>): Entitlement {
 	return {
 		login: str(body['login']),
 		accessTypeSku: str(body['access_type_sku']),
