@@ -50,15 +50,37 @@ see](#what-it-can-and-cannot-see).
 
 ### What you get
 
-![The panel: throttle projection, the allowance meter, and what to change](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-1.png)
+The panel answers in the order the questions matter, and the status bar carries
+the headline so you do not have to open it to know.
 
-The verdict and the one habit worth changing, above the fold. The status bar
-carries the same answer at a glance.
+**The verdict, first.**
 
-![Where the credits went: by kind of text, by model, and by project](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-2.png)
+![The verdict: percent remaining, the allowance meter, and your pace against a sustainable one](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-1.png)
 
-Underneath, the breakdown — including whether *you* or Auto chose each model,
-and prices measured from your own billed messages rather than a price list.
+Your measured burn rate against what is actually left on your account, projected
+at the reset date. *Your pace* beside *sustainable pace* is the comparison that
+decides whether you finish the period — 14.40 against 319 credits a day here.
+
+**Where the credits went.**
+
+![The breakdown: by kind of text, by model with who chose it, and by project](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-2.png)
+
+By kind of text, by model, and by project. **Chosen by** separates the models
+you picked from the ones Auto picked for you. Prices are solved from your own
+billed messages rather than read off a price list, so composition is weighted by
+what each kind of token actually cost you. On `claude-sonnet-5` that came out at
+0.02 credits per 1k cached against 0.25 fresh — the 12.5× the evidence line
+quotes — with output at 4× fresh again.
+
+**What to change.**
+
+![Recommendations, each with the measurement behind it and the credits at stake](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-3.png)
+
+Findings derived from this machine's own spend. Each carries the credits at
+stake and the evidence behind it, so you can check the arithmetic rather than
+take it on faith. A figure marked `≤` is an upper bound rather than a
+measurement, and never outranks something measured — a speculative saving should
+not sort above money demonstrably already spent.
 
 ## What makes the numbers different
 
