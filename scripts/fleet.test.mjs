@@ -69,17 +69,32 @@ check('model hopper with a cold cache', ids([
   r({ model: 'gpt-mini', operation: 'title', requests: 12, inputTokens: 90000,
       outputTokens: 1500, nanoAiu: nano(3) })]), 'cache-miss');
 
-console.log('\nmateriality scales with the allowance, not the spend');
-// The identical finding is urgent on a small allowance and noise on a large one.
+console.log('\nmateriality: urgent, or a real share of spend -- either will do');
+// This block used to assert the opposite: that 100,000 credits remaining made
+// the identical finding "noise". Observed on a real Business seat -- ~1,500
+// credits left against 23 of spend put the floor at ~15 credits, so every card
+// was suppressed and the advice section rendered empty. The finding below is
+// 48% of everything that developer spent; a large allowance makes it less
+// urgent, not less true.
 const finding = [
   r({ model: 'sonnet', requests: 12, inputTokens: 260000, outputTokens: 6000,
       cacheReadTokens: 200000, nanoAiu: nano(30), missRequests: 4,
       missInputTokens: 60000, missNanoAiu: nano(18) })];
-check('fires when 60 credits remain', ids(finding, 60).includes('cache-miss'), true);
-check('silent when 100,000 remain', ids(finding, 100000), '');
-check('same finding, so the data did not change',
-  advise(finding, CR, {}, 60).find(a => a.id === 'cache-miss').creditsAtStake.toFixed(2),
-  advise(finding, CR, {}, 60).find(a => a.id === 'cache-miss').creditsAtStake.toFixed(2));
+const stakeAt = allowance =>
+  advise(finding, CR, {}, allowance).find(a => a.id === 'cache-miss').creditsAtStake;
+check('fires when the allowance is nearly gone', ids(finding, 60).includes('cache-miss'), true);
+check('and still fires when it is huge', ids(finding, 100000).includes('cache-miss'), true);
+check('because it is half of what they spent', (stakeAt(100000) / 30 > 0.05), true);
+// Previously compared one expression to itself and could not fail.
+check('the allowance changes urgency, never the stake',
+  stakeAt(60).toFixed(4), stakeAt(100000).toFixed(4));
+
+// The protection the old assertion was reaching for, stated correctly: small
+// by BOTH measures is still silent, however large the allowance.
+check('trivial finding on a big spender stays silent', ids([
+  r({ model: 'sonnet', requests: 200, inputTokens: 5000000, outputTokens: 120000,
+      cacheReadTokens: 4900000, nanoAiu: nano(400), missRequests: 3,
+      missInputTokens: 40000, missNanoAiu: nano(6) })], 100000), '');
 
 console.log('\nno allowance known: fall back to share of spend');
 // Called directly: passing `undefined` through `ids` would take its default

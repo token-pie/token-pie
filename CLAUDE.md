@@ -182,6 +182,7 @@ src/
   projection.ts  burn rate x remaining quota -> verdict
   pricing.ts     solves the per-token rate card from sufficient statistics
   advice.ts      rollups -> ranked findings, each with its evidence.
+  confidence.ts  measured | bounded | estimated, and how doubt propagates
   report.ts      the webview. No scripts; <details> for progressive disclosure.
   purge.ts       the only writer to a database we do not own
   sessions.ts    session-file turns; used for reconciliation, NOT for spend
@@ -212,13 +213,23 @@ npm test            # 244 checks across nine suites
                     #   fleet        advice across differently-shaped developers
                     #   backfill     recovering history without double counting
                     #   responsive   the pipeline must not block the editor
+                    #   confidence   measured / bounded / estimated, and combining
                     #   selftest     the whole pipeline on a synthetic database
+npm run preview     # render THIS machine's rollup as the panel, in a browser
+npm run why         # why each recommendation did or did not appear
 npm run probe       # dump the real schema on this machine
 npm run verify      # confirm no plaintext content is retained
 ```
 
 `npm test` must pass before any commit. The selftest builds a synthetic
 `agent-traces.db`, so it runs anywhere; the probe needs a real one.
+
+Before concluding anything about what the panel shows, run `npm run preview` and
+look at it. Do not infer a section's contents from the code or from a
+screenshot: a section can be empty on real data while every fixture renders it,
+which is how an advice floor once suppressed every card on a live account with
+the whole suite green. `npm run why` prints the gate arithmetic behind a missing
+recommendation.
 
 To see the panel without launching VS Code, render it headless — see
 `docs/ARCHITECTURE.md` — *Previewing the panel*. **Look at the output.** Two layout

@@ -1,6 +1,7 @@
 import { Rollup, Totals, DepthStats, DEPTH_BUCKETS, groupBy, sum } from './store';
 import { Projection } from './projection';
 import { Advice, advise, selectionMix } from './advice';
+import { prefix } from './confidence';
 import { PriceStats, Price, solve } from './pricing';
 
 /**
@@ -29,6 +30,18 @@ function fmtTokens(n: number): string {
 
 function fmtCredits(credits: number): string {
 	return credits >= 100 ? fmtInt(credits) : credits.toFixed(2);
+}
+
+/**
+ * The figure with its unit spelled out.
+ *
+ * "cr" and "credits" were both in use -- "1,477 cr left" beside "23.04 credits"
+ * -- which reads as two different units to anyone who has not just read the
+ * source. One word, everywhere.
+ */
+function fmtCreditsWith(credits: number): string {
+	const n = fmtCredits(credits);
+	return `${n} ${n === '1.00' ? 'credit' : 'credits'}`;
 }
 
 function fmtDays(days: number | undefined): string {
@@ -170,7 +183,7 @@ function allowanceMeter(p: Projection): string {
 			<span class="dim">${p.quotaId ? escapeHtml(p.quotaId) : 'allowance'}</span>
 			<span class="dim">${overshoots
 				? `allowance ends here &middot; ${fmtCredits(p.remaining)} left today`
-				: `${fmtCredits(p.remaining)} cr left`}</span>
+				: `${fmtCreditsWith(p.remaining)} left`}</span>
 		</div>
 	</div>`;
 }
@@ -198,7 +211,7 @@ function paceTiles(p: Projection): string {
 			p.sustainableDailyBurn !== undefined && p.burnPerDay > p.sustainableDailyBurn;
 		tiles.push(tile(
 			fmtCredits(p.burnPerDay),
-			'cr/day',
+			'credits/day',
 			'your pace',
 			`Credits per day, measured over ${fmtDays(p.daysObserved)} days of elapsed ` +
 			'time with idle days included.',
@@ -208,7 +221,7 @@ function paceTiles(p: Projection): string {
 	if (p.sustainableDailyBurn !== undefined) {
 		tiles.push(tile(
 			fmtCredits(p.sustainableDailyBurn),
-			'cr/day',
+			'credits/day',
 			'sustainable pace',
 			'Credits per day the remaining allowance can absorb until it resets.'
 		));
@@ -237,10 +250,10 @@ function adviceCards(items: Advice[], somethingElseSaid: boolean): string {
 	// collapsing costs the reader nothing but the remedy text.
 	return items
 		.map(
-			(a, i) => `<details class="card"${i === 0 ? ' open' : ''}>
+			(a) => `<details class="card">
 			<summary>
 				<span class="card-title">${a.headline}</span>
-				<span class="stake${a.bounded ? ' bounded' : ''}">${a.bounded ? '&le; ' : ''}${fmtCredits(a.creditsAtStake)} cr</span>
+				<span class="stake ${a.confidence}"${a.why ? ` title="${escapeHtml(a.why)}"` : ''}>${escapeHtml(prefix(a.confidence))}${fmtCreditsWith(a.creditsAtStake)}</span>
 			</summary>
 			<div class="card-body">${a.detail}</div>
 			<div class="card-evidence">${escapeHtml(a.evidence)}</div>
@@ -451,6 +464,16 @@ function hueBar(fraction: number, cls: string): string {
  * more expensive the deeper into a thread it is asked. That is a habit a
  * developer can change this afternoon, and no other view shows it.
  */
+/**
+ * A per-bucket mean needs more than one or two messages behind it.
+ *
+ * The only guard here used to be `warmRequests > 0`, which let a single message
+ * anchor either end of the ratio: a "3.6x" headline was being stated from two
+ * observations against two. Same distinction as the advice floors -- this asks
+ * whether there is enough to compute a rate, not whether the rate matters.
+ */
+const MIN_BUCKET_REQUESTS = 3;
+
 function habits(
 	depth: Record<string, DepthStats>,
 	rollups: Rollup[],
@@ -458,11 +481,11 @@ function habits(
 	p: Projection
 ): string {
 	// Cold starts are excluded: a first request to a model pays for the whole
-	// context at full price, which would swamp the trend being shown.
+	// context at full price, which would swamp the trend being compared.
 	const bars = DEPTH_BUCKETS
 		.map(b => ({ label: b.label, stats: depth?.[b.label] }))
 		.filter((b): b is { label: string; stats: DepthStats } =>
-			b.stats !== undefined && b.stats.warmRequests > 0)
+			b.stats !== undefined && b.stats.warmRequests >= MIN_BUCKET_REQUESTS)
 		.map(b => ({
 			label: b.label,
 			requests: b.stats.warmRequests,
@@ -489,35 +512,67 @@ function habits(
 		const first = bars[0];
 		const last = bars[bars.length - 1];
 		if (first.cost > 0 && last.cost > first.cost) {
+			// The multiple is a rate; on its own it cannot say whether the habit
+			// is worth changing. A 3.6x multiple on messages you rarely send is
+			// worth ignoring, so the share of spend sitting in the deep bucket --
+			// the size of the lever -- goes in the same sentence.
+			const deep = depth?.[last.label];
+			const spent = deep ? deep.nanoAiu * creditsPerNanoAiu : 0;
+			const share = totals.nanoAiu > 0
+				? spent / (totals.nanoAiu * creditsPerNanoAiu)
+				: 0;
+			const lever = deep && share > 0
+				? ` &mdash; and took <strong>${(share * 100).toFixed(0)}% of your credits</strong>
+				   from ${fmtInt(deep.requests)} message${deep.requests === 1 ? '' : 's'}`
+				: '';
 			lines.push(`<strong>Start a new chat when you change subject.</strong>
 				Copilot re-sends the whole conversation every time you hit enter, so your
 				${escapeHtml(last.label)} message costs
 				<strong>${(last.cost / first.cost).toFixed(1)}&times;</strong> what your
-				${escapeHtml(first.label)} did &mdash; ${fmtCredits(last.cost)} against
-				${fmtCredits(first.cost)} credits, for the same kind of question.`);
+				${escapeHtml(first.label)} did${lever}.`);
 		}
 	}
 
-	if (bars.length === 0 && lines.length === 0) {
+	// The per-bucket table moved to "Where the credits went": it is a breakdown,
+	// and it restated in four rows exactly what the sentence above says in one.
+	// The top of this section carries the action; the evidence lives with the
+	// other evidence.
+	if (lines.length === 0) {
 		return '';
 	}
 
-	const peak = Math.max(...bars.map(b => b.cost), 0);
-	const chart = bars.length >= 2
-		? `<table class="depth">
-			<tr><th>Position in the chat</th><th class="depth-bar"></th>
-			    <th class="num">Credits each</th><th class="num">Messages</th></tr>
-			${bars.map(b => `<tr>
-			<td class="depth-label">${escapeHtml(b.label)} message</td>
-			<td class="depth-bar">${hueBar(peak > 0 ? b.cost / peak : 0, 'c-fresh')}</td>
-			<td class="num">${fmtCredits(b.cost)}</td>
-			<td class="num dim">${fmtInt(b.requests)}</td>
-		</tr>`).join('')}</table>`
-		: '';
+	return lines.map(l => `<p class="note">${l}</p>`).join('');
+}
+
+/** Where the money sits by position in the chat -- a breakdown, not a claim. */
+function depthTable(
+	depth: Record<string, DepthStats>,
+	creditsPerNanoAiu: number,
+	totalCredits: number
+): string {
+	const rows = DEPTH_BUCKETS
+		.map(b => ({ label: b.label, stats: depth?.[b.label] }))
+		.filter((b): b is { label: string; stats: DepthStats } =>
+			b.stats !== undefined && b.stats.requests > 0);
+	if (rows.length < 2) {
+		return '';
+	}
 
 	return `
-	${chart}
-	${lines.map(l => `<p class="note">${l}</p>`).join('')}`;
+	<table class="spaced">
+		<tr><th>By position in the chat</th><th class="num">Messages</th>
+		    <th class="num">Credits</th><th>Share</th></tr>
+		${rows.map(r => {
+			const credits = r.stats.nanoAiu * creditsPerNanoAiu;
+			const share = totalCredits > 0 ? credits / totalCredits : 0;
+			return `<tr>
+			<td>${escapeHtml(r.label.replace(/ message$/, ''))}</td>
+			<td class="num dim">${fmtInt(r.stats.requests)}</td>
+			<td class="num">${fmtCredits(credits)}</td>
+			<td>${hueBar(share, 'c-fresh')} ${(share * 100).toFixed(0)}%</td>
+		</tr>`;
+		}).join('')}
+	</table>`;
 }
 
 /* ---------------------------------------------------------------- table --- */
@@ -619,6 +674,30 @@ export interface HistoryFacts {
  * Reading order still holds when it collapses to one column on a narrow split:
  * verdict, then advice, then the breakdowns.
  */
+/**
+ * "Credits" is the unit every figure on this page is denominated in, and
+ * nothing said what one was. The window is stated as a maximum, not as a claim
+ * that 30 days of data exist -- see `historyNote`.
+ */
+const LOGO = `<svg class="logo" viewBox="42 42 172 172" width="21" height="21" aria-hidden="true">
+	<g transform="translate(128,128)">
+		<path d="M 0 0 L 0 -86 A 86 86 0 0 1 0 86 Z" fill="var(--vscode-charts-blue, #3794FF)"/>
+		<path d="M 0 0 L 0 86 A 86 86 0 0 1 -81.79 -26.58 Z" fill="var(--vscode-charts-green, #89D185)"/>
+		<path d="M 0 0 L -81.79 -26.58 A 86 86 0 0 1 0 -86 Z" fill="var(--vscode-charts-purple, #B180D7)"/>
+		<g stroke="var(--vscode-editor-background, #1F1F1F)" stroke-width="9" stroke-linecap="round">
+			<line x1="0" y1="0" x2="0" y2="-86"/>
+			<line x1="0" y1="0" x2="0" y2="86"/>
+			<line x1="0" y1="0" x2="-81.79" y2="-26.58"/>
+		</g>
+	</g>
+</svg>`;
+
+const LEDE = `<p class="lede">Note: An <strong>AI Credit</strong> is GitHub's billing unit
+	for Copilot &mdash; one is $0.01, charged on the tokens each message sends and receives.
+	This panel keeps up to the last 30 days.
+	<a href="https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-organizations-and-enterprises"
+	   target="_blank" rel="noopener noreferrer">How credits work</a></p>`;
+
 export function renderReport(input: ReportInput): string {
 	const { rollups, creditsPerNanoAiu } = input;
 	const totals = sum(rollups);
@@ -653,9 +732,12 @@ ${STYLES}
 </head>
 <body>
 	<header>
-		<h1>Token Pie</h1>
+		<h1>${LOGO}Token Pie<a class="repo" href="https://github.com/token-pie/token-pie#readme"
+		   target="_blank" rel="noopener noreferrer"
+		   title="Token Pie on GitHub"><svg viewBox="0 0 16 16" width="17" height="17"
+		   aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a></h1>
 		<span class="sub">${coverage(days)} &middot;
-			refreshed ${input.lastRefresh ? escapeHtml(input.lastRefresh.toLocaleTimeString()) : 'never'}
+			<i>refreshed ${input.lastRefresh ? escapeHtml(input.lastRefresh.toLocaleTimeString()) : 'never'}</i>
 		</span>
 	</header>
 	${historyNote(input.history, days)}
@@ -663,7 +745,14 @@ ${STYLES}
 	<section class="verdict" style="--hue:${severityVar(p)}">
 		<div class="verdict-top">
 			${heroFigure(p, totalCredits)}
-			<p class="sentence">${verdictSentence(p, days.at(-1)?.[0])}</p>
+			<!-- The note defines the unit, so it belongs before the first figure
+			     denominated in it. Beside the pace tiles it sat below the meter,
+			     after "1,500 credits used" had already been read, and read as a
+			     caption for YOUR PACE -- which it has nothing to do with. -->
+			<div class="say">
+				<p class="sentence">${verdictSentence(p, days.at(-1)?.[0])}</p>
+				${LEDE}
+			</div>
 		</div>
 		${allowanceMeter(p)}
 		${paceTiles(p)}
@@ -674,16 +763,19 @@ ${STYLES}
 	<!-- One section for everything actionable. Two ("what to change" and
 	     "what your habits cost") meant one of them was routinely empty while
 	     the other had the finding, which read as a broken panel. -->
-	<h2>What to change</h2>
-	${habits(input.depth, rollups, creditsPerNanoAiu, p)}
-	${adviceCards(recommendations, habitsFound(input.depth))}
-
 	<!-- Reference, not headline. Breakdowns answer "where did it go", which a
-	     developer asks occasionally; leaving three tables open made a wall. -->
+	     developer asks occasionally; leaving three tables open made a wall.
+	     This is its own section: an <h2> closes nothing, so while the breakdown
+	     was a bare sibling of the advice cards -- sharing their chrome -- it
+	     read as a third recommendation rather than a different kind of thing.
+	     The heading names the section; the summary carries the total, so
+	     neither repeats the other. -->
+	<section>
+		<h2>Where the credits went</h2>
 	<details class="detail" open>
-		<summary>Where the credits went &mdash;
-			<strong>${fmtCredits(totalCredits)} credits</strong> over
+		<summary><strong>${fmtCredits(totalCredits)} credits</strong> over
 			${fmtInt(totals.requests)} message${totals.requests === 1 ? '' : 's'}</summary>
+		<div class="detail-body">
 
 		${compositionBar(rollups, input.prices, creditsPerNanoAiu) || '<p class="dim">no data</p>'}
 
@@ -699,16 +791,26 @@ ${STYLES}
 			${breakdownRows(byWorkspace, creditsPerNanoAiu, totalCredits)}
 		</table>
 
+		${depthTable(input.depth, creditsPerNanoAiu, totalCredits)}
+
 		${trend}
 		${coverageNote(input.costCoverage, byModel, totals)}
+		</div>
 	</details>
+	</section>
+
+	<section>
+		<h2>What to change</h2>
+		${habits(input.depth, rollups, creditsPerNanoAiu, p)}
+		${adviceCards(recommendations, habitsFound(input.depth))}
+	</section>
 
 	<footer>
-		Credits derive from <code>copilot_chat.copilot_usage_nano_aiu</code>, the cost Copilot
-		itself reports &mdash; not an estimate from list pricing, and not the chat transcript's
-		own <code>copilotCredits</code>, which leaves out the messages you retried or
-		cancelled and were still charged for. Calibrate <code>tokenPie.creditsPerNanoAiu</code> against your GitHub
-		billing dashboard before treating absolute figures as authoritative.
+		Credits come from <code>copilot_chat.copilot_usage_nano_aiu</code>, the cost Copilot
+		reports per request &mdash; not list pricing, and not the transcript's own
+		<code>copilotCredits</code>, which omits messages you retried or cancelled and were
+		still charged for. Check <code>tokenPie.creditsPerNanoAiu</code> against your billing
+		dashboard before treating absolute figures as authoritative.
 	</footer>
 </body>
 </html>`;
@@ -840,7 +942,25 @@ const STYLES = `
 		margin: 0 auto;
 	}
 	header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+	/* Beside the title, not floated to the far edge -- at the edge it reads as
+	   unrelated chrome rather than as part of the product's name block. */
+	.repo { color: var(--vscode-descriptionForeground); margin-left: 9px; }
+	.repo svg { vertical-align: -0.2em; }
+	.repo:hover { color: var(--vscode-foreground); }
+	/* NOT inline-flex: a flex container takes its baseline from its first item,
+	   which here is the logo, so <header>'s baseline alignment pinned the date
+	   to the image's bottom edge instead of to the title's baseline -- and
+	   enlarging the logo pushed it further out of line. Inline content with an
+	   optical vertical-align keeps the baseline on the words. */
 	h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+	.logo { vertical-align: -0.28em; margin-right: 8px; }
+	/* The sentence and the note share the column beside the hero figure. */
+	.say { flex: 1 1 260px; min-width: 240px; }
+	.say .sentence { flex: none; }
+	.lede { margin: 6px 0 0;
+	        font-size: 0.74rem; line-height: 1.55;
+	        font-style: italic; color: var(--vscode-descriptionForeground); }
+	.lede a { color: var(--vscode-charts-blue, #4a9eff); }
 	h2 { font-size: 0.72rem; margin: 20px 0 8px; text-transform: uppercase;
 	     letter-spacing: 0.07em; color: var(--vscode-descriptionForeground); font-weight: 600; }
 	h2.first { margin-top: 0; }
@@ -852,13 +972,13 @@ const STYLES = `
 	           background: var(--vscode-editorWidget-background);
 	           border: 1px solid var(--vscode-widget-border, transparent);
 	           border-left: 3px solid var(--hue); }
-	.verdict-top { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+	.verdict-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 	.hero { font-size: 2.5rem; font-weight: 600; line-height: 1; color: var(--hue); flex: none; }
-	.hero .unit { font-size: 0.85rem; font-weight: 500; margin-left: 6px;
+	.hero .unit { font-size: 1.15rem; font-weight: 500; margin-left: 7px;
 	              color: var(--vscode-descriptionForeground); }
 	.sentence { margin: 0; font-size: 0.9rem; flex: 1 1 260px; min-width: 240px; }
 
-	.meter-wrap { margin-top: 14px; }
+	.meter-wrap { margin-top: 22px; }
 	.meter-head, .meter-foot { display: flex; justify-content: space-between; gap: 12px;
 	     font-size: 0.78rem; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
 	.meter-foot { margin: 5px 0 0; }
@@ -887,27 +1007,51 @@ const STYLES = `
 	.tile.hot .v { color: var(--vscode-charts-red, #f14c4c); }
 
 	/* <details> keeps the lower-ranked findings one click away without script. */
-	.card { border-radius: 7px; margin-bottom: 8px;
+	/* 8px between bordered containers read as one glued block. Prose above the
+	   first card needs a larger gap than the cards need from each other, or the
+	   habits paragraph looks like part of the first finding. */
+	.card { border-radius: 7px; margin-bottom: 12px;
 	        background: var(--vscode-editorWidget-background);
 	        border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2)); }
-	.card > summary { list-style: none; cursor: pointer; padding: 10px 13px;
+	.note + .card { margin-top: 20px; }
+	.card > summary { list-style: none; cursor: pointer; padding: 12px 15px;
 	        display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
 	.card > summary::-webkit-details-marker { display: none; }
 	.card > summary:hover { background: var(--vscode-list-hoverBackground, transparent); }
-	.card-title { font-weight: 600; font-size: 0.89rem; }
-	.card-title::before { content: '\\25B8'; margin-right: 7px; font-size: 0.75em;
-	        color: var(--vscode-descriptionForeground); }
-	.card[open] .card-title::before { content: '\\25BE'; }
+	.card-title { font-weight: 600; font-size: 0.86rem; }
+	.card-title::before,
+	details.detail > summary::before {
+	        content: ''; display: inline-block; width: 6px; height: 6px;
+	        margin: 0 10px 2px 0; vertical-align: middle;
+	        border-right: 1.7px solid currentColor;
+	        border-bottom: 1.7px solid currentColor;
+	        transform: rotate(45deg); transform-origin: 55% 55%;
+	        transition: transform 130ms ease; opacity: 0.85; }
+	.card[open] .card-title::before,
+	details.detail[open] > summary::before { transform: rotate(-135deg); }
+
 	.stake { flex: none; font-size: 0.76rem; font-variant-numeric: tabular-nums;
 	         padding: 1px 7px; border-radius: 10px; white-space: nowrap;
 	         color: var(--vscode-charts-blue, #4a9eff);
 	         border: 1px solid var(--vscode-charts-blue, #4a9eff); }
-	.stake.bounded { color: var(--vscode-descriptionForeground);
+	/* Anything that is not a measurement drops out of the accent colour, so a
+	   solid finding is distinguishable at a glance and not by reading the mark
+	   alone. Colour is never the only carrier: the chip also gains a prefix. */
+	.stake.bounded, .stake.estimated {
+	                 color: var(--vscode-descriptionForeground);
 	                 border-color: var(--vscode-widget-border, rgba(128,128,128,0.4)); }
-	.card-body { padding: 0 13px 4px 13px; font-size: 0.85rem; }
-	.card-evidence { padding: 6px 13px 11px; font-size: 0.74rem;
+	.stake.estimated { border-style: dashed; }
+	.card-body { padding: 2px 15px 8px; font-size: 0.85rem;
+	             line-height: 1.6; text-wrap: pretty; }
+	.card-evidence { margin: 14px 15px 13px; font-size: 0.74rem;
 	                 font-family: var(--vscode-editor-font-family);
+	                 line-height: 1.55;
 	                 color: var(--vscode-descriptionForeground); }
+
+	.card-evidence.rate-card { margin: 16px 0 0; }
+	/* The note is the last thing in the composition block, and the next table's
+	   header row followed it immediately -- the two read as one element. */
+	.composition { margin-bottom: 28px; }
 
 	.comp td, .comp th { padding: 4px 12px 4px 0; }
 	table.spaced { margin-top: 26px; }
@@ -943,7 +1087,7 @@ const STYLES = `
 	/* Subtotal rows carry no hue of their own; their bars borrow the neutral. */
 	.c-any    { background: var(--vscode-charts-foreground, #cccccc); opacity: 0.75; }
 	.swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-	.note { font-size: 0.83rem; margin: 10px 0 0; }
+	.note { font-size: 0.83rem; margin: 12px 0 0; line-height: 1.6; text-wrap: pretty; }
 	.rate-card { padding: 0; margin-top: 6px; }
 
 	table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
@@ -981,23 +1125,24 @@ const STYLES = `
 	.tick { font-size: 0.62rem; color: var(--vscode-descriptionForeground);
 	        margin-top: 4px; white-space: nowrap; }
 
-	details.detail { margin-top: 22px; }
-	details.detail > summary { cursor: pointer; list-style: none; font-size: 0.82rem;
-	    padding: 8px 12px; border-radius: 6px;
-	    color: var(--vscode-descriptionForeground);
+	section + section { margin-top: 38px; }
+	details.detail { margin-top: 0; }
+	details.detail { border-radius: 7px;
 	    background: var(--vscode-editorWidget-background);
 	    border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2)); }
+	details.detail > summary { cursor: pointer; list-style: none;
+	    font-size: 0.86rem; font-weight: 600; padding: 12px 15px; border-radius: 7px;
+	    color: var(--vscode-foreground); }
 	details.detail > summary::-webkit-details-marker { display: none; }
-	details.detail > summary::before { content: '\\25B8'; margin-right: 8px; font-size: 0.8em; }
-	details.detail[open] > summary::before { content: '\\25BE'; }
-	details.detail > summary:hover { color: var(--vscode-foreground); }
-	details.detail[open] > summary { margin-bottom: 4px; }
+	details.detail > summary:hover { background: var(--vscode-list-hoverBackground, transparent); }
+	details.detail[open] > summary { border-radius: 7px 7px 0 0; }
+	.detail-body { padding: 2px 15px 14px; }
 
 	.warn { margin: 12px 0; padding: 8px 11px; border-radius: 5px; font-size: 0.8rem;
 	        background: var(--vscode-inputValidation-warningBackground, rgba(255,190,0,0.1));
 	        border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(255,190,0,0.4)); }
 	.history { margin: 0 0 14px; }
-	footer { margin-top: 22px; padding-top: 12px; font-size: 0.73rem;
-	         border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
-	         color: var(--vscode-descriptionForeground); max-width: 88ch; }
+	footer { margin: 40px 0 0; font-size: 0.73rem; font-style: italic;
+	         color: var(--vscode-descriptionForeground); line-height: 1.65; }
+	footer code { font-weight: 700; color: var(--vscode-foreground); }
 `;

@@ -27,6 +27,7 @@ flowchart TB
         ENT["entitlement.ts<br/><i>which quota binds</i>"]
         PROJ["projection.ts<br/><i>rate × remaining</i>"]
         ADV["advice.ts<br/><i>ranked findings</i>"]
+        CONF["confidence.ts<br/><i>measured, bounded, estimated</i><br/>weakest propagates doubt"]
         UI["report.ts + status bar"]
     end
 
@@ -49,13 +50,14 @@ flowchart TB
     ENT --> PROJ
     STORE --> ADV
     PROJ --> UI
-    ADV --> UI
+    CONF -.->|vocabulary| ADV
+    ADV -->|figures carry their confidence| UI
 
     classDef ext fill:#2d333b,stroke:#768390,color:#adbac7
     classDef own fill:#1c2128,stroke:#4a9eff,color:#adbac7
     classDef write fill:#3d2222,stroke:#f14c4c,color:#f0d0d0
     class DB,WS,SESS,API ext
-    class LOC,ING,WSM,SEL,BF,PROG,STORE,PRICE,ENT,PROJ,ADV,UI own
+    class LOC,ING,WSM,SEL,BF,PROG,STORE,PRICE,ENT,PROJ,ADV,CONF,UI own
     class PURGE write
 ```
 
@@ -264,6 +266,17 @@ which needs no script.
 - **A section heading above a table is the table's first column header.** A
   standalone `<h2>` over a header row whose first cell is empty (or repeats the
   heading) floats free of the thing it names.
+- **A rate is not a reason.** The depth chart sat at the top of *What to change*
+  showing credits-per-message by position, and restated in four rows exactly
+  what the sentence beneath it said in one. Worse, cost-per-message cannot say
+  whether the habit is worth changing — a 3.6× multiple on messages you rarely
+  send is worth ignoring. The sentence now carries the *share of spend* in the
+  deep bucket (the size of the lever), and the per-bucket table moved into
+  *Where the credits went*, which is where breakdowns live. The top of the
+  section carries the action; the evidence sits with the other evidence.
+- **A per-bucket mean needs `MIN_BUCKET_REQUESTS`.** The only guard was
+  `warmRequests > 0`, so one message could anchor either end of the ratio — a
+  "3.6×" was being stated from two observations against two.
 - **Lead with consequences, not categories.** "What your habits cost" sits above
   the breakdowns: cost per warm turn by thread depth, the average cost of a
   request, and how many requests the remaining allowance buys. A per-1k rate
@@ -282,12 +295,159 @@ which needs no script.
   trade, not an oversight.
 - **Every credit must appear.** Spend on models without a rate card is a
   hatched fourth segment, not an omission.
+- **Say which numbers are not measurements.** Three kinds of figure appear on
+  this panel and they must not look alike: a measurement read from telemetry, an
+  upper *bound* on a saving, and an *estimate* that rests on an inferred
+  conversion or an inferred ordering. `confidence.ts` gives them a shared
+  vocabulary; `weakest()` combines it, so a total built on an estimated input is
+  estimated no matter how exact its other inputs were. The mark is a prefix
+  (`≤`, `~`) plus the reason as a tooltip, never colour alone — and never a
+  generic disclaimer, which only teaches the reader to stop reading marks.
+- **Absent beats badged.** A figure with too little behind it is withheld, not
+  labelled. Confidence says *the method may be wrong*; a threshold says *this
+  number has nothing behind it yet*. Badging thin data too makes the mark
+  wallpaper and disarms it on the cases that need it.
+- **Control prose length by writing less, not by capping the width.** Capping a
+  card body at 82ch was tried and reverted: the text stopped two-thirds across a
+  bordered box, and a block that does not fill its container reads as a bug
+  rather than a measure. Body text fills the card, and the remedies were cut to
+  three lines instead of five. A measure is only used where the text is centred
+  and therefore has no left edge to betray it. Nothing currently qualifies: the
+  footer was centred on a measure and reverted, because it was then the only
+  block on the page not lined up with the column.
+- **Measure before believing a layout complaint.** The footer was reported twice
+  as "not filling the width". It had no width constraint: measured, the box was
+  the full 860px and its first line reached 934 of a 960px content edge. The
+  short second line was a single unbreakable monospace token
+  (`tokenPie.creditsPerNanoAiu`) forcing an early break. The fix was shorter
+  prose, not CSS. `Range.getClientRects()` on a CSP-stripped copy of the
+  preview gives per-line extents.
+- **Every link leaves.** A webview is not a browser tab: navigating it away
+  replaces the panel with the destination and there is no back button to return
+  with. Links carry `target="_blank"` and `rel="noopener noreferrer"`, so VS Code
+  hands them to the user's own browser and the opened page cannot reach back
+  through `window.opener`. Pinned by a selftest that walks every `<a>` in the
+  rendered panel, so a link added later cannot skip it.
+- **One word for the unit.** `cr` and `credits` were both in use — *"1,477 cr
+  left"* beside *"23.04 credits"* — which reads as two different units to anyone
+  who has not read the source. Everything says **credits** now, pluralised on
+  the formatted value. A selftest strips the tags and fails on any figure
+  followed by `cr`.
+- **One mark, three places.** `images/icon.svg` is the source the Marketplace
+  icon is generated from; the panel redraws the same three slices inline, and
+  the report's editor tab takes `icon.png` via `WebviewPanel.iconPath`. The
+  panel version substitutes theme variables for the file's hex, so it holds up
+  in a light theme, and a selftest compares the two path sets **numerically** —
+  the file writes `86.0` and `-0.00` where the panel writes `86` and `0`.
+  Its `viewBox` is cropped to `42 42 172 172`, the pie's own extent: the source
+  box is 256 wide for a radius-86 pie, so two thirds of it is padding and the
+  mark drew at ~10px inside a 15px square before the crop.
+  The status bar is the exception and cannot be fixed: its label accepts
+  codicons only, so `$(pie-chart)` stays the closest available match.
+- **A flex container's baseline is its first item's.** `<h1>` was `inline-flex`
+  to sit the logo beside the title, which made the heading's baseline the
+  *logo's bottom edge* rather than the text's — so `<header>`'s
+  `align-items: baseline` pinned the date to the image, and every increase in
+  logo size pushed the date further out of line. The heading is ordinary inline
+  content now, with the logo optically aligned via `vertical-align: -0.28em`.
+  Verified by measuring both text rects: 1px apart, exactly the descender
+  difference between 1.1rem and 0.82rem.
+- **Align to the block, not the first line.** `.verdict-top` used
+  `align-items: baseline`, which was right while the hero sat beside a single
+  sentence. Once that column carried the sentence *and* the note, a baseline
+  pinned the figure to the first line and stranded it at the top of a taller
+  block; it is centred against the column now.
+- **A definition goes before the figures it defines.** Every figure is
+  denominated in credits and nothing said what one was. The note gives the
+  definition, the dollar value and a link to GitHub's own page, and it sits
+  under the verdict sentence inside the first card — not as a paragraph above
+  the card, and not beside the pace tiles.
+
+  The tile row was tried first because it is free: tiles are `flex: 0 1 auto`,
+  so they leave most of that row empty while standing exactly the note's height.
+  It cost 0px, but it put the definition *after* the meter had already said
+  "1,500 credits used", and parked it where it read as a caption for YOUR PACE.
+  Measured across all three: 1507px standalone, 1444px beside the tiles, 1478px
+  under the sentence. The 34px buys correct reading order and is still 29px
+  better than the paragraph it replaced — cheapest is not the same as right.
+
+  The history window is stated as a maximum — *up to* 30 days — never as a claim
+  that 30 days of data exist; see `historyNote`.
+- **Reference before recommendations.** *Where the credits went* sits above
+  *What to change*: advice about spend you have not seen yet is not actionable.
+  Nothing is expanded on arrival, so the reader chooses what to open rather than
+  being handed one card already unfolded.
+- **A disclosure is one region, header and body.** The breakdown put its border
+  on the `summary` alone, so its tables spilled out underneath with no
+  container and the header looked detached from what it opened. The border and
+  background belong on the `details`, with the body in its own padded `div` —
+  the way `.card` was already built.
+- **Close a section, do not just head it.** An `<h2>` wraps nothing, so the
+  breakdown was a bare sibling of the advice cards under one heading. Once both
+  disclosures shared their chrome, nothing was left to say the breakdown was
+  reference rather than a third recommendation. Recommendations and reference
+  are now separate `<section>` elements, 38px apart, each with its own heading —
+  and the heading names the section while the summary carries the total, so
+  neither repeats the other.
+- **Every disclosure looks the same and says so.** Advice cards and the
+  breakdown are both `<details>`, and they had different padding, type sizes and
+  marker glyphs — they read as unrelated components. Both now share the chrome
+  and one chevron, drawn with borders on a rotated box rather than typed as
+  `\25B8`: a glyph at 0.75em was too faint to read as a control, and a drawn one
+  takes the current text colour at any size with no font dependency. It rotates
+  down-to-up on open.
+- **Separate with margin, not a rule.** A horizontal rule needs padding on both
+  sides to clear it, so it costs more vertical space than the separation is
+  worth, and it doubles up against a table that already has a bottom border.
+  Rules above the evidence block and the footer were both tried and removed.
+- **Bordered blocks need more than 8px between them.** Cards sit 12px apart and
+  20px below the prose that introduces them; a paragraph that runs straight into
+  a table header, or a note that runs into the next table, reads as one element
+  rather than two. The composition block carries its own bottom margin for
+  exactly this reason.
+- **Advice clears one of two floors, not both.** A finding shows if it is
+  *urgent* (≥1% of the remaining allowance) **or** a *pattern* (≥0.5 credits and
+  ≥5% of observed spend). Requiring urgency alone silenced every card on an
+  account with a large allowance and ordinary spend. Separately,
+  `MIN_HISTORY_REQUESTS` withholds all advice below ten requests — not enough
+  history to call anything a habit. See `DECISIONS.md#materiality`.
 - **Never `$(copilot)`.** See `DECISIONS.md#attribution`.
 
 ## Previewing the panel
 
 `renderReport` is pure — it takes data and returns a string, with no `vscode`
-import. Render it headless rather than launching an Extension Development Host:
+import. So the panel can be rendered from a plain shell, and there are two ways
+to do it that answer **different questions**.
+
+### From this machine's real rollup
+
+```bash
+npm run preview            # opens the panel in a browser, dark
+npm run preview -- --light
+npm run why                # why each recommendation did or did not appear
+npm run preview -- --file <rollup.json>
+```
+
+`scripts/preview.mjs` reads `rollup.json` out of globalStorage and renders it
+through the real `renderReport`, with the allowance taken from
+`quota-readings.json` where one exists.
+
+**This is the one that catches an empty section.** Fixture rendering asks "does
+the renderer work"; only real data asks "does anything appear on *my* account".
+An advice floor once suppressed every card on a live seat with no test failing,
+because every fixture cleared it. `npm run why` prints the gate arithmetic —
+history floor, both materiality bars, and the stake of each finding against
+them — so a missing card is diagnosed rather than inferred from a screenshot.
+
+The preview defines the `--vscode-*` variables the webview normally inherits,
+and **fails if the stylesheet uses one the preview does not define**, since an
+undefined variable falls back to a browser default and quietly misrepresents the
+panel.
+
+### From fixture data
+
+For a shape the real rollup does not contain — an exhausted quota, a
+15-model account — construct the input inline:
 
 ```bash
 npm run compile

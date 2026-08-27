@@ -278,6 +278,112 @@ check('no script tags in webview', /<script/i.test(html), false);
       cells['not measured yet']) - 26.0) < 0.02, true);
 
   check('the abstract per-1k rate column is gone', /<th>Per 1k<\/th>/.test(costHtml), false);
+
+  // Every weakened figure must be distinguishable without reading the mark, so
+  // the styling that carries it has to survive in the shipped stylesheet.
+  check('the estimated chip style ships', /\.stake\.estimated/.test(html), true);
+
+  // Both disclosures must advertise themselves the same way. A glyph triangle
+  // at 0.75em was too faint to read as a control, and the two used different
+  // ones, so the cards and the breakdown looked like unrelated components.
+  check('one chevron serves both disclosures',
+    /\.card-title::before,\s*\n?\s*details\.detail > summary::before/.test(html), true);
+  check('it is drawn, not typed', /border-right: 1\.7px solid currentColor/.test(html), true);
+  check('and it turns over when open',
+    /details\.detail\[open\] > summary::before \{ transform: rotate\(-135deg\); \}/.test(html), true);
+  check('the old glyph triangles are gone', /\\25B8|\\25BE/.test(html), false);
+
+  // An <h2> closes nothing, so the breakdown was a bare sibling of the advice
+  // cards. Sharing their chrome, it then read as a third recommendation rather
+  // than reference. Each section has to be closed for the boundary to exist.
+  check('recommendations and reference are separate sections',
+    (html.match(/<section>/g) || []).length >= 2, true);
+  check('every section is closed',
+    (html.match(/<section\b/g) || []).length === (html.match(/<\/section>/g) || []).length, true);
+  check('the breakdown sits outside the advice section',
+    /<\/section>\s*(<!--[\s\S]*?-->)?\s*<section>\s*<h2>Where the credits went<\/h2>/.test(html), true);
+  check('the unit every figure uses is defined',
+    /Note: An <strong>AI Credit<\/strong> is GitHub's billing unit/.test(html), true);
+  // It rides in the dead space beside the pace tiles rather than standing as a
+  // paragraph above the card, which cost 63px of height for the same words.
+  // "cr" and "credits" were both in use, which reads as two units. One word.
+  const visible = html.slice(html.indexOf('<body')).replace(/<[^>]+>/g, ' ');
+  const abbreviated = visible.match(/[\d.,]+\s*\bcr\b[/\w]*/g) || [];
+  check('the unit is never abbreviated to "cr"', abbreviated.join(', '), '');
+  // The hero shares a row with a two-part column now, so a baseline would pin
+  // it to the first line and strand it at the top.
+  check('the hero is centred against the column beside it',
+    /\.verdict-top \{ display: flex; align-items: center;/.test(html), true);
+  check('footer identifiers are picked out of the prose',
+    /footer code \{ font-weight: 700;/.test(html), true);
+  check('it is spelled out beside a figure', /[\d.,]+\s+credits?\b/.test(visible), true);
+
+  // A definition has to precede the first figure that uses it, so the note sits
+  // under the verdict sentence -- not beside the pace tiles, where it followed
+  // the meter and read as a caption for YOUR PACE.
+  check('the note sits under the verdict sentence',
+    /<p class="sentence">[\s\S]*?<p class="lede">/.test(html), true);
+  // The meter is absent when no allowance is known, so only assert the order
+  // when there is something to be ordered against.
+  const meterAt = html.indexOf('class="meter-wrap"');
+  check('and above the allowance meter when there is one',
+    meterAt === -1 || html.indexOf('class="lede"') < meterAt, true);
+  check('and not as a block above the verdict card',
+    /<p class="lede">[\s\S]*?<section class="verdict"/.test(html), false);
+  check('with a reference that is not a bare domain',
+    /href="https:\/\/docs\.github\.com\/en\/copilot\/concepts\/billing\/[a-z-]+"/.test(html), true);
+  check('the history window is stated', /up to the last\s*\n?\s*30 days/.test(html), true);
+  check('the title carries the mark', /<svg class="logo"/.test(html), true);
+  // A flex container's baseline comes from its first item. With the logo first,
+  // <header>'s baseline alignment pinned the date to the image's bottom edge,
+  // and every increase in logo size pushed the date further out of line.
+  check('the title is not a flex container',
+    /\bh1 \{[^}]*inline-flex/.test(html), false);
+  check('the logo is aligned optically to the text',
+    /\.logo \{ vertical-align:/.test(html), true);
+  // The same three slices as images/icon.svg, the file the Marketplace icon is
+  // generated from -- one mark across the listing, the tab and the page.
+  const iconSvg = fs.readFileSync(new URL('../images/icon.svg', import.meta.url), 'utf8');
+  // Compared as numbers, not as strings: the source writes "86.0" and "-0.00"
+  // where the panel writes "86" and "0", which is the same geometry.
+  const numbers = d => (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+  const slices = iconSvg.match(/M 0 0 L [^"]+/g) || [];
+  const drawn = html.match(/M 0 0 L [^"]+/g) || [];
+  check('the icon source has three slices', slices.length, 3);
+  check('and the panel draws three', drawn.length, 3);
+  check('with the same geometry',
+    JSON.stringify(slices.map(numbers).map(a => a.map(n => n + 0))),
+    JSON.stringify(drawn.map(numbers).map(a => a.map(n => n + 0))));
+  check('in theme colours, not the file\'s hex',
+    /fill="var\(--vscode-charts-blue/.test(html), true);
+  check('and a link to the repository readme',
+    /<a class="repo" href="https:\/\/github\.com\/[^"]+#readme"/.test(html), true);
+
+  // A webview is not a browser tab: navigating it away replaces the panel and
+  // there is no back button to return with. Every link leaves for the user's
+  // own browser, and carries noopener so the opened page cannot reach back
+  // through window.opener.
+  const anchors = html.match(/<a\b[^>]*>/g) || [];
+  check('the panel has links at all', anchors.length > 0, true);
+  const notExternal = anchors.filter(a => !/target="_blank"/.test(a));
+  check('every link opens outside the panel', notExternal.join(' | '), '');
+  const unsafe = anchors.filter(a => !/rel="[^"]*noopener/.test(a));
+  check('and every link is noopener', unsafe.join(' | '), '');
+  const offsite = anchors.filter(a => !/href="https:\/\//.test(a));
+  check('and every link is https', offsite.join(' | '), '');
+  // Reference before recommendations: you cannot act on advice about spend you
+  // have not seen yet.
+  check('the breakdown comes before what to change',
+    html.indexOf('Where the credits went') < html.indexOf('What to change'), true);
+  check('no recommendation is expanded on arrival',
+    /<details class="card" open>/.test(html), false);
+  check('the breakdown body sits inside the same region',
+    /<summary>[\s\S]*?<\/summary>\s*<div class="detail-body">/.test(html), true);
+
+  check('and its heading does not repeat its summary',
+    /<h2>Where the credits went<\/h2>[\s\S]{0,200}?<summary>(?![\s\S]{0,40}Where the credits went)/.test(html), true);
+  check('bounded and estimated are not styled identically',
+    /\.stake\.estimated \{ border-style: dashed; \}/.test(html), true);
   // Blue adjacent to purple fails CVD separation; green must sit between them.
   check('cached uses the middle hue', /c-cached/.test(costHtml), true);
 }

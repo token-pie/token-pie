@@ -1,6 +1,7 @@
 import { Rollup, Totals, groupBy, sum } from './store';
 import { Selection } from './selection';
 import { PriceStats, Price, solve, costOf } from './pricing';
+import { Confidence, rank } from './confidence';
 
 /**
  * Turns the rollup into things a developer can do differently.
@@ -21,30 +22,59 @@ export interface Advice {
 	/** Credits this is worth, used for ranking. */
 	creditsAtStake: number;
 	/**
-	 * True when `creditsAtStake` is an upper bound rather than a measurement.
+	 * How far `creditsAtStake` can be trusted.
 	 *
 	 * A bound must never outrank a measured number just because it is larger --
 	 * that is how a speculative saving ends up above money demonstrably already
-	 * wasted. Sorting keeps measured findings first regardless of magnitude.
+	 * wasted. Sorting keeps solid findings first regardless of magnitude, and
+	 * the chip carries the mark so the ordering does not read as a bug.
 	 */
-	bounded: boolean;
+	confidence: Confidence;
+	/** Why it is not a measurement. Shown to the reader; see `confidence.ts`. */
+	why?: string;
 	/** The measurement behind the headline, so it can be checked. */
 	evidence: string;
 }
 
 /**
- * Materiality is measured against the allowance, not in absolute credits.
+ * A finding is worth showing for either of two independent reasons, and the
+ * floors below are read as `urgent OR pattern`, never as a choice between them.
  *
- * An absolute floor cannot work across a fleet: 0.5 credits is noise to
- * someone spending 500 a day and half the history of someone who has made five
- * requests. What does generalise is "would fixing this move my throttle date"
- * -- one percent of what is left is the same weight of advice for everyone.
+ * An absolute floor cannot work across a fleet: 0.5 credits is noise to someone
+ * spending 500 a day and half the history of someone who has made five
+ * requests. Share of the *remaining allowance* generalises that -- one percent
+ * of what is left is the same weight of urgency for everyone.
+ *
+ * But urgency alone silences the tool on the account it should help most.
+ * Observed on a Business seat: ~1,500 credits left makes the floor ~15 credits,
+ * against 23 credits of total spend, so no finding could ever clear it and the
+ * whole advice section rendered empty. A large allowance makes a finding less
+ * urgent, not less true, and a developer who only hears about their habits once
+ * they are near the cap hears about them too late to act.
+ *
+ * So share of *observed spend* is not a fallback for when the allowance is
+ * unknown. It is the second, independent question: throttle date aside, is this
+ * a real slice of how this person works?
  */
-const MIN_SHARE_OF_ALLOWANCE = 0.01;
+export const MIN_SHARE_OF_ALLOWANCE = 0.01;
 
-/** Only when no allowance is known: fall back to share of observed spend. */
-const MIN_CREDITS_AT_STAKE = 0.5;
-const MIN_SHARE_AT_STAKE = 0.05;
+export const MIN_CREDITS_AT_STAKE = 0.5;
+export const MIN_SHARE_AT_STAKE = 0.05;
+
+/**
+ * Below this there is no habit to have an opinion about.
+ *
+ * Distinct from the floors above, and the distinction matters: those ask
+ * whether a finding is *worth acting on*, this asks whether there is enough
+ * history to have found anything at all. Five requests can easily be one
+ * session that went badly; calling that a pattern and telling someone to change
+ * how they work is how a tool spends its credibility on noise.
+ *
+ * Ten is where the depth buckets start to fill: enough requests to have spanned
+ * `1st`, `2nd-3rd` and `4th-7th`, so "how you work" is visible rather than
+ * inferred from a single conversation.
+ */
+export const MIN_HISTORY_REQUESTS = 10;
 
 /** A rate needs more than one observation to be a rate. */
 const MIN_BASELINE_REQUESTS = 2;
@@ -105,24 +135,37 @@ export function advise(
 		}
 	}
 
+	// Not enough history to call anything a habit. Withheld outright rather than
+	// shown with a caveat -- see ARCHITECTURE.md, "absent beats badged".
+	if (rollups.reduce((n, r) => n + r.requests, 0) < MIN_HISTORY_REQUESTS) {
+		return [];
+	}
+
 	const found = [
 		cacheMissAdvice(rollups, byModel, creditsPerNanoAiu, prices),
 		modelMixAdvice(rollups, byModel, creditsPerNanoAiu, totalCredits, prices),
 		auxiliaryAdvice(rollups, creditsPerNanoAiu, totalCredits)
 	].filter((a): a is Advice => a !== undefined);
 
-	const material = (a: Advice) =>
-		remainingAllowance !== undefined && remainingAllowance > 0
-			? a.creditsAtStake / remainingAllowance >= MIN_SHARE_OF_ALLOWANCE
-			: a.creditsAtStake >= MIN_CREDITS_AT_STAKE &&
-			  a.creditsAtStake / totalCredits >= MIN_SHARE_AT_STAKE;
+	// Would fixing this move the throttle date?
+	const urgent = (a: Advice) =>
+		remainingAllowance !== undefined &&
+		remainingAllowance > 0 &&
+		a.creditsAtStake / remainingAllowance >= MIN_SHARE_OF_ALLOWANCE;
+
+	// Is it a real slice of how this developer works, throttle date aside?
+	const pattern = (a: Advice) =>
+		a.creditsAtStake >= MIN_CREDITS_AT_STAKE &&
+		a.creditsAtStake / totalCredits >= MIN_SHARE_AT_STAKE;
+
+	const material = (a: Advice) => urgent(a) || pattern(a);
 
 	return found
 		.filter(material)
 		.sort((a, b) =>
-			a.bounded === b.bounded
+			a.confidence === b.confidence
 				? b.creditsAtStake - a.creditsAtStake
-				: Number(a.bounded) - Number(b.bounded)
+				: rank(a.confidence) - rank(b.confidence)
 		);
 }
 
@@ -234,19 +277,16 @@ function cacheMissAdvice(
 			`${misses === 1 ? 'its' : 'their'} whole context uncached, costing ` +
 			`${fmt(excess)} credits more than the same tokens cost warm.`,
 		detail:
-			'A cold cache bills every token of the conversation at full price. Each model ' +
-			'keeps its own cache, so the first request to a model inside a thread pays ' +
-			'in full and every later one is warm -- including when you come back to a ' +
-			'model you used earlier. Editing an earlier message or leaving a thread idle ' +
-			'long enough to expire has the same effect.' +
+			'A cold cache bills the whole conversation at full price. Each model keeps ' +
+			'its own cache, so the first request to a model pays in full and every later ' +
+			'one is warm. Editing an earlier message or leaving a thread idle has the ' +
+			'same effect.' +
 			(byAuto
-				? ' Auto is doing the switching here, not you: it can change model between ' +
-				  'turns of one thread, and each change starts a fresh cache. Pinning a ' +
-				  'model for the length of a long thread is what avoids this.'
-				: ' Finishing a thread on the model you started it on is the single ' +
-				  'cheapest habit change available.'),
+				? ' Auto is switching models mid-thread, and each switch starts a fresh ' +
+				  'cache. Pin one model for the length of a long thread.'
+				: ' Finish a thread on the model you started it on.'),
 		creditsAtStake: excess,
-		bounded: false,
+		confidence: 'measured',
 		evidence:
 			`${worst.model}: ${fmtRate(worst.missRate)} per 1k input tokens uncached vs ` +
 			`${fmtRate(worst.hitRate)} cached, over ${worst.missRequests} uncached and ` +
@@ -409,15 +449,12 @@ function modelMixAdvice(
 			  `${costPhrase}.`,
 		detail:
 			(byAuto
-				? `Auto optimises for getting the answer right, not for what it costs, and ` +
-				  `you did not choose this model -- so "switch models" is not the lever. ` +
-				  `The lever is scope: pin a cheaper model yourself on threads you already ` +
-				  `know are routine, and leave Auto to the work where being wrong is ` +
-				  `expensive. `
-				: `Worth keeping for multi-file agent work, where the stronger model finishes ` +
-				  `in fewer turns and costs less overall. Worth switching away from for the ` +
-				  `turns that are not that: naming things, explaining a function, writing a ` +
-				  `commit message, a single-line fix. `) +
+				? `Auto optimises for the right answer, not the cost, and you did not pick ` +
+				  `this model -- so "switch models" is not the lever. Pin a cheaper model ` +
+				  `on threads you already know are routine. `
+				: `Worth keeping for multi-file agent work, where it finishes in fewer turns ` +
+				  `and costs less overall. Worth switching away from for the turns that are ` +
+				  `not that: naming things, explaining a function, a single-line fix. `) +
 			(exact
 				? `The ${fmt(ceiling)} credit difference prices the exact tokens you already ` +
 				  `spent at the other model's measured rates. It still assumes the cheaper ` +
@@ -425,12 +462,13 @@ function modelMixAdvice(
 				  `tell us.`
 				: `At most ${fmt(ceiling)} credits sit in that difference.`),
 		creditsAtStake: ceiling,
-		bounded: true,
+		confidence: 'bounded',
+		why: 'assumes the cheaper model would finish in the same number of turns',
 		evidence: exact
 			? `${escapeBasket(exact.tokens)} on ${dearest.model} cost ${fmt(dearest.credits)}; ` +
 			  `the same basket at ${cheapest.model} rates ` +
 			  `(fresh ${cheapest.price!.fresh.toFixed(3)}, cached ${cheapest.price!.cached.toFixed(3)}, ` +
-			  `output ${cheapest.price!.output.toFixed(3)} cr/1k, from ${cheapest.price!.n} requests) ` +
+			  `output ${cheapest.price!.output.toFixed(3)} credits/1k, from ${cheapest.price!.n} requests) ` +
 			  `costs ${fmt(exact.cost)}. ${(mix.autoShare * 100).toFixed(0)}% auto-selected.`
 			: `${dearest.model}: ${fmtRate(dearest.rate)} per 1k tokens over ` +
 			  `${dearest.requests} requests, ${(mix.autoShare * 100).toFixed(0)}% of that ` +
@@ -478,7 +516,7 @@ function auxiliaryAdvice(
 			'follow-up suggestions -- against the same allowance as your own turns. ' +
 			'They are individually small and collectively not.',
 		creditsAtStake: credits,
-		bounded: false,
+		confidence: 'measured',
 		evidence: auxiliary
 			.slice(0, 3)
 			.map(a => `${a.name}: ${fmt(a.credits)} over ${a.requests} requests`)

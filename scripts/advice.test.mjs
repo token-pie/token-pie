@@ -67,14 +67,15 @@ let out = advise([sonnet, luna], CR);
 const cache = out.find(a => a.id === 'cache-miss');
 check('card produced', Boolean(cache), true);
 near('stake is the measured excess', cache.creditsAtStake, 10, 1e-6);
-check('stake is measured, not a bound', cache.bounded, false);
+check('stake is measured, not a bound', cache.confidence, 'measured');
 check('headline carries the request count', cache.headline.includes('2 requests'), true);
 check('evidence names the model', cache.evidence.includes('claude-sonnet-5'), true);
 
 console.log('\nmeasured findings outrank larger bounded ones');
 const mix = out.find(a => a.id === 'model-mix');
 check('model-mix card produced', Boolean(mix), true);
-check('model-mix is a bound', mix.bounded, true);
+check('model-mix is a bound', mix.confidence, 'bounded');
+check('and says why in the reader\'s terms', mix.why.includes('same number of turns'), true);
 check('its stake is the larger number', mix.creditsAtStake > cache.creditsAtStake, true);
 check('yet cache-miss is ranked first', out[0].id, 'cache-miss');
 near('bound assumes every turn could move', mix.creditsAtStake, 19 * (1 - (0.93 / 55_300) / (19 / 184_800)), 1e-6);
@@ -125,14 +126,14 @@ check('remedy is not "switch models"', autoMix.detail.includes('"switch models" 
 check('evidence reports the auto share', autoMix.evidence.includes('100% of that spend auto-selected'), true);
 const autoCache = out.find(a => a.id === 'cache-miss');
 check('cache remedy blames Auto for the switching',
-  autoCache.detail.includes('Auto is doing the switching here'), true);
+  autoCache.detail.includes('Auto is switching models mid-thread'), true);
 
 // Hand-picked spend keeps the original framing.
 out = advise([sonnet, luna], CR);
 check('manual headline unchanged',
   out.find(a => a.id === 'model-mix').headline.startsWith('claude-sonnet-5 took'), true);
 check('manual cache remedy unchanged',
-  out.find(a => a.id === 'cache-miss').detail.includes('Finishing a thread on the model'), true);
+  out.find(a => a.id === 'cache-miss').detail.includes('Finish a thread on the model you started it on'), true);
 
 // A model reached both ways reports the split rather than picking a side.
 const half = { ...sonnet, nanoAiu: sonnet.nanoAiu / 2, missNanoAiu: sonnet.missNanoAiu / 2 };
@@ -169,7 +170,7 @@ near('saving is the re-priced basket', mixExact.creditsAtStake, 19 - at(LUNA_CAR
 check('headline states the counterfactual cost',
   mixExact.headline.includes(`would have cost ${at(LUNA_CARD).toFixed(2)}`), true);
 check('evidence names the basket', mixExact.evidence.includes('fresh + 130.0k cached'), true);
-check('still labelled a bound', mixExact.bounded, true);
+check('still labelled a bound', mixExact.confidence, 'bounded');
 check('and says why it remains one',
   mixExact.detail.includes('same number of turns'), true);
 check('unpriced comparison admits it is confounded',

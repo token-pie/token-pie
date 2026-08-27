@@ -614,6 +614,11 @@ function showReport(context: vscode.ExtensionContext): void {
 		vscode.ViewColumn.Active,
 		{ enableScripts: false, retainContextWhenHidden: true }
 	);
+	// The editor tab is the one place outside the page itself that can carry a
+	// real image, so it takes the same icon the Marketplace listing uses. The
+	// status bar cannot: its label accepts codicons only, so `$(pie-chart)`
+	// stays the closest available match there.
+	panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'images', 'icon.png');
 	panel.webview.html = buildHtml();
 	panel.onDidDispose(() => { panel = undefined; }, undefined, context.subscriptions);
 }

@@ -66,6 +66,39 @@ check('names the remedy in plain words', /Start a new chat when you change subje
 check('average message cost given', /Each message you send costs\s*<strong>1\.00 credits<\/strong>/.test(html), true);
 check('translates the allowance into messages', /<strong>500 messages<\/strong> left/.test(html), true);
 
+// A multiple is a rate and cannot say whether the habit is worth changing: 3.6x
+// on messages you rarely send is worth ignoring. The share of spend sitting in
+// the deep bucket is the size of the lever.
+check('states how much spend sits in the deep bucket',
+  /<strong>90% of your credits<\/strong>/.test(html), true);
+check('and how few messages that was', /from 3 messages/.test(html), true);
+
+// The per-bucket table is a breakdown, so it lives with the other breakdowns.
+check('the chart no longer sits at the top of the section',
+  /Position in the chat<\/th>/.test(html), false);
+check('the breakdown carries it instead', /By position in the chat/.test(html), true);
+check('and the first bucket is not labelled "1st message message"',
+  /1st message message/.test(html), false);
+
+console.log('\na rate needs more than one or two messages behind it');
+const thin = (warm) => renderReport({
+  rollups: [{ day: '2026-08-26', model: 'm', workspace: 'w', operation: 'panel/editAgent',
+    selection: 'manual', requests: 10, inputTokens: 1000, outputTokens: 100, reasoningTokens: 0,
+    cacheReadTokens: 500, cacheWriteTokens: 0, nanoAiu: 10e9,
+    missRequests: 0, missInputTokens: 0, missNanoAiu: 0 }],
+  creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+  warnings: [], projection: { verdict: 'ok', remaining: 500 }, prices: {},
+  depth: {
+    '2nd-3rd': { requests: warm, nanoAiu: 4e9, warmRequests: warm, warmNanoAiu: 4e9 },
+    '8th-15th': { requests: warm, nanoAiu: 9e9, warmRequests: warm, warmNanoAiu: 9e9 }
+  }
+});
+check('two observations an end do not make a claim',
+  /Start a new chat when you change subject/.test(thin(2)), false);
+check('three do', /Start a new chat when you change subject/.test(thin(3)), true);
+check('but the breakdown still shows the thin data',
+  /By position in the chat/.test(thin(2)), true);
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} check(s) failed.` : '\nAll checks passed.');
 process.exit(failures ? 1 : 0);

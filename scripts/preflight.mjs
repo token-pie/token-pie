@@ -50,9 +50,34 @@ console.log('\nnothing needless ships');
 for (const [label, re] of [
   ['no source maps', /\.map$/],
   ['no test fixtures', /fixtures?\//],
-  ['no test scripts', /\.test\.mjs$/],
-  ['no screenshots', /Screen-\d\.png$/]
+  ['no test scripts', /\.test\.mjs$/]
 ]) check(label, !files.some(f => re.test(f)), files.find(f => re.test(f)));
+
+// This was `/Screen-\d\.png$/`, which only ever caught two files by name. Two
+// debug screenshots written into the repo root by a headless-Chrome run
+// packaged cleanly and passed. The rule is now the reverse: the icon named in
+// the manifest is the only image allowed to ship, whatever it is called.
+const icon = (JSON.parse(read('package.json')).icon ?? '').replace(/^\.\//, '');
+const strayImages = files
+  .map(f => path.relative(ext, f))
+  .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f) && f !== icon);
+check('no images beyond the manifest icon', strayImages.length === 0, strayImages.join(', '));
+
+// A block-list keeps losing this race: it was two filenames, then any image,
+// and a stray probe .html still walked through. `.vscodeignore` excludes known
+// directories, so anything new dropped in the repo root ships by default.
+// Inverted for good: these are the only things allowed out.
+const allowed = [
+  /^package\.json$/, /^readme\.md$/i, /^changelog\.md$/i, /^license[^/]*$/i,
+  /^out\/[a-z]+\.js$/, new RegExp(`^${icon.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+];
+const unexpected = files
+  .map(f => path.relative(ext, f))
+  // `[Content_Types].xml` and `extension.vsixmanifest` sit outside extension/
+  // and belong to the container, not to us.
+  .filter(f => !f.startsWith('..'))
+  .filter(f => !allowed.some(re => re.test(f)));
+check('nothing ships that is not on the allow-list', unexpected.length === 0, unexpected.join(', '));
 
 console.log('\nthe listing will render');
 const readme = read('readme.md');

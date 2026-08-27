@@ -214,10 +214,123 @@ sites. **Not yet filed.**
 and is not the recommendation. A speculative saving outranked money
 demonstrably already burned.
 
-**Changed:** `Advice.bounded` marks upper bounds. Sorting puts measured
-findings first *regardless of magnitude*, and bounded stakes render as
-`≤ 33.67 cr` in grey so the ordering does not read as a sorting bug. Pinned by
+**Changed:** `Advice.confidence` marks how far a stake can be trusted. Sorting
+puts solid findings first *regardless of magnitude*, and a bound renders as
+`≤ 34.31 cr` in grey so the ordering does not read as a sorting bug. Pinned by
 a test asserting cache-miss ranks first despite the smaller number.
+
+This began as a boolean `bounded` on this one interface and was generalised
+into a shared vocabulary once a second kind of doubt appeared — see
+[#confidence](#confidence).
+
+---
+
+## A large allowance silenced the advice entirely {#materiality}
+
+**Observed on a real Business seat:** the whole *What to change* section
+rendered with its habits table and nothing else. No cards, on any data. The
+cause was the materiality floor: ~1,500 credits remaining put the bar at
+`1% = 14.8 credits`, against 23 credits of total spend. Nothing could clear it,
+and nothing ever would have.
+
+The premise was wrong, and a test asserted the wrong thing outright — *"the
+identical finding is urgent on a small allowance and noise on a large one"*,
+pinned by `silent when 100,000 remain`. The finding it silenced was **48% of
+everything that developer had spent**.
+
+**Changed:** the two floors are read as `urgent OR pattern`, not as a choice
+between them:
+
+- *Urgent* — at least 1% of the remaining allowance. Would fixing this move the
+  throttle date?
+- *Pattern* — at least 0.5 credits and 5% of observed spend. Throttle date
+  aside, is this a real slice of how this person works?
+
+A large allowance makes a finding less urgent, not less true. Advice that only
+appears once someone is near the cap arrives too late to change anything, which
+is the opposite of what this section is for.
+
+**And a second floor, which is not the same thing.** Making the above change
+alone re-broke `light user, 2.2 credits of history` — five requests producing a
+1.4-credit finding. That is not a materiality question: there is simply not
+enough history to call anything a habit. `MIN_HISTORY_REQUESTS = 10` withholds
+all advice below it, ten being where the depth buckets start to fill. Two
+distinct questions that had been collapsed into one number:
+
+| Floor | Asks |
+|---|---|
+| `MIN_HISTORY_REQUESTS` | is there enough history to have found anything? |
+| `urgent` / `pattern` | is the finding worth acting on? |
+
+See [#fleet](#fleet) for the profiles that pin both.
+
+---
+
+## Preflight checked for two filenames, not for images {#preflight-images}
+
+**Observed:** two debug screenshots written into the repo root by a headless
+Chrome run were packaged into the `.vsix` — and preflight passed. The rule was
+`['no screenshots', /Screen-\d\.png$/]`, which only ever matched the two README
+captures by name. Any other image shipped silently.
+
+**Changed twice, because the first fix was still a block-list.** Barring
+non-icon images stopped the screenshots — and then a stray `probe3.html`, left
+in the repo root by a measurement run, packaged cleanly through the same gap.
+`.vscodeignore` excludes known directories, so anything new dropped in the root
+ships by default; a block-list can only ever chase the last mistake.
+
+The check is now a genuine allow-list: `package.json`, the readme, the
+changelog, the licence, `out/*.js` and the manifest's icon. Everything else
+fails. Both versions were verified by planting a decoy and confirming the
+failure before removing it — a check that has never been seen to fail is not yet
+a check.
+
+Two smaller things this exposed. Paths in `files` are absolute temp-dir paths,
+so they have to be made relative to the extension root before comparing to the
+manifest icon. And the deletion that was supposed to remove the strays never
+ran: zsh aborts an entire command line when any glob matches nothing, so
+`rm -f a.png probe*.html` removed nothing at all when the second glob was
+empty.
+
+---
+
+## Three kinds of number must not look alike {#confidence}
+
+**The problem:** the panel is about to carry figures of very different standing.
+A credit total read out of telemetry is a fact. An upper bound on a saving is a
+fact about a limit, not about what would happen. A cost-per-conversation built
+on an ordering inferred from timestamps, or any total built on a *solved*
+nano-AIU conversion rather than the assumed one, can be wrong in a direction
+nobody knows.
+
+Rendered in the same typeface, all three make the same promise. The failure mode
+is specific and unrecoverable: the first time one of them turns out to be wrong,
+a tool that never distinguished them cannot say which ones to keep trusting.
+
+**Changed:** `confidence.ts` defines an ordered vocabulary — `measured`,
+`bounded`, `estimated` — and `weakest()` combines it. Provenance is attached
+where a number is *computed*, not decided at render time, because a render-time
+choice is wrong the moment a section moves or gains a new input.
+
+Three consequences worth stating, because each was a live alternative:
+
+- **Doubt only accumulates.** A total is estimated if any input was, however
+  exact the rest. Callers combine rather than choose, which is what stops a mark
+  being quietly dropped downstream.
+- **The mark is not a word in every chip.** A prefix (`≤`, `~`) with the reason
+  as a tooltip. "Experimental" was considered and rejected: to a developer it
+  means *this feature may change*, when what needs saying is *this number may be
+  wrong*. Repeating a word beside every figure is also noise that stops being
+  read.
+- **The reason is specific or it is absent.** `why` says "assumes the cheaper
+  model would finish in the same number of turns", not "may be inaccurate". A
+  generic disclaimer trains the reader to ignore every mark, including the ones
+  that matter.
+
+**Not solved by this:** confidence says the method may be wrong. It says nothing
+about whether a particular figure has enough observations behind it — that stays
+a threshold, and a thin figure is withheld rather than badged. See
+[#ranking](#ranking) for the boolean this generalises.
 
 ---
 
@@ -249,17 +362,22 @@ failures, all of them confident and arithmetically correct:
 | profile | what it said | why it was wrong |
 |---|---|---|
 | heavy user, 2,412 cr | "save 2,130 credits by switching from sonnet to gpt-mini" | gpt-mini writes thread titles; it cannot do agent work. 88% of a bill, fictional |
-| light user, 2.2 cr of history | a 1.00 cr cache finding | `MIN_CREDITS_AT_STAKE = 0.5` is meaningless next to a 1,477-credit allowance |
+| light user, 2.2 cr of history | a 1.00 cr cache finding | five requests is not a habit -- too little history to have found anything |
 | 15 models, none dominant | compared the 12%-of-spend model against the cheapest | with no dominant model the pairing is arbitrary |
 
 **Changed, two things:**
 
-1. **Materiality is measured against the allowance, not in absolute credits.**
-   An absolute floor cannot generalise -- 0.5 credits is noise to someone
-   spending 500 a day and half the history of someone who has made five
-   requests. `MIN_SHARE_OF_ALLOWANCE = 0.01` asks the question that means the
-   same thing for everyone: would fixing this move the throttle date? Without a
-   known allowance it falls back to share of observed spend.
+1. **Materiality is measured as a share, not in absolute credits.** An absolute
+   floor cannot generalise -- 0.5 credits is noise to someone spending 500 a day
+   and half the history of someone who has made five requests.
+
+   This first became `MIN_SHARE_OF_ALLOWANCE = 0.01` alone, falling back to
+   share of spend only when no allowance was known. That was wrong in the other
+   direction and had to be revisited on a real account: a large allowance
+   suppressed every card. Both floors now apply, independently, and a separate
+   `MIN_HISTORY_REQUESTS` carries the "five requests is not a habit" case that
+   this row had misdiagnosed as a materiality problem. See
+   [#materiality](#materiality).
 
 2. **Models are only compared when they do the same work.** `substitutes()`
    pairs models only if they share a user-facing `operation`, which is what
