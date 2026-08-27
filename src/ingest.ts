@@ -210,6 +210,16 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 				missNanoAiu: missed ? nanoAiu : 0
 			});
 
+			// Spend per conversation, which the rollup's dimensions average away:
+			// by project and by model both report a mean over sessions that can
+			// differ by half again in cost per message.
+			if (sessionId) {
+				store.observeConversation(
+					sessionId, when, nanoAiu,
+					(sessionId && workspaces.get(sessionId)) || 'unknown'
+				);
+			}
+
 			// Per-request, before the rollup aggregates the variation away.
 			store.observePrice(
 				model, inputTokens - cacheReadTokens, cacheReadTokens,

@@ -98,6 +98,17 @@ interface Persisted {
 	/** Turns counted per chat session so far, so ordinals survive restarts. */
 	turns: Record<string, { count: number; seen: number }>;
 	/**
+	 * Spend per conversation.
+	 *
+	 * Kept beside the rollup rather than as a sixth rollup dimension: a session
+	 * key would multiply its cardinality, and the rollup is persisted and never
+	 * pruned. This is bounded the way `turns` is -- by age -- and answers the
+	 * question the other breakdowns average away. By project and by model both
+	 * report a mean; two sessions in the same project measured 2.25 and 1.56
+	 * credits a message.
+	 */
+	conversations: Record<string, ConversationStats>;
+	/**
 	 * Request ids already recovered, mapped to their day so the set can be
 	 * pruned to the window. A flat list grew without bound.
 	 */
@@ -134,7 +145,22 @@ export function depthBucket(turn: number): string {
 	return (DEPTH_BUCKETS.find(b => turn >= b.min && turn <= b.max) ?? DEPTH_BUCKETS[0]).label;
 }
 
-const VERSION = 8;
+/**
+ * A conversation's spend, and enough to name it.
+ *
+ * The id is a UUID, which tells a developer nothing. What identifies a session
+ * to the person who had it is where it happened and when, so the workspace and
+ * the first timestamp are kept alongside the figures.
+ */
+export interface ConversationStats {
+	requests: number;
+	nanoAiu: number;
+	firstMs: number;
+	lastMs: number;
+	workspace: string;
+}
+
+const VERSION = 9;
 
 /** Distinguishes concurrent writes to the same store. */
 let writeCounter = 0;
@@ -147,7 +173,7 @@ function keyOf(
 
 export class RollupStore {
 	private data: Persisted =
-		{ version: VERSION, rollups: {}, cursors: {}, prices: {}, depth: {}, turns: {},
+		{ version: VERSION, rollups: {}, cursors: {}, prices: {}, depth: {}, turns: {}, conversations: {},
 		  backfilled: {}, backfilledFiles: {} };
 	private dirty = false;
 
@@ -283,12 +309,45 @@ export class RollupStore {
 		return this.data.depth ?? {};
 	}
 
+	observeConversation(
+		sessionId: string,
+		when: number,
+		nanoAiu: number,
+		workspace: string
+	): void {
+		const c = (this.data.conversations ??= {});
+		const e = (c[sessionId] ??=
+			{ requests: 0, nanoAiu: 0, firstMs: when, lastMs: when, workspace });
+		e.requests += 1;
+		e.nanoAiu += nanoAiu;
+		e.firstMs = Math.min(e.firstMs, when);
+		e.lastMs = Math.max(e.lastMs, when);
+		// A session can start before its workspace is known; take the first real
+		// answer rather than leaving it "unknown" forever.
+		if (e.workspace === 'unknown' && workspace !== 'unknown') {
+			e.workspace = workspace;
+		}
+		this.dirty = true;
+	}
+
+	conversationStats(): Record<string, ConversationStats> {
+		return this.data.conversations ?? {};
+	}
+
 	/** Session turn counters are unbounded otherwise; old threads cannot grow. */
 	pruneTurns(olderThanMs: number): void {
 		const cutoff = Date.now() - olderThanMs;
 		for (const [id, entry] of Object.entries(this.data.turns ?? {})) {
 			if (entry.seen < cutoff) {
 				delete this.data.turns[id];
+				this.dirty = true;
+			}
+		}
+		// Same window: a conversation nobody has touched in the retention period
+		// is not something anyone is still deciding about.
+		for (const [id, entry] of Object.entries(this.data.conversations ?? {})) {
+			if (entry.lastMs < cutoff) {
+				delete this.data.conversations[id];
 				this.dirty = true;
 			}
 		}
@@ -351,7 +410,7 @@ export class RollupStore {
 
 	reset(): void {
 		this.data =
-			{ version: VERSION, rollups: {}, cursors: {}, prices: {}, depth: {}, turns: {},
+			{ version: VERSION, rollups: {}, cursors: {}, prices: {}, depth: {}, turns: {}, conversations: {},
 		  backfilled: {}, backfilledFiles: {} };
 		this.dirty = true;
 		this.save();

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+### Added
+
+- **What each conversation cost.** By project and by model both report an
+  average; two sessions in the same project measured 2.25 and 1.56 credits a
+  message. **Where the credits went** now breaks spend down by conversation,
+  with cost per message beside it, labelled by project and start time.
+
 ## 0.2.0
 
 ### Added

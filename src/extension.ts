@@ -592,6 +592,7 @@ function buildHtml(): string {
 		projection,
 		prices: store.priceStats(),
 		depth: store.depthStats(),
+		conversations: store.conversationStats(),
 		history: {
 			traceStartDay: lastResult?.traceStartMs !== undefined
 				? dayKey(lastResult.traceStartMs) : undefined,

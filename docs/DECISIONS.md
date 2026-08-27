@@ -294,6 +294,38 @@ empty.
 
 ---
 
+## `conversation_id` is `chat_session_id` {#conversations}
+
+**Checked before building on it.** The plan called for per-conversation spend
+keyed on `conversation_id`, described as a better thread key than
+`chat_session_id`. It is not a different key: on real data the two columns hold
+**byte-identical values** — three distinct ids, one to one. There was never any
+new information in it.
+
+So the data was never missing. Ingest already had the session id, for workspace
+mapping and depth bucketing. What was missing is that nothing grouped *spend*
+by it.
+
+**Changed:** a `conversations` aggregate beside the rollup rather than a sixth
+rollup dimension. A session key would multiply the rollup's cardinality, and the
+rollup is persisted and never pruned; this is bounded by age the way `turns` is,
+and dropped by the same `pruneTurns` window.
+
+**Why it earns a table** when by-project and by-model already exist: both report
+a *mean*. Measured here, two conversations in the same project cost **2.25 and
+1.56 credits a message** — a 44% spread that every other breakdown averages
+away.
+
+Two details the shape forced:
+
+- **Labelled by project and start time, not by id.** The id is a UUID and
+  identifies nothing to the person who had the conversation. Where it happened
+  and when is what they recognise.
+- **Withheld below two conversations.** One row is not a comparison, and the
+  comparison is the entire point of the table.
+
+---
+
 ## Thinking is billed inside output, not beside it {#reasoning}
 
 **The question:** `reasoning_tokens` was captured in the rollup from the start

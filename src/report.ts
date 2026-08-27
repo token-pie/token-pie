@@ -1,4 +1,4 @@
-import { Rollup, Totals, DepthStats, DEPTH_BUCKETS, groupBy, sum } from './store';
+import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum } from './store';
 import { Projection } from './projection';
 import { Advice, advise, selectionMix } from './advice';
 import { prefix } from './confidence';
@@ -622,6 +622,48 @@ function habits(
 	return lines.map(l => `<p class="note">${l}</p>`).join('');
 }
 
+/**
+ * Spend per conversation, most expensive first.
+ *
+ * Labelled by project and start time rather than by id: the id is a UUID and
+ * identifies nothing to the person who had the conversation. Cost per message
+ * is the column that earns the table -- by project and by model both report a
+ * mean across sessions that differ by half again.
+ */
+function conversationTable(
+	conversations: Record<string, ConversationStats> | undefined,
+	creditsPerNanoAiu: number,
+	totalCredits: number
+): string {
+	const rows = Object.values(conversations ?? {})
+		.map(c => ({ ...c, credits: c.nanoAiu * creditsPerNanoAiu }))
+		.filter(c => c.requests > 0 && c.credits > 0)
+		.sort((a, b) => b.credits - a.credits);
+	// One conversation is not a comparison, and the comparison is the point.
+	if (rows.length < 2) {
+		return '';
+	}
+
+	const when = (ms: number) => new Date(ms).toLocaleDateString(undefined,
+		{ month: 'short', day: 'numeric' }) + ', ' +
+		new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+	return `
+	<table class="spaced">
+		<tr><th>By conversation</th><th class="num">Messages</th>
+		    <th class="num">Each</th>
+		    <th class="num">Credits</th><th>% of spend</th></tr>
+		${rows.map((c, i) => `<tr${i === 0 ? ' class="lead"' : ''}>
+			<td>${escapeHtml(c.workspace)} <span class="dim">&middot; ${escapeHtml(when(c.firstMs))}</span></td>
+			<td class="num">${fmtInt(c.requests)}</td>
+			<td class="num">${fmtCredits(c.credits / c.requests)}</td>
+			<td class="num">${fmtCredits(c.credits)}</td>
+			<td class="share">${bar(totalCredits > 0 ? c.credits / totalCredits : 0)}<span
+				class="pct">${totalCredits > 0 ? ((c.credits / totalCredits) * 100).toFixed(0) : 0}%</span></td>
+		</tr>`).join('')}
+	</table>`;
+}
+
 /** Where the money sits by position in the chat -- a breakdown, not a claim. */
 function depthTable(
 	depth: Record<string, DepthStats>,
@@ -759,6 +801,7 @@ export interface ReportInput {
 	projection: Projection | undefined;
 	prices: Record<string, PriceStats>;
 	depth: Record<string, DepthStats>;
+	conversations?: Record<string, ConversationStats>;
 	history?: HistoryFacts;
 }
 
@@ -901,6 +944,8 @@ ${STYLES}
 			    <th class="num">Credits</th><th>Share</th></tr>
 			${breakdownRows(byWorkspace, creditsPerNanoAiu, totalCredits)}
 		</table>
+
+		${conversationTable(input.conversations, creditsPerNanoAiu, totalCredits)}
 
 		${depthTable(input.depth, creditsPerNanoAiu, totalCredits)}
 

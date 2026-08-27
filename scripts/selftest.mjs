@@ -298,6 +298,47 @@ check('no script tags in webview', /<script/i.test(html), false);
   // that models differ, so the share sits beside the model names too.
   // Volume explains why a model's total is what it is: 21 messages carrying
   // 719k tokens is a different story from 21 short ones.
+  // By project and by model both report a mean across sessions; on real data two
+  // conversations in one project cost 2.25 and 1.56 credits a message.
+  const convStore = new RollupStore(path.join(dir, 'conv.json'));
+  const t0 = Date.parse('2026-08-26T17:33:00Z');
+  for (let i = 0; i < 10; i++) convStore.observeConversation('a', t0 + i * 1000, 2.0e9, 'proj');
+  for (let i = 0; i < 4; i++) convStore.observeConversation('b', t0 + i * 1000, 1.0e9, 'proj');
+  convStore.observeConversation('c', t0, 0.5e9, 'unknown');
+  const conv = convStore.conversationStats();
+  check('conversations accumulate per session', Object.keys(conv).length, 3);
+  check('with their request counts', conv.a.requests, 10);
+  check('and their spend', conv.a.nanoAiu, 20e9);
+  check('first and last are kept apart', conv.a.lastMs - conv.a.firstMs, 9000);
+
+  const convHtml = renderReport({
+    rollups: [priced], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+    costCoverage: 1, warnings: [], projection: undefined,
+    prices: {}, depth: {}, conversations: conv
+  });
+  check('the panel breaks spend down by conversation',
+    /<th>By conversation<\/th>/.test(convHtml), true);
+  check('labelled by project, not by uuid',
+    /<td>proj <span class="dim">/.test(convHtml) && !/<td>a<\/td>/.test(convHtml), true);
+  const each = [...convHtml.matchAll(
+    /<tr[^>]*>\s*<td>proj[\s\S]*?<td class="num">(\d+)<\/td>\s*<td class="num">([\d.]+)<\/td>/g)]
+    .map(m => [Number(m[1]), Number(m[2])]);
+  check('cost per message is per conversation, not pooled',
+    JSON.stringify(each), JSON.stringify([[10, 2.00], [4, 1.00]]));
+  check('dearest first', convHtml.indexOf('20.00') < convHtml.indexOf('4.00'), true);
+
+  // One conversation is not a comparison, and the comparison is the point.
+  const single = renderReport({
+    rollups: [priced], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+    costCoverage: 1, warnings: [], projection: undefined,
+    prices: {}, depth: {}, conversations: { a: conv.a }
+  });
+  check('withheld below two conversations', /By conversation/.test(single), false);
+
+  // Bounded by age like the turn counters beside it, or the store grows forever.
+  convStore.pruneTurns(1000);
+  check('old conversations are pruned', Object.keys(convStore.conversationStats()).length, 0);
+
   check('the breakdowns carry token counts',
     /<th>By model<\/th>[\s\S]*?<th class="num">Tokens<\/th>/.test(html), true);
   check('projects too',

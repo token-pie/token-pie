@@ -155,7 +155,8 @@ const theme = flag('light') ? LIGHT : DARK;
 const body = renderReport({
   rollups, creditsPerNanoAiu: CR, dbCount: 1, lastRefresh: new Date(),
   costCoverage: 1, warnings: [], projection,
-  prices: data.prices ?? {}, depth: data.depth ?? {}
+  prices: data.prices ?? {}, depth: data.depth ?? {},
+  conversations: data.conversations ?? {}
 });
 
 // A variable the stylesheet uses but this file does not define renders as a
