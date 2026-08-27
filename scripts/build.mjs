@@ -90,6 +90,25 @@ try {
   process.exit(1);
 }
 
+/* -------------------------------------------------------------- audit --- */
+// What landed against what was written about it. Preflight proves the changelog
+// section is not empty; this asks whether it is complete.
+stage += 1;
+process.stdout.write(`  ${stage}. release audit${' '.repeat(LABEL_WIDTH - 13)}`);
+try {
+	const out = execFileSync('node', ['scripts/release-audit.mjs'],
+		{ cwd: root, encoding: 'utf8', stdio: 'pipe' });
+	const note = /note:/.test(out);
+	console.log(note ? 'check' : 'ok');
+	if (note) {
+		console.log(out.trimEnd().split('\n').map(l => `     ${l.trim()}`).join('\n'));
+	}
+} catch (err) {
+	console.log('FAILED');
+	console.log('\n' + ((err.stdout ?? '') + (err.stderr ?? '')).trimEnd() + '\n');
+	process.exit(1);
+}
+
 /* ------------------------------------------------------------ hygiene --- */
 // Advisory, not fatal: the allow-list already stops a stray file shipping, but
 // an untracked file in the repo is how it got into the package three times.

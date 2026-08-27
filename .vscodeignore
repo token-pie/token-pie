@@ -1,6 +1,9 @@
 .vscode/**
 src/**
 scripts/**
+
+# Commit hooks, pointed at by core.hooksPath. Repo machinery, not runtime.
+.githooks/**
 node_modules/**
 tsconfig.json
 
