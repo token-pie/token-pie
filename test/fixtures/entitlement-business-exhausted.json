@@ -1,0 +1,28 @@
+{
+  "login": "REDACTED",
+  "access_type_sku": "copilot_for_business_seat_quota",
+  "chat_enabled": true,
+  "copilot_plan": "business",
+  "organization_login_list": [],
+  "token_based_billing": true,
+  "quota_reset_date": "2026-09-01",
+  "quota_reset_date_utc": "2026-09-01T00:00:00.000Z",
+  "quota_snapshots": {
+    "chat": {
+      "quota_id": "chat", "entitlement": 0, "remaining": 0, "quota_remaining": 0,
+      "percent_remaining": 100, "unlimited": true, "has_quota": true,
+      "overage_count": 0, "overage_permitted": false, "credits_used": 0
+    },
+    "completions": {
+      "quota_id": "completions", "entitlement": 0, "remaining": 0, "quota_remaining": 0,
+      "percent_remaining": 100, "unlimited": true, "has_quota": true,
+      "overage_count": 0, "overage_permitted": false, "credits_used": 0
+    },
+    "premium_interactions": {
+      "quota_id": "premium_interactions", "entitlement": 10000, "remaining": 0,
+      "quota_remaining": 0, "percent_remaining": 0, "unlimited": false,
+      "has_quota": false, "overage_count": 0, "overage_permitted": false,
+      "credits_used": 19114
+    }
+  }
+}

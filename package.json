@@ -1,0 +1,133 @@
+{
+  "name": "token-pie",
+  "displayName": "Token Pie",
+  "description": "Local, machine-wide visibility into GitHub Copilot token and AI-credit spend.",
+  "author": "Ashish Koshy",
+  "icon": "images/icon.png",
+  "version": "0.1.0",
+  "publisher": "token-pie",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.126.0"
+  },
+  "categories": [
+    "AI",
+    "Visualization",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "tokenPie.setup",
+        "title": "Token Pie: Enable Local Trace Collection"
+      },
+      {
+        "command": "tokenPie.showReport",
+        "title": "Token Pie: Show Usage Report"
+      },
+      {
+        "command": "tokenPie.refresh",
+        "title": "Token Pie: Refresh Now"
+      },
+      {
+        "command": "tokenPie.doctor",
+        "title": "Token Pie: Diagnostics"
+      },
+      {
+        "command": "tokenPie.purgeContent",
+        "title": "Token Pie: Purge Retained Prompt Content"
+      },
+      {
+        "command": "tokenPie.checkQuota",
+        "title": "Token Pie: Check Quota"
+      },
+      {
+        "command": "tokenPie.showLogs",
+        "title": "Token Pie: Show Logs"
+      }
+    ],
+    "configuration": {
+      "title": "Token Pie",
+      "properties": {
+        "tokenPie.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 30,
+          "markdownDescription": "How often to poll `agent-traces.db` for new spans."
+        },
+        "tokenPie.creditsPerNanoAiu": {
+          "type": "number",
+          "default": 1e-09,
+          "markdownDescription": "Conversion from `copilot_usage_nano_aiu` to AI Credits. **Calibrate against your GitHub billing dashboard before trusting absolute figures.**"
+        },
+        "tokenPie.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show today's spend in the status bar."
+        },
+        "tokenPie.autoPurge.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "After each ingest, delete the model output and tool schemas that `github.copilot.chat.otel.maxAttributeSizeChars` cannot suppress. This is the only case where Token Pie writes to Copilot's database. Measured at under 3 ms in steady state; a locked database is skipped, not waited on."
+        },
+        "tokenPie.autoPurge.busyTimeoutMs": {
+          "type": "number",
+          "default": 250,
+          "minimum": 0,
+          "maximum": 5000,
+          "markdownDescription": "How long the automatic purge waits for a database lock before giving up. Kept short so it never stalls Copilot; the purge is idempotent, so a skipped cycle is harmless."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "probe": "node scripts/probe.mjs",
+    "selftest": "tsc -p . && node scripts/selftest.mjs",
+    "verify": "node scripts/verify-content.mjs",
+    "purge": "tsc -p . && node scripts/purge-content.mjs",
+    "test:entitlement": "tsc -p . && node scripts/entitlement.test.mjs",
+    "test:projection": "tsc -p . && node scripts/projection.test.mjs",
+    "test": "tsc -p . && node scripts/entitlement.test.mjs && node scripts/projection.test.mjs && node scripts/advice.test.mjs && node scripts/pricing.test.mjs && node scripts/depth.test.mjs && node scripts/fleet.test.mjs && node scripts/backfill.test.mjs && node scripts/responsive.test.mjs && node scripts/selftest.mjs",
+    "test:advice": "tsc -p . && node scripts/advice.test.mjs",
+    "test:pricing": "tsc -p . && node scripts/pricing.test.mjs",
+    "test:depth": "tsc -p . && node scripts/depth.test.mjs",
+    "test:fleet": "tsc -p . && node scripts/fleet.test.mjs",
+    "test:backfill": "tsc -p . && node scripts/backfill.test.mjs",
+    "test:responsive": "tsc -p . && node scripts/responsive.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.126.0",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/token-pie/token-pie.git"
+  },
+  "bugs": {
+    "url": "https://github.com/token-pie/token-pie/issues"
+  },
+  "homepage": "https://github.com/token-pie/token-pie#readme",
+  "keywords": [
+    "copilot",
+    "github copilot",
+    "tokens",
+    "credits",
+    "usage",
+    "quota",
+    "cost",
+    "billing",
+    "telemetry",
+    "premium requests"
+  ],
+  "galleryBanner": {
+    "color": "#1F1F1F",
+    "theme": "dark"
+  }
+}
