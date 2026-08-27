@@ -247,7 +247,7 @@ check('no script tags in webview', /<script/i.test(html), false);
 
   // Rows must account for every credit the by-model table shows.
   const rows = [...costHtml.matchAll(
-    /<tr class="comp-(top|child)">\s*<td class="comp-name">([^<]+)<\/td>\s*<td class="num">([\d.,]+)<\/td>/g)]
+    /<tr class="comp-(top|child)">\s*<td class="comp-name">([^<]+)<\/td>\s*(?:<td class="num rate">[^<]*<\/td>\s*)?<td class="num">([\d.,]+)<\/td>/g)]
     .filter(m => m[1] === 'top');
   const shown = rows.reduce((n, m) => n + parseFloat(m[3].replace(/,/g, '')), 0);
   check('rows reconcile with total spend', Math.abs(shown - 26.0) < 0.02, true);
@@ -264,11 +264,91 @@ check('no script tags in webview', /<script/i.test(html), false);
   // Parsed with one literal regex -- building RegExp from a string put `\s`
   // through two escape layers and silently matched nothing, twice.
   const cells = Object.fromEntries([...costHtml.matchAll(
-    /<td class="comp-name">([^<]+)<\/td>\s*<td class="num">([\d.,]+)<\/td>/g)]
+    /<td class="comp-name">([^<]+)<\/td>\s*(?:<td class="num rate">[^<]*<\/td>\s*)?<td class="num">([\d.,]+)<\/td>/g)]
     .map(m => [m[1].trim().replace(/&#39;/g, "'"), parseFloat(m[2].replace(/,/g, ''))]));
   check('subtotal equals its parts',
     Math.abs(cells['what you send'] -
       (cells['new, charged in full'] + cells['repeated, from cache'])) < 0.01, true);
+  // Thinking tokens are billed inside output, not alongside it: a fourth
+  // coefficient fitted against real reasoning-bearing requests came out at
+  // -0.00008 credits per 1k with R2 unchanged. So the row is a CHILD -- it must
+  // appear, priced at the output rate, and must not move the totals.
+  const withThinking = renderReport({
+    rollups: [{ ...priced, reasoningTokens: 1200 }, unpriced],
+    creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+    warnings: [], projection: undefined,
+    prices: { 'priced-model': stats }, depth: store.depthStats()
+  });
+  check('thinking is reported', /thinking, never shown/.test(withThinking), true);
+  check('and reported as a child, not a fourth category',
+    /<tr class="comp-child">\s*<td class="comp-name">thinking, never shown/.test(withThinking), true);
+  const thinkCredits = parseFloat(withThinking.match(
+    /thinking, never shown<\/td>\s*(?:<td class="num rate">[^<]*<\/td>\s*)?<td class="num">([\d.,]+)<\/td>/)[1]);
+  // 1.2k tokens at the solved output rate of 1.00 credits per 1k.
+  check('priced at the output rate', Math.abs(thinkCredits - 1.20) < 0.01, true);
+  const topsWith = [...withThinking.matchAll(
+    /<tr class="comp-top">\s*<td class="comp-name">([^<]+)<\/td>\s*(?:<td class="num rate">[^<]*<\/td>\s*)?<td class="num">([\d.,]+)<\/td>/g)]
+    .reduce((n, m) => n + parseFloat(m[2].replace(/,/g, '')), 0);
+  check('and counted inside output, not added to the bill',
+    Math.abs(topsWith - 26.0) < 0.02, true);
+  check('a model with no thinking shows no row',
+    /thinking, never shown/.test(costHtml), false);
+
+  // The composition row states a fact nobody can act on. What is actionable is
+  // that models differ, so the share sits beside the model names too.
+  // Volume explains why a model's total is what it is: 21 messages carrying
+  // 719k tokens is a different story from 21 short ones.
+  check('the breakdowns carry token counts',
+    /<th>By model<\/th>[\s\S]*?<th class="num">Tokens<\/th>/.test(html), true);
+  check('projects too',
+    /<th>By project<\/th>[\s\S]*?<th class="num">Tokens<\/th>/.test(html), true);
+  // Deliberately absent: a per-model rate blends three prices in whatever mix
+  // the developer happened to use, so it would read as a property of the model
+  // and be a property of the month. See ARCHITECTURE.md.
+  check('but no pooled per-token rate beside the models',
+    /<th>By model<\/th>[\s\S]*?<th class="num">Per token<\/th>/.test(html), false);
+
+  check('the by-model table gains a thinking column',
+    /<th class="num">Thinking<\/th>/.test(withThinking), true);
+  check('and shows it as a share of that model\'s own replies',
+    /<td class="num">25%<\/td>/.test(withThinking), true);
+  check('a model reporting none shows a dash, not 0%',
+    /<td class="num dim">&mdash;<\/td>/.test(withThinking), true);
+  check('and the column is absent when nothing reports thinking',
+    /<th class="num">Thinking<\/th>/.test(costHtml), false);
+
+  // The two share columns show the divergence; nothing said what drives it, and
+  // a reader who does not stop to compare 1% of tokens against 21% of credits
+  // leaves without the finding. Stated as a multiple, measured from this
+  // machine's own card -- a per-1k rate column was tried and removed.
+  check('the cost gap between input and output is stated',
+    /a token Copilot writes costs 4x one you send new/.test(costHtml), true);
+  check('and against cached input too',
+    /50x one it reads back from cache/.test(costHtml), true);
+  check('still no per-1k rate column', /<th>Per 1k<\/th>/.test(costHtml), false);
+
+  // Volume and cost were both shown and the price never was, so the reader had
+  // to divide one column by the other to find out why 1% of the tokens is 21%
+  // of the bill. Stated as a multiple of fresh input, which is shown as 1x so
+  // the baseline is visible rather than implied.
+  check('the price is on the rows, not only in the prose',
+    /<th class="num">Per token<\/th>/.test(costHtml), true);
+
+  // Two columns both called "Share" left position as the only clue to which
+  // measure each belonged to.
+  check('each share column names its own denominator',
+    /% of spend<\/th>[\s\S]*?% of text<\/th>/.test(costHtml), true);
+  check('and neither is called just "Share"',
+    /<th class="num">Share<\/th>/.test(costHtml), false);
+  const rate = label => (costHtml.match(new RegExp(
+    `<td class="comp-name">${label}<\\/td>\\s*<td class="num rate">([^<]*)<\\/td>`)) || [])[1];
+  check('fresh input is the baseline', rate('new, charged in full'), '1&times;');
+  check('cache is a fraction of it', rate('repeated, from cache'), '0.08&times;');
+  check('a reply costs four times a fresh token', rate("Copilot's replies"), '4&times;');
+  // A parent blends two rates; a weighted average of prices is not a price.
+  check('subtotals carry no price', rate('what you send'), '');
+  check('nor does unpriced spend', rate('not measured yet'), '');
+
   check('labels avoid internal jargon',
     /input tokens|output tokens|not yet priced|\bturns?\b/.test(costHtml), false);
   check('what you send and what comes back are both named',

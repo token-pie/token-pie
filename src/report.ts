@@ -274,14 +274,31 @@ function adviceCards(items: Advice[], somethingElseSaid: boolean): string {
  * output was 2% of tokens and 16% of spend, while cached context was 66% of
  * tokens and 12% of spend. Showing tokens there understated output eightfold.
  */
+function rateContrast(lead: { model: string; price: Price } | undefined): string {
+	if (!lead || lead.price.fresh <= 0) {
+		return '';
+	}
+	const vsFresh = lead.price.output / lead.price.fresh;
+	if (!Number.isFinite(vsFresh) || vsFresh < 1.5) {
+		return '';
+	}
+	const vsCached = lead.price.cached > 0 ? lead.price.output / lead.price.cached : undefined;
+	return `That is the gap between the two share columns: on ` +
+		`${escapeHtml(lead.model)} a token Copilot writes costs ` +
+		`${vsFresh.toFixed(0)}x one you send new` +
+		(vsCached && Number.isFinite(vsCached)
+			? ` and ${vsCached.toFixed(0)}x one it reads back from cache`
+			: '') + `.`;
+}
+
 function compositionBar(
 	rollups: Rollup[],
 	prices: Record<string, PriceStats>,
 	creditsPerNanoAiu: number
 ): string {
-	let fresh = 0, cached = 0, output = 0;
-	let costFresh = 0, costCached = 0, costOutput = 0;
-	let pricedFresh = 0, pricedCached = 0, pricedOutput = 0;
+	let fresh = 0, cached = 0, output = 0, reasoning = 0;
+	let costFresh = 0, costCached = 0, costOutput = 0, costReasoning = 0;
+	let pricedFresh = 0, pricedCached = 0, pricedOutput = 0, pricedReasoning = 0;
 	let pricedCredits = 0, totalCredits = 0;
 	const priced: { model: string; price: Price }[] = [];
 
@@ -296,6 +313,7 @@ function compositionBar(
 		fresh += f;
 		cached += t.cacheReadTokens;
 		output += t.outputTokens;
+		reasoning += t.reasoningTokens;
 
 		const credits = creditsOf(t.nanoAiu, creditsPerNanoAiu);
 		totalCredits += credits;
@@ -310,9 +328,15 @@ function compositionBar(
 		pricedFresh += f;
 		pricedCached += t.cacheReadTokens;
 		pricedOutput += t.outputTokens;
+		pricedReasoning += t.reasoningTokens;
 		costFresh += (f * price.fresh) / 1000;
 		costCached += (t.cacheReadTokens * price.cached) / 1000;
 		costOutput += (t.outputTokens * price.output) / 1000;
+		// Thinking is billed at the output rate, not a rate of its own. Fitting
+		// a fourth coefficient against 13 reasoning-bearing requests returned
+		// -0.00008 credits per 1k with R2 unchanged at 1.000000 -- zero to
+		// within solver noise. See DECISIONS.md#reasoning.
+		costReasoning += (t.reasoningTokens * price.output) / 1000;
 	}
 
 	const tokenTotal = fresh + cached + output;
@@ -332,7 +356,8 @@ function compositionBar(
 			{ label: 'what you send', tokens: fresh + cached },
 			{ label: 'new, charged in full', cls: 'c-fresh', tokens: fresh, child: true },
 			{ label: 'repeated, from cache', cls: 'c-cached', tokens: cached, child: true },
-			{ label: "Copilot's replies", cls: 'c-output', tokens: output }
+			{ label: "Copilot's replies", cls: 'c-output', tokens: output },
+			{ label: 'thinking, never shown', tokens: reasoning, child: true }
 		];
 		return `
 	<div class="composition">
@@ -360,11 +385,31 @@ function compositionBar(
 	const costInput = costFresh + costCached;
 	const tokensInput = pricedFresh + pricedCached;
 
+	// Taken from the figures in the table rather than from a rate card, so the
+	// reader can check any of them by dividing the two columns either side.
+	// Fresh input is the baseline: it is the price everything else is a discount
+	// or a premium on, and showing it as 1x makes the baseline visible instead
+	// of implied.
+	const perToken = (credits: number, tokens: number) =>
+		tokens > 0 ? credits / tokens : undefined;
+	const base = perToken(costFresh, pricedFresh);
+	const relative = (credits: number, tokens: number) => {
+		const rate = perToken(credits, tokens);
+		return base && base > 0 && rate !== undefined ? rate / base : undefined;
+	};
+
 	const rows: CompRow[] = [
 		{ label: 'what you send', credits: costInput, tokens: tokensInput },
-		{ label: 'new, charged in full', cls: 'c-fresh', credits: costFresh, tokens: pricedFresh, child: true },
-		{ label: 'repeated, from cache', cls: 'c-cached', credits: costCached, tokens: pricedCached, child: true },
-		{ label: "Copilot's replies", cls: 'c-output', credits: costOutput, tokens: pricedOutput },
+		{ label: 'new, charged in full', cls: 'c-fresh', credits: costFresh, tokens: pricedFresh,
+		  child: true, multiple: relative(costFresh, pricedFresh) },
+		{ label: 'repeated, from cache', cls: 'c-cached', credits: costCached, tokens: pricedCached,
+		  child: true, multiple: relative(costCached, pricedCached) },
+		{ label: "Copilot's replies", cls: 'c-output', credits: costOutput, tokens: pricedOutput,
+		  multiple: relative(costOutput, pricedOutput) },
+		// Thinking is output, so it carries output's price -- which is the point:
+		// the text you never see costs the same as the answer.
+		{ label: 'thinking, never shown', credits: costReasoning, tokens: pricedReasoning,
+		  child: true, multiple: relative(costReasoning, pricedReasoning) },
 		{ label: 'not measured yet', cls: 'c-open', credits: unpricedCost, tokens: unpricedTokens }
 	];
 
@@ -386,7 +431,7 @@ function compositionBar(
 				unpricedCost > 0
 					? `. The ${fmtCredits(unpricedCost)} credits not measured yet need six billed
 					   messages on one model before they can be split`
-					: ''}.</p>
+					: ''}. ${rateContrast(lead)}</p>
 	</div>`;
 }
 
@@ -401,6 +446,19 @@ interface CompRow {
 	tokens: number;
 	/** A breakdown of the total above it: indented, and outside the shares. */
 	child?: boolean;
+	/**
+	 * Cost per token, as a multiple of fresh input.
+	 *
+	 * The table showed volume and cost but never the price, so the reader had to
+	 * divide one column by the other to discover why 1% of the tokens is 21% of
+	 * the bill. A per-1k *rate* column was tried and removed -- 0.25 credits per
+	 * 1k is the unit a billing system thinks in. A multiple is not: "four times
+	 * what you send" is a sentence a person can hold.
+	 *
+	 * Only on rows that are a single price class. A parent blends two rates, and
+	 * a weighted average of prices is not a price.
+	 */
+	multiple?: number;
 }
 
 /**
@@ -412,12 +470,26 @@ interface CompRow {
  * divergence both visible and exact -- and every row carries its own name, so
  * colour never has to carry identity.
  */
+/** 1x, 0.08x, 4x -- readable at both ends of a fifty-fold range. */
+function fmtMultiple(m: number): string {
+	if (!Number.isFinite(m) || m <= 0) {
+		return '';
+	}
+	if (m < 1) {
+		return `${m.toFixed(2)}&times;`;
+	}
+	return `${Math.abs(m - Math.round(m)) < 0.05 ? m.toFixed(0) : m.toFixed(1)}&times;`;
+}
+
 function compositionTable(rows: CompRow[], withCost: boolean, caption: string): string {
 	// Children are already counted inside their parent, so shares are taken
 	// over the top-level rows alone and still sum to 100%.
 	const tops = rows.filter(r => !r.child);
 	const totalCredits = tops.reduce((n, r) => n + (r.credits ?? 0), 0);
 	const totalTokens = tops.reduce((n, r) => n + r.tokens, 0);
+
+	// Absent entirely when no row can carry one, rather than a column of blanks.
+	const withRate = withCost && rows.some(r => r.multiple !== undefined);
 
 	const body = rows
 		.filter(r => r.tokens > 0 || (r.credits ?? 0) > 0)
@@ -434,6 +506,7 @@ function compositionTable(rows: CompRow[], withCost: boolean, caption: string): 
 
 			return `<tr class="${r.child ? 'comp-child' : 'comp-top'}">
 			<td class="comp-name">${r.label}</td>
+			${withRate ? `<td class="num rate">${fmtMultiple(r.multiple ?? 0)}</td>` : ''}
 			${withCost ? `<td class="num">${fmtCredits(r.credits ?? 0)}</td>
 			${share(creditShare)}` : ''}
 			<td class="num">${fmtTokens(r.tokens)}</td>
@@ -443,9 +516,14 @@ function compositionTable(rows: CompRow[], withCost: boolean, caption: string): 
 		.join('');
 
 	return `<table class="comp">
+		<!-- Two columns both called "Share" left position as the only clue to
+		     which measure each belonged to. Each now names its own denominator,
+		     and the token one borrows the caption's word so the pair reads as
+		     "62% of spend, 82% of text". -->
 		<tr><th>${escapeHtml(caption)}</th>${
-			withCost ? '<th class="num">Credits</th><th class="num">Share</th>' : ''}
-		    <th class="num">Tokens</th><th class="num">Share</th></tr>
+			withRate ? '<th class="num">Per token</th>' : ''}${
+			withCost ? '<th class="num">Credits</th><th class="num">% of spend</th>' : ''}
+		    <th class="num">Tokens</th><th class="num">% of text</th></tr>
 		${body}
 	</table>`;
 }
@@ -601,17 +679,40 @@ function selectionCell(
 }
 
 /** Rows worth a reader's attention, with the free tail folded into one line. */
+/**
+ * A model's thinking as a percentage of its own output.
+ *
+ * A model that reports none shows a dash rather than 0%: "0%" asserts a
+ * measurement of zero, and most models simply do not emit the attribute.
+ */
+function thinkingCell(t: Totals): string {
+	if (t.outputTokens <= 0 || t.reasoningTokens <= 0) {
+		return '<td class="num dim">&mdash;</td>';
+	}
+	return `<td class="num">${((t.reasoningTokens / t.outputTokens) * 100).toFixed(0)}%</td>`;
+}
+
 function breakdownRows(
 	groups: Map<string, Totals>,
 	creditsPerNanoAiu: number,
 	totalCredits: number,
-	rollups?: Rollup[]
+	rollups?: Rollup[],
+	/**
+	 * Thinking as a share of each model's own replies.
+	 *
+	 * A composition row can only say "thinking cost you 1.38 credits", which is
+	 * a fact nobody can act on. What is actionable is that the models differ:
+	 * measured here, two of four charged 15-24% of their output budget for text
+	 * the developer never sees and the other two charged none. That belongs
+	 * beside the model names, where the choice is actually made.
+	 */
+	withThinking = false
 ): string {
 	const entries = [...groups.entries()]
 		.map(([label, t]) => ({ label, t, credits: creditsOf(t.nanoAiu, creditsPerNanoAiu) }))
 		.sort((a, b) => b.credits - a.credits);
 
-	const span = rollups ? 5 : 4;
+	const span = (rollups ? 6 : 5) + (withThinking ? 1 : 0);
 	if (entries.length === 0) {
 		return `<tr><td colspan="${span}" class="dim">no data</td></tr>`;
 	}
@@ -625,6 +726,8 @@ function breakdownRows(
 			<td>${escapeHtml(e.label)}</td>
 			${selectionCell(rollups, e.label, creditsPerNanoAiu)}
 			<td class="num">${fmtInt(e.t.requests)}</td>
+			<td class="num dim">${fmtTokens(e.t.inputTokens + e.t.outputTokens)}</td>
+			${withThinking ? thinkingCell(e.t) : ''}
 			<td class="num">${fmtCredits(e.credits)}</td>
 			<td class="share">${bar(totalCredits > 0 ? e.credits / totalCredits : 0)}<span
 				class="pct">${totalCredits > 0 ? ((e.credits / totalCredits) * 100).toFixed(0) : 0}%</span></td>
@@ -636,6 +739,8 @@ function breakdownRows(
 			<td class="dim">${escapeHtml(free.map(f => f.label).join(', '))} &mdash; unbilled</td>
 			${rollups ? '<td></td>' : ''}
 			<td class="num dim">${fmtInt(requests)}</td>
+			<td class="num dim">${fmtTokens(free.reduce((n, e) => n + e.t.inputTokens + e.t.outputTokens, 0))}</td>
+			${withThinking ? '<td></td>' : ''}
 			<td class="num dim">0.00</td>
 			<td></td>
 		</tr>`);
@@ -700,6 +805,9 @@ const LEDE = `<p class="lede">Note: An <strong>AI Credit</strong> is GitHub's bi
 
 export function renderReport(input: ReportInput): string {
 	const { rollups, creditsPerNanoAiu } = input;
+	// Most models never emit a reasoning count; a column of dashes would be
+	// noise on an account that does not use one.
+	const anyThinking = rollups.some(r => r.reasoningTokens > 0);
 	const totals = sum(rollups);
 	const totalCredits = creditsOf(totals.nanoAiu, creditsPerNanoAiu);
 	const p: Projection = input.projection ?? { verdict: 'unknown' };
@@ -781,12 +889,15 @@ ${STYLES}
 
 		<table>
 			<tr><th>By model</th><th>Chosen by</th><th class="num">Messages</th>
+			    <th class="num">Tokens</th>
+			    ${anyThinking ? '<th class="num">Thinking</th>' : ''}
 			    <th class="num">Credits</th><th>Share</th></tr>
-			${breakdownRows(byModel, creditsPerNanoAiu, totalCredits, rollups)}
+			${breakdownRows(byModel, creditsPerNanoAiu, totalCredits, rollups, anyThinking)}
 		</table>
 
 		<table class="spaced">
 			<tr><th>By project</th><th class="num">Messages</th>
+			    <th class="num">Tokens</th>
 			    <th class="num">Credits</th><th>Share</th></tr>
 			${breakdownRows(byWorkspace, creditsPerNanoAiu, totalCredits)}
 		</table>
@@ -1070,7 +1181,11 @@ const STYLES = `
 	.comp tr.comp-child td { font-weight: 400; border-bottom: none;
 	                         color: var(--vscode-descriptionForeground); }
 	.comp tr.comp-child .comp-name { padding-left: 22px; }
-	.pct-only { text-align: right; font-size: 0.78rem; width: 46px;
+	/* The price is a property of the row, not a measurement of this month, so it
+	   recedes next to the figures it explains. */
+	.comp .rate { color: var(--vscode-descriptionForeground); font-size: 0.8rem; }
+	.comp th { white-space: nowrap; }
+	.pct-only { text-align: right; font-size: 0.78rem; width: 80px;
 	            color: var(--vscode-descriptionForeground); }
 	.rate-num { font-size: 0.76rem; margin-left: 7px;
 	            color: var(--vscode-descriptionForeground); }

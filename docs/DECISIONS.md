@@ -294,6 +294,58 @@ empty.
 
 ---
 
+## Thinking is billed inside output, not beside it {#reasoning}
+
+**The question:** `reasoning_tokens` was captured in the rollup from the start
+and never shown anywhere — billed thinking was invisible. Before surfacing it,
+one thing had to be settled: is it a *subset* of `output_tokens`, or additive?
+That decides whether it is a child row or a fourth category, and getting it
+wrong would double-count a slice of every bill.
+
+**Measured, not assumed.** The rate-card solver answers it directly. Fit a
+fourth coefficient and see whether it is zero:
+
+| model | fresh | cached | output | reasoning | R² |
+|---|---|---|---|---|---|
+| 3-term | 0.25000 | 0.02000 | 1.00003 | — | 1.000000 |
+| 4-term | 0.25000 | 0.02000 | 1.00003 | **-0.00008** | 1.000000 |
+
+Across 21 billed `claude-sonnet-5` requests, 13 of them carrying reasoning, the
+reasoning coefficient is zero to within solver noise and the three-term fit
+stays exact (max residual 4.79e-5 credits). If thinking were billed separately
+the three-term model would be misspecified on those 13 requests and could not
+hold R² = 1.000000. `reasoning ≤ output` also held on every span, 26 of 26.
+
+**Changed:** thinking appears as a child of *Copilot's replies*, priced at the
+output rate — the same treatment the two input classes already get. Children are
+counted inside their parent and excluded from the share denominators, so the
+totals do not move. On real data it was **1.38 of 9.32 credits**: 15% of what
+replies cost, on text the developer never sees.
+
+**Where it is shown, and why not only in the composition table.** A composition
+row can say "thinking cost 1.38 credits" — a fact with no lever attached. What
+is actionable is that the *models differ*, so the share also sits beside the
+model names, where the choice is made:
+
+| model | requests | thinking, as a share of its own replies |
+|---|---|---|
+| claude-sonnet-5 | 21 | 15% |
+| gpt-5.6-luna | 3 | 24% |
+| gpt-5.6-terra | 2 | — |
+| gpt-4o-mini | 33 | — |
+
+Two of four charged a sixth to a quarter of their output budget for text the
+developer never sees; two charged none. The column only appears when something
+reports thinking, and a model reporting none shows a dash rather than `0%` —
+most models simply do not emit the attribute, and `0%` would assert a
+measurement that was never taken.
+
+**Two things this does not claim.** That the ratio generalises — it ran from
+0.03 to 0.65 of output across individual requests. And that the per-model rates
+above are settled: `gpt-5.6-luna` is three requests and `gpt-5.6-terra` two.
+
+---
+
 ## Three kinds of number must not look alike {#confidence}
 
 **The problem:** the panel is about to carry figures of very different standing.

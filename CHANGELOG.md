@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.0
+
+### Added
+
+- **Thinking you are billed for but never see.** Models that reason before
+  answering charge for that text at the output rate, and it was invisible. It
+  now appears under **Copilot's replies** as *thinking, never shown* — measured
+  at 15% of reply cost on real usage. Models that report none show no row.
+  **By model** also carries a thinking column, so the difference is visible
+  where you choose between models — measured here at 15% and 24% for two models
+  against none for the other two.
+- **What input and output actually cost, in one sentence.** The breakdown showed
+  that replies are a sliver of your tokens and a slab of your bill, but left you
+  to work out the ratio. It now says it: measured on your own messages, a token
+  Copilot writes costs 4x one you send new and 50x one it reads back from cache.
+  The breakdown also carries a **Per token** column — `1x` for new input, `0.08x`
+  from cache, `4x` for replies — so the price sits beside the volume and the cost
+  instead of having to be worked out from them. Its two share columns are named
+  **% of spend** and **% of text** rather than both being called *Share*.
+- **By model** and **By project** now show how many tokens each accounted for,
+  which is what explains why a total is the size it is.
+
 ## 0.1.7
 
 ### Fixed
