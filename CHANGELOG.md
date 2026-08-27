@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.1 — documentation and test isolation
+
+No change to how the extension behaves.
+
+- Reworded the documentation and source comments: removed references to
+  specific machines and environments, and replaced subjective asides with the
+  technical reasoning behind each decision.
+- Replaced a section comparing a named third-party extension with a neutral
+  note on why the trace database was chosen over the chat transcripts.
+- Fixed test isolation: fixture-based runs read the real user directories
+  through `backfill`, so live chat transcripts could leak into their counts.
+  Session directories are now injectable and the pipeline tests pass `[]`.
+
 ## 0.1.0 — first public release
 
 Local, machine-wide visibility into GitHub Copilot spend, with a throttle
