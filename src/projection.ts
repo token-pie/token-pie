@@ -49,6 +49,14 @@ export interface Projection {
 	sustainableDailyBurn?: number;
 	/** What GitHub says you have spent against this allowance. */
 	creditsUsed?: number;
+	/**
+	 * When the allowance refills, verbatim from the endpoint.
+	 *
+	 * `daysToReset` is the derived form the projection needs; the raw date is
+	 * what dates the *start* of the billing period, which is the only window
+	 * over which our measured total and GitHub's are comparable.
+	 */
+	resetDate?: string;
 }
 
 /** Below this many days of headroom, warn. */
@@ -97,6 +105,7 @@ export function project(
 			remaining: 0,
 			percentRemaining: 0,
 			creditsUsed: snapshot.creditsUsed,
+			resetDate: entitlement.resetDate,
 			daysToReset
 		};
 	}
@@ -106,6 +115,8 @@ export function project(
 		entitlement: snapshot.entitlement,
 		remaining,
 		percentRemaining: snapshot.percentRemaining,
+		creditsUsed: snapshot.creditsUsed,
+		resetDate: entitlement.resetDate,
 		daysToReset,
 		sustainableDailyBurn:
 			daysToReset && daysToReset > 0 ? remaining / daysToReset : undefined

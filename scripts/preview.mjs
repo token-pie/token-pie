@@ -67,10 +67,15 @@ function entitlement() {
   return {
     snapshots: [{
       name: last.quotaId, entitlement: last.entitlement,
+      creditsUsed: last.creditsUsed,
       remaining: Math.floor(last.remaining), remainingExact: last.remaining,
       percentRemaining: (last.remaining / last.entitlement) * 100,
       hasQuota: last.remaining > 0, unlimited: false
     }],
+    // Carried through so the panel can reconcile GitHub's consumption against
+    // ours. Readings saved before these were recorded simply lack them, and
+    // the reconciliation line withholds itself -- which is the live behaviour.
+    resetDate: last.resetDate,
     organizations: [], raw: last
   };
 }

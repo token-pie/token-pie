@@ -186,7 +186,8 @@ src/
   report.ts      the webview. No scripts; <details> for progressive disclosure.
   purge.ts       the only writer to a database we do not own
   sessions.ts    session-file turns; used for reconciliation, NOT for spend
-  reconcile.ts   cross-checks our total against the quota delta
+  reconcile.ts   two cross-checks: units (quota delta vs session
+                 credits) and scope (GitHub's period spend vs ours)
 ```
 
 ## Before publishing

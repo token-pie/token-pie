@@ -339,6 +339,59 @@ check('no script tags in webview', /<script/i.test(html), false);
   convStore.pruneTurns(1000);
   check('old conversations are pruned', Object.keys(convStore.conversationStats()).length, 0);
 
+  // The two credit figures on the panel, reconciled.
+  //
+  // The meter reads GitHub's consumption for the period and the breakdown reads
+  // ours; before this they were printed side by side with nothing saying why
+  // they differ. Dated from today so the assertion does not expire.
+  const today = new Date().toISOString().slice(0, 10);
+  const nextMonth = new Date();
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+  const reset = nextMonth.toISOString().slice(0, 10);
+  const dated = (r) => ({ ...r, day: today });
+  const withQuota = (creditsUsed) => renderReport({
+    rollups: [dated(priced), dated(unpriced)], creditsPerNanoAiu: 1e-9, dbCount: 1,
+    lastRefresh: new Date(), costCoverage: 1, warnings: [],
+    projection: {
+      verdict: 'ok', quotaId: 'premium_interactions', entitlement: 1500,
+      remaining: 1500 - creditsUsed, creditsUsed, resetDate: reset
+    },
+    prices: {}, depth: {}
+  });
+
+  // 19.9 + 6.1 = 26.0, exactly what GitHub billed.
+  const agreed = withQuota(26.0);
+  check('the panel reconciles GitHub\'s figure against ours',
+    /GitHub bills/.test(agreed), true);
+  check('agreement does not allege spend elsewhere',
+    /accounts for\s+essentially all of it/.test(agreed), true);
+
+  const elsewhere = withQuota(50.0);
+  check('a shortfall is named as spend this machine cannot see',
+    /cannot see/.test(elsewhere), true);
+  check('and quantified rather than merely alleged',
+    /24\.00 credits went somewhere/.test(elsewhere.replace(/\s+/g, ' ')), true);
+  check('and says the breakdown below is only part of the story',
+    /only what happened here/.test(elsewhere.replace(/\s+/g, ' ')), true);
+
+  // Measuring more than we were billed is a calibration fault, not a discovery
+  // about other machines, and must not be reported as one.
+  const overMeasured = withQuota(10.0);
+  check('over-measurement points at the conversion',
+    /creditsPerNanoAiu/.test(overMeasured.split('What to change')[0]), true);
+  check('and not at other machines',
+    /cannot see/.test(overMeasured), false);
+
+  // Without a reset date there is no period to compare over, and inventing one
+  // would put a confident wrong number beside the meter.
+  const noReset = renderReport({
+    rollups: [dated(priced)], creditsPerNanoAiu: 1e-9, dbCount: 1,
+    lastRefresh: new Date(), costCoverage: 1, warnings: [],
+    projection: { verdict: 'ok', entitlement: 1500, remaining: 1474, creditsUsed: 26 },
+    prices: {}, depth: {}
+  });
+  check('withheld when the billing period is unknown', /GitHub bills/.test(noReset), false);
+
   check('the breakdowns carry token counts',
     /<th>By model<\/th>[\s\S]*?<th class="num">Tokens<\/th>/.test(html), true);
   check('projects too',

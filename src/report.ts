@@ -1,5 +1,6 @@
 import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum } from './store';
 import { Projection } from './projection';
+import { PeriodCoverage, periodCoverage } from './reconcile';
 import { Advice, advise, selectionMix } from './advice';
 import { prefix } from './confidence';
 import { PriceStats, Price, solve } from './pricing';
@@ -855,6 +856,17 @@ export function renderReport(input: ReportInput): string {
 	const totalCredits = creditsOf(totals.nanoAiu, creditsPerNanoAiu);
 	const p: Projection = input.projection ?? { verdict: 'unknown' };
 
+	// GitHub's own consumption figure, preferred over the difference we derive
+	// from the meter: `credits_used` is what the account was billed, while
+	// entitlement - remaining inherits the rounding on both.
+	const periodFit = periodCoverage({
+		resetDate: p.resetDate,
+		githubCredits: p.creditsUsed ?? (p.entitlement !== undefined && p.remaining !== undefined
+			? Math.max(0, p.entitlement - p.remaining)
+			: undefined),
+		creditsByDay: creditsByDay(rollups, creditsPerNanoAiu)
+	});
+
 	const byModel = groupBy(rollups, 'model');
 	const byWorkspace = groupBy(rollups, 'workspace');
 	const byDay = groupBy(rollups, 'day');
@@ -927,6 +939,8 @@ ${STYLES}
 		<summary><strong>${fmtCredits(totalCredits)} credits</strong> over
 			${fmtInt(totals.requests)} message${totals.requests === 1 ? '' : 's'}</summary>
 		<div class="detail-body">
+
+		${coverageLine(periodFit)}
 
 		${compositionBar(rollups, input.prices, creditsPerNanoAiu) || '<p class="dim">no data</p>'}
 
@@ -1024,6 +1038,45 @@ function coverage(days: [string, Totals][]): string {
  * it can hold two hours, and a panel that says "last 30 days" over one day of
  * data reads as broken rather than as honest.
  */
+/**
+ * The two credit figures on this page, reconciled.
+ *
+ * The meter above reads GitHub's consumption for the billing period; the total
+ * beside this line reads ours. Printing both and saying nothing left the reader
+ * to spot the difference and guess at it. Named, the difference is useful: it
+ * bounds how much of the advice below can apply, because advice can only ever
+ * be about spend this machine can see.
+ */
+function coverageLine(c: PeriodCoverage | undefined): string {
+	if (!c) {
+		return '';
+	}
+	const since = new Date(c.periodStart)
+		.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+	const billed = `GitHub bills <strong>${fmtCreditsWith(c.githubCredits)}</strong>
+		since ${escapeHtml(since)}`;
+
+	switch (c.verdict) {
+		case 'complete':
+			return `<p class="note">${billed}, and this machine accounts for
+				essentially all of it.</p>`;
+		case 'partial':
+			return `<p class="note">${billed}. This machine accounts for
+				<strong>${fmtCredits(c.localCredits)}</strong>
+				(${Math.round((c.share ?? 0) * 100)}%); the other
+				${fmtCreditsWith(c.unaccounted)} went somewhere it cannot see &mdash;
+				another machine, another editor, the CLI, or github.com.
+				Everything below covers only what happened here.</p>`;
+		case 'over':
+			return `<div class="warn"><div>${billed}, but this machine measured
+				${fmtCreditsWith(c.localCredits)} over the same days. The credit
+				conversion is likely miscalibrated &mdash; check
+				<code>tokenPie.creditsPerNanoAiu</code> against your billing dashboard.</div></div>`;
+		default:
+			return `<p class="note dim">${billed}. ${escapeHtml(c.note)}</p>`;
+	}
+}
+
 function historyNote(h: HistoryFacts | undefined, days: [string, Totals][]): string {
 	if (!h || days.length === 0) {
 		return '';
@@ -1306,3 +1359,18 @@ const STYLES = `
 	         color: var(--vscode-descriptionForeground); line-height: 1.65; }
 	footer code { font-weight: 700; color: var(--vscode-foreground); }
 `;
+
+/** Per-day credits and message counts, the shape `periodCoverage` compares. */
+function creditsByDay(
+	rollups: Rollup[],
+	creditsPerNanoAiu: number
+): Map<string, { credits: number; requests: number }> {
+	const map = new Map<string, { credits: number; requests: number }>();
+	for (const r of rollups) {
+		const entry = map.get(r.day) ?? { credits: 0, requests: 0 };
+		entry.credits += creditsOf(r.nanoAiu, creditsPerNanoAiu);
+		entry.requests += r.requests;
+		map.set(r.day, entry);
+	}
+	return map;
+}
