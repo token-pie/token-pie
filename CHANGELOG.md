@@ -2,40 +2,46 @@
 
 ## 0.1.7
 
-Fixes the **What to change** section showing no recommendations on accounts with
-a large allowance. A finding had to be worth 1% of the credits you have left, so
-on a plan with a few thousand credits remaining nothing qualified until you were
-already close to the cap. A recommendation now also appears when it accounts for
-a real share of what you have actually spent.
+### Fixed
 
-Recommendations are still withheld below ten messages of history, where there is
-not yet enough to call anything a habit.
+- **Recommendations never appeared on accounts with a large allowance.** A
+  finding had to be worth 1% of the credits remaining, so on a plan with a few
+  thousand left nothing qualified until you were already near the cap — the
+  **What to change** section stayed empty however much you spent. A
+  recommendation now also appears when it accounts for a real share of what you
+  have actually spent.
+- The timestamp beside the title no longer drifts out of line with it.
 
-Findings that give an upper bound rather than a measurement now say, on hover,
-what the bound assumes.
+### Changed
 
-Layout: recommendations no longer sit flush against each other or against the
-text above them, and the advice text is shorter. Every collapsible section now
-shares one header style and a clearer chevron, so it is obvious what can be
-opened. **Where the credits went** is now its own section rather than appearing
-to be part of **What to change**, so recommendations are no longer mixed in with
-reference figures, and it now comes first — advice about spend you have not
-looked at yet is hard to act on. Recommendations start collapsed.
+- **Where the credits went** is its own section and now comes first; advice
+  about spend you have not looked at yet is hard to act on. It was previously
+  indistinguishable from a recommendation.
+- Recommendations start collapsed, share one header style with the breakdowns,
+  and carry a clearer chevron so it is obvious what can be opened.
+- Spend is labelled **credits** everywhere; some figures previously read `cr`.
+- The chart of cost by position in the chat no longer occupies the top of
+  **What to change** — it restated the sentence beneath it, and a
+  cost-per-message figure cannot tell you whether the habit is worth changing.
+  The recommendation now says how much of your spend sits in long threads, and
+  the per-position figures moved into **Where the credits went**.
+- Advice text is shorter, and sections no longer sit flush against each other.
 
-The title carries the pie mark, and a line under it says what a credit actually
-is, what it is worth, and how far back the panel keeps history, with a link to
-GitHub's own documentation, and a GitHub mark linking to the repository.
+### Added
 
-Spend is now labelled **credits** everywhere; some figures previously read
-`cr`.
+- A line under the title saying what an AI Credit is, what it is worth, and how
+  far back the panel keeps history, linking to GitHub's own documentation.
+- The pie mark on the title and the report tab, and a GitHub mark linking to the
+  repository. Links open in your browser rather than replacing the panel.
+- Findings that give an upper bound rather than a measurement now say, on hover,
+  what the bound assumes.
 
-The chart of cost by position in the chat no longer occupies the top of **What
-to change**. It restated what the sentence below it already said, and a
-cost-per-message figure cannot tell you whether the habit is worth changing. The
-recommendation now says how much of your spend sits in long threads, and the
-per-position figures moved into **Where the credits went** with the other
-breakdowns. That comparison is also withheld until at least three messages sit
-in each position it compares.
+### Withheld rather than guessed
+
+- No recommendations below ten messages of history — not enough to call anything
+  a habit.
+- The cost-by-position comparison needs at least three messages in each position
+  it compares; it previously stated a multiple from as few as two.
 
 ## 0.1.6
 
