@@ -50,12 +50,12 @@ see](#what-it-can-and-cannot-see).
 
 ### What you get
 
-![The panel: throttle projection, the allowance meter, and what to change](images/Screen-1.png)
+![The panel: throttle projection, the allowance meter, and what to change](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-1.png)
 
 The verdict and the one habit worth changing, above the fold. The status bar
 carries the same answer at a glance.
 
-![Where the credits went: by kind of text, by model, and by project](images/Screen-2.png)
+![Where the credits went: by kind of text, by model, and by project](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-2.png)
 
 Underneath, the breakdown — including whether *you* or Auto chose each model,
 and prices measured from your own billed messages rather than a price list.

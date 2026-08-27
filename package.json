@@ -4,7 +4,7 @@
   "description": "Local, machine-wide visibility into GitHub Copilot token and AI-credit spend.",
   "author": "Ashish Koshy",
   "icon": "images/icon.png",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "token-pie",
   "license": "MIT",
   "engines": {
@@ -99,7 +99,8 @@
     "test:depth": "tsc -p . && node scripts/depth.test.mjs",
     "test:fleet": "tsc -p . && node scripts/fleet.test.mjs",
     "test:backfill": "tsc -p . && node scripts/backfill.test.mjs",
-    "test:responsive": "tsc -p . && node scripts/responsive.test.mjs"
+    "test:responsive": "tsc -p . && node scripts/responsive.test.mjs",
+    "preflight": "node scripts/preflight.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

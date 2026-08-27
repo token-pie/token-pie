@@ -181,6 +181,18 @@ src/
   reconcile.ts   cross-checks our total against the quota delta
 ```
 
+## Before publishing
+
+```bash
+npm run preflight        # checks the packaged .vsix, not the source
+```
+
+Source being correct does not mean the package is. Every check in there
+represents something that passed an isolated review and still shipped broken --
+most recently a README image that resolved only through a redirect, which the
+Marketplace does not follow, so the picture silently never appeared. Run it
+against the artefact you are about to upload.
+
 ## Verifying a change
 
 ```bash

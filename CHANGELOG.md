@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+Fixes the screenshots not appearing on this page.
+
 ## 0.1.4
 
 Fixes a crash when more than one VS Code window is open. Each window keeps its
