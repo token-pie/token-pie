@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+/**
+ * Rejects a commit message that is not a conventional commit.
+ *
+ * The point is not tidiness. `feat` and `fix` are the commits that belong in
+ * release notes and `chore` and `docs` are the ones that do not, so the type
+ * prefix is what lets the release audit say "four user-facing commits landed
+ * and one line was written about them". Without it that check cannot exist.
+ *
+ * Enforced by a hook rather than by convention so it does not matter who is
+ * committing. Git does not clone hooks, so the repo points at this directory:
+ *
+ *   git config core.hooksPath .githooks
+ */
+import fs from 'node:fs';
+
+const TYPES = [
+	'feat', 'fix', 'perf', 'refactor', 'docs', 'test', 'build', 'ci', 'chore',
+	'style', 'revert'
+];
+
+const file = process.argv[2];
+const raw = fs.readFileSync(file, 'utf8');
+const subject = raw.split('\n').find(l => l.trim() && !l.startsWith('#')) ?? '';
+
+// Git writes these itself, or writes them to be consumed by a later rebase.
+if (/^(Merge|Revert|fixup!|squash!|amend!)/.test(subject)) {
+	process.exit(0);
+}
+
+const pattern = new RegExp(`^(${TYPES.join('|')})(\\([a-z0-9._/-]+\\))?!?: .+$`);
+if (!pattern.test(subject)) {
+	console.error('\n  the commit message is not a conventional commit\n');
+	console.error(`    got:      ${subject || '(empty)'}`);
+	console.error('    expected: type(optional-scope): subject\n');
+	console.error(`    types:    ${TYPES.join(', ')}`);
+	console.error('\n  feat and fix appear in the release notes; the rest do not.');
+	console.error('  Append ! for a breaking change: feat!: drop the old setting\n');
+	process.exit(1);
+}
+
+// Long enough to be useless in a log listing, and it is the line the release
+// audit shows back to you.
+const [, , after] = subject.match(/^([^:]+): (.*)$/) ?? [];
+if (subject.length > 72) {
+	console.error(`\n  subject is ${subject.length} characters; keep it under 72\n`);
+	process.exit(1);
+}
+if (after && /^[A-Z][a-z]/.test(after)) {
+	console.error(`\n  start the subject lower case: "${after}"\n`);
+	process.exit(1);
+}

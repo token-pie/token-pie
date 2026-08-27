@@ -104,7 +104,10 @@
     "test:confidence": "tsc -p . && node scripts/confidence.test.mjs",
     "preview": "tsc -p . && node scripts/preview.mjs",
     "why": "tsc -p . && node scripts/preview.mjs --why --no-open",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "preversion": "npm test",
+    "version": "node scripts/changelog-stub.mjs && git add CHANGELOG.md",
+    "audit": "node scripts/release-audit.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
