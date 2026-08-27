@@ -1,10 +1,11 @@
 # Token Pie
-Token Pie runs locally on each developer's machine, reads telemetry Copilot
-already writes, and answers three things in order:
 
 **Will I still be able to work this week?** That is the question a developer on
 a metered Copilot plan actually has, and nothing GitHub ships answers it — the
 billing dashboard is org-scoped, lagging, and silent on what to do differently.
+
+Token Pie runs locally on each developer's machine, reads telemetry Copilot
+already writes, and answers three things in order:
 
 1. **Will I be throttled?** Measured burn rate joined to live remaining quota,
    projected against the reset date.
