@@ -251,6 +251,43 @@ which needs no script.
 - **Status colours are reserved** for state (`charts-red`/`yellow`), never for
   series identity. Share bars use one hue with emphasis on the leader.
 - **Direct-label every row** so colour never carries identity alone.
+- **No pooled per-token rate beside the models.** The composition table can
+  carry a price because each of its rows is a single price class. A per-model
+  figure cannot: it blends fresh, cached and output in whatever proportion this
+  developer happened to use. Measured on real data, `claude-sonnet-5` came out
+  at 0.051 credits per 1k against `gpt-5.6-terra`'s 0.155 — which reads as
+  "terra is 3x dearer" when sonnet's cache was 92% warm and terra's 49%. Most of
+  the gap is cache warmth, not the price list. It would look like a property of
+  the model and be a property of the month. The by-model table carries **token
+  counts** instead, which are a fact rather than a comparison, and the
+  like-for-like comparison stays in `counterfactual()`, which re-prices the same
+  basket at the other model's measured rates.
+- **A repeated column header is not a header.** The composition table carried
+  two columns both called *Share*, leaving position as the only clue to which
+  measure each belonged to. Each now names its own denominator — **% of spend**
+  and **% of text** — and the token one borrows the caption's word, so a row
+  reads as *62% of spend, 82% of text*. The by-model and by-project tables keep
+  a single `Share`: with one measure there is nothing to confuse it with.
+- **Show the price, not only the volume and the cost.** The table had tokens and
+  credits and nothing between them, so the reader had to divide one column by
+  the other to find out why 1% of the tokens is 21% of the bill — and the naive
+  reading is the wrong way round, because input costs three times more *in
+  total* while costing a quarter as much *per token*. A **Per token** column
+  states it as a multiple of fresh input: `1x`, `0.08x`, `4x`. Derived from the
+  figures in the same row, so any of them can be checked by dividing the columns
+  either side, and absent on rows that blend two rates — a weighted average of
+  prices is not a price. This is not the per-1k rate column that was removed: a
+  rate is the unit a billing system thinks in, a multiple is one a person can
+  hold.
+- **Draw the comparison, then name it.** The two share columns let the reader
+  see that replies are 1% of the tokens and 21% of the credits — but only if
+  they stop and compare. The note beneath now states the multiple outright: *a
+  token Copilot writes costs 4× one you send new and 50× one it reads back from
+  cache*, computed from this machine's own solved card. That is not a
+  reinstatement of the per-1k rate column below: a rate is the unit a billing
+  system thinks in, a multiple is the unit a person does. It is also what makes
+  the thinking figures legible — thinking is output, and output is the
+  expensive class.
 - **Draw a comparison, do not assert it.** Cost-vs-token composition is a table
   whose two share columns are read off the same rows. The sentence it replaced
   carried two percentages that had drifted onto different denominators; columns
@@ -412,6 +449,71 @@ which needs no script.
   `MIN_HISTORY_REQUESTS` withholds all advice below ten requests — not enough
   history to call anything a habit. See `DECISIONS.md#materiality`.
 - **Never `$(copilot)`.** See `DECISIONS.md#attribution`.
+
+## Releasing
+
+```bash
+npm version minor     # or patch / major
+# describe the version in CHANGELOG.md
+npm run build         # clean, compile, test, package, preflight
+```
+
+`npm version` is the entry point, not a wrapper around it. It already bumps
+`package.json`, both `package-lock.json` fields, and creates the commit and tag.
+A bespoke `npm run bump` was written first and removed: it duplicated all of
+that slightly worse, and — the failure that mattered — it was the thing you had
+to remember to use *instead of* the standard command. Reaching for
+`npm version` then left the changelog behind and preflight refused to package,
+with the version and the changelog silently out of step.
+
+Two lifecycle hooks fill the gaps npm leaves:
+
+| hook | does |
+|---|---|
+| `preversion` | runs the suite, so a failing tree cannot be versioned |
+| `version` | opens a `CHANGELOG.md` heading and `git add`s it into the version commit |
+
+The heading goes in **empty on purpose**: preflight fails on an entry with no
+prose under it, so a forgotten changelog stops the build rather than shipping a
+version nobody described. Write the notes, then commit them — the version commit
+itself carries only the stub.
+
+The hook also asks the Marketplace what is live and warns if the new version is
+not ahead of it. Advisory only; being offline never blocks a bump.
+
+### Conventional commits
+
+Enforced by `.githooks/commit-msg`, not by habit, so it does not matter who is
+committing:
+
+```bash
+git config core.hooksPath .githooks   # once per clone; git does not clone hooks
+```
+
+The type prefix is not tidiness. `feat`, `fix` and `perf` are the commits that
+belong in release notes and `chore`, `docs`, `test`, `refactor`, `ci`, `build`
+and `style` are the ones that do not — which is what makes the release audit
+possible at all.
+
+### The release audit
+
+`scripts/release-audit.mjs`, a build stage. Preflight proves a changelog section
+exists and has prose in it; it cannot prove the prose is *complete*, and that is
+the failure that actually happened — entries kept being appended to a version
+already published, because nothing said that section was closed. The version and
+the changelog drifted in content before they drifted in number.
+
+With conventional types the question has a mechanical form: how many user-facing
+commits since the last tag, against how many bullets under the current heading.
+It fails outright on user-facing commits with nothing written, and notes when
+there are fewer bullets than commits. It cannot verify a word of the prose — it
+can stop a release where four features landed and one line was written.
+
+**Not adopted:** `standard-version`, `semantic-release` and friends *generate*
+the changelog from commit subjects. This changelog is the Marketplace release
+notes — the first thing a prospective user reads — and a list of commit subjects
+is a worse artefact than prose someone wrote on purpose. The convention is
+adopted for what it makes checkable, not for what it can write.
 
 ## Previewing the panel
 

@@ -215,6 +215,9 @@ npm test            # 244 checks across nine suites
                     #   responsive   the pipeline must not block the editor
                     #   confidence   measured / bounded / estimated, and combining
                     #   selftest     the whole pipeline on a synthetic database
+npm version minor   # patch|minor|major; hooks run tests + open a changelog entry
+npm run audit       # user-facing commits since the last tag vs changelog bullets
+npm run build       # clean, compile, test, package, preflight
 npm run preview     # render THIS machine's rollup as the panel, in a browser
 npm run why         # why each recommendation did or did not appear
 npm run probe       # dump the real schema on this machine
