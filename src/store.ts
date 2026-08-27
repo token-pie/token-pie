@@ -136,6 +136,9 @@ export function depthBucket(turn: number): string {
 
 const VERSION = 8;
 
+/** Distinguishes concurrent writes to the same store. */
+let writeCounter = 0;
+
 function keyOf(
 	r: Pick<Rollup, 'day' | 'model' | 'workspace' | 'operation' | 'selection' | 'source'>
 ): string {
@@ -166,14 +169,32 @@ export class RollupStore {
 		}
 	}
 
+	/**
+	 * Write atomically, without a shared scratch file.
+	 *
+	 * The temporary name carries a counter because two saves can be in flight
+	 * at once: the pipeline yields to the event loop, so a second refresh can
+	 * interleave with the first. Both used to write `rollup.json.tmp`, the
+	 * first renamed it away, and the second failed with ENOENT on a file that
+	 * had just been moved out from under it.
+	 */
 	save(): void {
 		if (!this.dirty) {
 			return;
 		}
 		fs.mkdirSync(path.dirname(this.file), { recursive: true });
-		const tmp = `${this.file}.tmp`;
-		fs.writeFileSync(tmp, JSON.stringify(this.data), 'utf8');
-		fs.renameSync(tmp, this.file);
+		const tmp = `${this.file}.${process.pid}.${++writeCounter}.tmp`;
+		try {
+			fs.writeFileSync(tmp, JSON.stringify(this.data), 'utf8');
+			fs.renameSync(tmp, this.file);
+		} catch (err) {
+			try {
+				fs.rmSync(tmp, { force: true });
+			} catch {
+				// Nothing more to do; the next save will write a fresh file.
+			}
+			throw err;
+		}
 		this.dirty = false;
 	}
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.4
+
+Fixes a crash when more than one VS Code window is open. Each window keeps its
+own copy of the extension writing to the same file, and they could collide on
+the temporary file used to save it, leaving one window reporting an error and
+no usage recorded. Each write now uses its own temporary file, and a refresh
+already under way is joined rather than started again.
+
+Paths written to the log are shortened to `~` so the log can be shared without
+carrying your account name.
+
 ## 0.1.3
 
 Local, machine-wide visibility into GitHub Copilot spend, with a throttle

@@ -1,3 +1,4 @@
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { findTraceDbs, fallbackDbPath } from './locate';
@@ -39,6 +40,14 @@ let progress: Progress = { phase: 'idle' };
  * Anything in here earns the warning mark, even when a figure is available.
  */
 let lastErrors: string[] = [];
+/**
+ * The refresh in flight, if any.
+ *
+ * The pipeline yields to the event loop, so without this the 120-second timer
+ * can start a second pass through the same store while the first is mid-way
+ * through it. Two passes then raced each other's writes.
+ */
+let inFlight: Promise<void> | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
 	extensionContext = context;
@@ -93,6 +102,17 @@ export function deactivate(): void {
 		clearInterval(timer);
 	}
 	store?.save();
+}
+
+/**
+ * Replace the home directory with `~` in anything written to the log.
+ *
+ * The broken state invites the user to open the log and share it, and a raw
+ * filesystem error carries the account name in every path it mentions.
+ */
+function redactPaths(text: string): string {
+	const home = os.homedir();
+	return home && home !== '/' ? text.split(home).join('~') : text;
 }
 
 function config() {
@@ -201,6 +221,19 @@ function scheduleRefresh(): void {
 }
 
 async function refresh(interactive: boolean): Promise<void> {
+	// Join the run already under way rather than starting a second one.
+	if (inFlight) {
+		return inFlight;
+	}
+	inFlight = runRefresh(interactive);
+	try {
+		await inFlight;
+	} finally {
+		inFlight = undefined;
+	}
+}
+
+async function runRefresh(interactive: boolean): Promise<void> {
 	try {
 		// Local first. The allowance needs the network and only supplies a
 		// denominator, so waiting for it here would hold up everything the
@@ -218,7 +251,7 @@ async function refresh(interactive: boolean): Promise<void> {
 		setProgress({ phase: 'checking-quota' });
 		await refreshEntitlement();
 
-		lastErrors = result.errors;
+		lastErrors = result.errors.map(redactPaths);
 		setProgress({ phase: 'ready' });
 		recomputeProjection();
 		updateStatusBar();
@@ -232,16 +265,19 @@ async function refresh(interactive: boolean): Promise<void> {
 			);
 		}
 		if (result.errors.length > 0) {
-			output.appendLine(`[${new Date().toISOString()}] ${result.errors.join(' | ')}`);
+			output.appendLine(
+				`[${new Date().toISOString()}] ${redactPaths(result.errors.join(' | '))}`
+			);
 		}
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		lastErrors = [message];
+		const safe = redactPaths(message);
+		lastErrors = [safe];
 		setProgress({ phase: 'failed' });
 		updateStatusBar();
-		output.appendLine(`[${new Date().toISOString()}] refresh failed: ${message}`);
+		output.appendLine(`[${new Date().toISOString()}] refresh failed: ${safe}`);
 		if (interactive) {
-			void vscode.window.showErrorMessage(`Token Pie: ${message}`);
+			void vscode.window.showErrorMessage(`Token Pie: ${safe}`);
 		}
 	}
 }

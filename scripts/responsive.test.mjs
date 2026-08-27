@@ -12,6 +12,7 @@ import { ingestAll } from '../out/ingest.js';
 import { RollupStore } from '../out/store.js';
 import { phaseLabel, YIELD_EVERY } from '../out/progress.js';
 import os from 'os'; import path from 'path'; import fs from 'fs';
+import { spawn } from 'child_process';
 
 let failures = 0;
 const check = (label, actual, expected) => {
@@ -98,6 +99,46 @@ check('survived errors still earn the warning mark',
   /degraded \? MARK\.broken : MARK\.ready/.test(source), true);
 check('and route the click to the log',
   /degraded \? 'tokenPie\.showLogs'/.test(source), true);
+
+console.log('\ntwo windows writing the same store');
+// Every VS Code window runs its own extension host with its own store pointed
+// at the same globalStorage path, so saves race across processes. With a
+// shared `rollup.json.tmp` one process renamed the scratch file away and the
+// other died with ENOENT -- reported on a fresh install.
+{
+  const raceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-race-'));
+  const file = path.join(raceDir, 'nested', 'deeper', 'rollup.json');
+  const worker = new URL('./race-worker.mjs', import.meta.url).pathname;
+
+  const results = await Promise.all(['A', 'B'].map(tag => new Promise(resolve => {
+    const child = spawn(process.execPath, [worker, file, tag], { stdio: 'pipe' });
+    let out = '';
+    child.stdout.on('data', d => { out += d; });
+    child.on('close', () => resolve(out.trim()));
+  })));
+
+  check('neither window failed', results.join(','), 'ok,ok');
+  check('the store exists', fs.existsSync(file), true);
+  check('a missing directory was created', fs.existsSync(path.dirname(file)), true);
+  check('no scratch files left behind',
+    fs.readdirSync(path.dirname(file)).filter(f => f.endsWith('.tmp')).length, 0);
+  check('the result is valid JSON',
+    typeof JSON.parse(fs.readFileSync(file, 'utf8')).version, 'number');
+
+  fs.rmSync(raceDir, { recursive: true, force: true });
+}
+
+console.log('\nlogs do not carry the account name');
+// The broken state tells the user to open the log and share it, so anything
+// written there must not contain their home directory.
+check('a redactor exists', /function redactPaths/.test(source), true);
+check('refresh failures go through it', /redactPaths\(message\)/.test(source), true);
+check('survived errors go through it', /result\.errors\.map\(redactPaths\)/.test(source), true);
+check('and the batched error line too', /redactPaths\(result\.errors\.join/.test(source), true);
+
+console.log('\na refresh already running is joined, not duplicated');
+check('the guard is present', /if \(inFlight\) \{/.test(source), true);
+check('and it is cleared afterwards', /inFlight = undefined/.test(source), true);
 
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} check(s) failed.` : '\nAll checks passed.');

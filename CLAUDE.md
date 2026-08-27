@@ -40,6 +40,12 @@ If a change makes one of those weaker, it is the wrong change.
 
 ## Invariants — do not break these
 
+- **Every VS Code window runs its own copy of this extension against the same
+  store.** Writes must be safe across processes: unique scratch filenames, no
+  assumption that a file you just wrote is still there. A shared
+  `rollup.json.tmp` crashed a second window with ENOENT.
+- **Nothing written to the log may contain a home directory.** The broken state
+  invites the user to share it. Route messages through `redactPaths`.
 - **`agent-traces.db` is read-only, with exactly one exception.** Every VS Code
   window runs its own extension host writing to that file. `src/purge.ts` is the
   only permitted writer. Everything else opens `mode=ro&immutable=1`.
