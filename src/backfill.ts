@@ -30,6 +30,10 @@ export interface BackfillResult {
 	/** Chat transcripts found, and how many carried any cost figure. */
 	sessionFiles: number;
 	sessionFilesWithCost: number;
+	/** Transcripts actually opened this run. */
+	filesParsed: number;
+	/** Transcripts skipped because they had not changed since last time. */
+	filesUnchanged: number;
 	/** Oldest transcript on the machine, whether or not it has cost in it. */
 	oldestTranscriptDay?: string;
 }
@@ -47,7 +51,7 @@ export async function backfill(
 ): Promise<BackfillResult> {
 	const result: BackfillResult = {
 		daysAdded: 0, turnsCounted: 0, turnsWithoutCost: 0,
-		sessionFiles: 0, sessionFilesWithCost: 0
+		sessionFiles: 0, sessionFilesWithCost: 0, filesParsed: 0, filesUnchanged: 0
 	};
 
 	// Anything on or after the day the trace database begins is already counted
@@ -63,15 +67,32 @@ export async function backfill(
 	result.sessionFiles = files.length;
 
 	let processed = 0;
+	const livePaths = new Set<string>();
+
 	for (const sf of files) {
-		const stamp = fileDay(sf.file);
-		if (stamp && (!result.oldestTranscriptDay || stamp < result.oldestTranscriptDay)) {
-			result.oldestTranscriptDay = stamp;
+		const stamp = fileStat(sf.file);
+		if (!stamp) {
+			continue;
+		}
+		livePaths.add(sf.file);
+		if (stamp.day && (!result.oldestTranscriptDay || stamp.day < result.oldestTranscriptDay)) {
+			result.oldestTranscriptDay = stamp.day;
 		}
 
-		// One transcript per unit of work, with the loop given a turn every few
-		// of them. A single pass over every file blocked the editor outright.
-		const turns = readSessionFileCached(sf, notBefore);
+		// A transcript untouched since before the window cannot hold a turn
+		// inside it, and one whose size and mtime are unchanged since it was
+		// last read cannot hold anything new. Neither is opened.
+		const known = store.backfilledFile(sf.file);
+		const unchanged = known
+			&& known.mtimeMs === stamp.mtimeMs
+			&& known.size === stamp.size;
+		if (stamp.mtimeMs < notBefore || unchanged) {
+			result.filesUnchanged++;
+			continue;
+		}
+
+		const turns = readSessionFileCached(sf, 0);
+		result.filesParsed++;
 		if (++processed % YIELD_EVERY === 0) {
 			onProgress?.({ phase: 'reading-history', done: processed, total: files.length });
 			await yieldToLoop();
@@ -97,7 +118,7 @@ export async function backfill(
 			if (seen.has(turn.requestId)) {
 				continue;
 			}
-			seen.add(turn.requestId);
+			seen.set(turn.requestId, day);
 			days.add(day);
 			result.turnsCounted++;
 			if (turn.credits === undefined) {
@@ -105,9 +126,21 @@ export async function backfill(
 			}
 			store.add(toRollup(turn, day));
 		}
+
+		// Recorded only after the turns are in, so an interrupted run re-reads
+		// the file rather than skipping content it never counted.
+		store.markBackfilledFile(sf.file, stamp.mtimeMs, stamp.size);
 	}
 
+	// Prune the in-memory set before persisting it. Writing first and pruning
+	// after put the unpruned set straight back.
+	for (const [id, day] of seen) {
+		if (day < horizon) {
+			seen.delete(id);
+		}
+	}
 	store.setBackfilledTurns(seen);
+	store.pruneBackfill(horizon, livePaths);
 	result.daysAdded = days.size;
 	result.earliestDay = [...days].sort()[0];
 	return result;
@@ -117,9 +150,10 @@ export async function backfill(
  * `credits` here is VS Code's own figure, converted back into the nano-AIU the
  * rest of the pipeline speaks so that one column means one thing everywhere.
  */
-function fileDay(file: string): string | undefined {
+function fileStat(file: string): { mtimeMs: number; size: number; day: string } | undefined {
 	try {
-		return dayKey(fs.statSync(file).mtimeMs);
+		const s = fs.statSync(file);
+		return { mtimeMs: s.mtimeMs, size: s.size, day: dayKey(s.mtimeMs) };
 	} catch {
 		return undefined;
 	}

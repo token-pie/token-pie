@@ -810,6 +810,9 @@ function doctor(): void {
 	output.appendLine(`  oldest transcript      ${bf?.oldestTranscriptDay ?? '(none)'}`);
 	output.appendLine(`  transcripts with cost  ${bf?.sessionFilesWithCost ?? 0}`);
 	output.appendLine(`  messages recovered     ${bf?.turnsCounted ?? 0}`);
+	output.appendLine(
+		`  last scan              ${bf?.filesParsed ?? 0} read, ` +
+		`${bf?.filesUnchanged ?? 0} skipped as unchanged`);
 	if (bf && bf.sessionFiles > 0 && bf.sessionFilesWithCost === 0) {
 		output.appendLine('');
 		output.appendLine(

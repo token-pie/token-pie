@@ -151,7 +151,7 @@ projection.
 Proof of concept, **confirmed against a real database** — `github.copilot-chat`
 0.62.0, `schema_version` 1, on VS Code 1.134.0. Ingest, de-duplication,
 per-model, per-workspace and Auto-vs-manual attribution all verified on live
-spans. 217 automated checks.
+spans. 228 automated checks.
 
 Two caveats:
 

@@ -9,6 +9,7 @@
  */
 import { backfill } from '../out/backfill.js';
 import { RollupStore } from '../out/store.js';
+import { clearTurnCache } from '../out/sessions.js';
 import { project } from '../out/projection.js';
 import os from 'os'; import path from 'path'; import fs from 'fs';
 
@@ -81,6 +82,56 @@ r = await backfill(store, day(24), [user], day(27));
 check('a costless message is not invented into spend',
   store.all().every(x => x.model !== 'unknown' || x.nanoAiu === 0), true);
 check('transcripts found', r.sessionFiles, 2);
+
+console.log('\nunchanged transcripts are not reopened');
+{
+  const f = path.join(dir, 'inc.json');
+  const st = new RollupStore(f);
+  let r = await backfill(st, undefined, [user], day(27));
+  const parsedFirst = r.filesParsed;
+  check('the first pass reads them', parsedFirst > 0, true);
+
+  r = await backfill(st, undefined, [user], day(27));
+  check('a second pass reads nothing', r.filesParsed, 0);
+  check('and accounts for them as unchanged', r.filesUnchanged >= parsedFirst, true);
+
+  // A restart clears the in-memory parse cache but not the store on disk.
+  st.save();
+  clearTurnCache();
+  const reopened = new RollupStore(f);
+  r = await backfill(reopened, undefined, [user], day(27));
+  check('a restart still reads nothing', r.filesParsed, 0);
+  check('no turns counted twice', r.turnsCounted, 0);
+
+  // Appending to a transcript changes its size and mtime, so it must be reread
+  // -- and the turns already counted must not be counted again.
+  const before = reopened.all().reduce((n, x) => n + x.requests, 0);
+  const doc = JSON.parse(fs.readFileSync(path.join(sess, 's1.json'), 'utf8'));
+  doc.requests.push({ requestId: 'new-one', timestamp: day(22),
+    promptTokens: 900, completionTokens: 80, copilotCredits: 1,
+    result: { metadata: { resolvedModel: 'sonnet' } } });
+  fs.writeFileSync(path.join(sess, 's1.json'), JSON.stringify(doc));
+  fs.utimesSync(path.join(sess, 's1.json'), new Date(), new Date());
+
+  r = await backfill(reopened, undefined, [user], day(27));
+  check('a changed transcript is reread', r.filesParsed, 1);
+  check('only the new turn is counted', r.turnsCounted, 1);
+  check('totals moved by exactly one',
+    reopened.all().reduce((n, x) => n + x.requests, 0), before + 1);
+}
+
+console.log('\nthe bookkeeping does not grow without bound');
+{
+  const f = path.join(dir, 'prune.json');
+  const st = new RollupStore(f);
+  await backfill(st, undefined, [user], day(27));
+  check('turn ids recorded', st.backfilledTurns().size > 0, true);
+  // Move the window on by a year: everything recorded is now out of range.
+  await backfill(st, undefined, [user], day(27) + 365 * 86400000);
+  check('ids outside the window are forgotten', st.backfilledTurns().size, 0);
+  check('digests for files that no longer exist are dropped',
+    st.backfilledFile(path.join(sess, 'gone.json')), undefined);
+}
 
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} check(s) failed.` : '\nAll checks passed.');

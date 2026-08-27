@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.2 — incremental history scanning
+
+Startup no longer re-reads chat transcripts it has already processed.
+
+- **Transcripts are read once.** Their size and mtime are recorded in the
+  rollup store, so a transcript unchanged since it was last read is never
+  opened again — including across a restart, where the previous in-memory
+  cache was lost. A launch with nothing new now costs a stat per file rather
+  than a full parse of the 30-day window.
+- **The bookkeeping is bounded.** Recovered message ids are stored with their
+  day and pruned once they fall outside the window, and digests for transcripts
+  that no longer exist are dropped. Both previously grew for as long as the
+  extension stayed installed.
+- `Token Pie: Diagnostics` reports how many transcripts the last scan read
+  versus skipped.
+
 ## 0.1.1 — documentation and test isolation
 
 No change to how the extension behaves.

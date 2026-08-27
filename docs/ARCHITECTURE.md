@@ -141,6 +141,13 @@ use it held two and a half hours. `backfill.ts` recovers what VS Code's own chat
 transcripts record for days the trace database does not cover, capped at a
 rolling 30 days.
 
+Scanning is incremental. Each transcript's size and mtime are recorded in the
+store, so one that has not changed since it was last read is never opened
+again — across restarts as well, since the record is on disk rather than in
+memory. A launch with nothing new costs one `stat` per file instead of parsing
+the whole window. Recovered message ids are kept with their day and pruned out
+of the window, so neither record grows without bound.
+
 Those days are marked `source: 'reported'` and are **excluded from
 `burnPerDay`**. The transcripts omit retried and cancelled messages — roughly a
 55% shortfall on agent work — and an undercount in the burn rate tells someone

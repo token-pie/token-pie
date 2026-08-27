@@ -88,6 +88,10 @@ If a change makes one of those weaker, it is the wrong change.
   timer for more than a second.
 - **Announce every phase.** A slow start must look like progress, not a hang —
   `progress.ts` plus `$(sync~spin)` in the status bar.
+- **History is immutable, so read it once.** Transcript digests (size + mtime)
+  persist in the store; an unchanged file is never reopened, including after a
+  restart. Anything added to the scan must be incremental in the same way, and
+  its bookkeeping must be prunable to the window.
 - **Ingest runs every 120 seconds — keep it that cheap.** Transcripts are cached
   by path/size/mtime and skipped entirely outside the 30-day window. Re-reading
   a year of files on every tick froze the extension host for minutes.
@@ -174,7 +178,7 @@ src/
 ## Verifying a change
 
 ```bash
-npm test            # 217 checks across nine suites
+npm test            # 228 checks across nine suites
                     #   entitlement  quota shapes, incl. an exhausted Business seat
                     #   projection   verdicts, and why "unknown" is three situations
                     #   advice       card arithmetic and the auto/manual split

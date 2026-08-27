@@ -97,8 +97,20 @@ interface Persisted {
 	depth: Record<string, DepthStats>;
 	/** Turns counted per chat session so far, so ordinals survive restarts. */
 	turns: Record<string, { count: number; seen: number }>;
-	/** Request ids already backfilled from the chat transcripts. */
-	backfilled: string[];
+	/**
+	 * Request ids already recovered, mapped to their day so the set can be
+	 * pruned to the window. A flat list grew without bound.
+	 */
+	backfilled: Record<string, string>;
+	/**
+	 * Per-transcript digest: size and mtime as last processed.
+	 *
+	 * History does not change once written, so a transcript whose size and
+	 * mtime match what was already read cannot hold anything new and is never
+	 * opened again. Without this every launch re-parsed every transcript
+	 * touched in the window, only to find each turn already counted.
+	 */
+	backfilledFiles: Record<string, { mtimeMs: number; size: number }>;
 }
 
 export interface DepthStats {
@@ -122,7 +134,7 @@ export function depthBucket(turn: number): string {
 	return (DEPTH_BUCKETS.find(b => turn >= b.min && turn <= b.max) ?? DEPTH_BUCKETS[0]).label;
 }
 
-const VERSION = 7;
+const VERSION = 8;
 
 function keyOf(
 	r: Pick<Rollup, 'day' | 'model' | 'workspace' | 'operation' | 'selection' | 'source'>
@@ -133,7 +145,7 @@ function keyOf(
 export class RollupStore {
 	private data: Persisted =
 		{ version: VERSION, rollups: {}, cursors: {}, prices: {}, depth: {}, turns: {},
-		  backfilled: [] };
+		  backfilled: {}, backfilledFiles: {} };
 	private dirty = false;
 
 	constructor(private readonly file: string) {
@@ -261,13 +273,44 @@ export class RollupStore {
 		}
 	}
 
-	backfilledTurns(): Set<string> {
-		return new Set(this.data.backfilled ?? []);
+	backfilledTurns(): Map<string, string> {
+		return new Map(Object.entries(this.data.backfilled ?? {}));
 	}
 
-	setBackfilledTurns(ids: Set<string>): void {
-		this.data.backfilled = [...ids];
+	setBackfilledTurns(ids: Map<string, string>): void {
+		this.data.backfilled = Object.fromEntries(ids);
 		this.dirty = true;
+	}
+
+	/** What this transcript looked like when it was last read, if ever. */
+	backfilledFile(file: string): { mtimeMs: number; size: number } | undefined {
+		return this.data.backfilledFiles?.[file];
+	}
+
+	markBackfilledFile(file: string, mtimeMs: number, size: number): void {
+		(this.data.backfilledFiles ??= {})[file] = { mtimeMs, size };
+		this.dirty = true;
+	}
+
+	/**
+	 * Forget turns that fell out of the window and transcripts that are gone.
+	 *
+	 * Both records would otherwise grow for as long as the extension is
+	 * installed, and neither is useful once the day it covers is off the end.
+	 */
+	pruneBackfill(horizonDay: string, livePaths: Set<string>): void {
+		for (const [id, day] of Object.entries(this.data.backfilled ?? {})) {
+			if (day < horizonDay) {
+				delete this.data.backfilled[id];
+				this.dirty = true;
+			}
+		}
+		for (const file of Object.keys(this.data.backfilledFiles ?? {})) {
+			if (!livePaths.has(file)) {
+				delete this.data.backfilledFiles[file];
+				this.dirty = true;
+			}
+		}
 	}
 
 	priceStats(): Record<string, PriceStats> {
@@ -288,7 +331,7 @@ export class RollupStore {
 	reset(): void {
 		this.data =
 			{ version: VERSION, rollups: {}, cursors: {}, prices: {}, depth: {}, turns: {},
-		  backfilled: [] };
+		  backfilled: {}, backfilledFiles: {} };
 		this.dirty = true;
 		this.save();
 	}
