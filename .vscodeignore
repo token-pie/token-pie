@@ -28,3 +28,6 @@ images/*.svg
 # them), so shipping copies inside the package is dead weight. The icon stays:
 # it is loaded from the manifest.
 images/Screen-*.png
+
+# Rendered previews, written by scripts/preview.mjs.
+.preview/**

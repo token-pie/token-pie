@@ -42,6 +42,9 @@ import {
   advise
 } from '../out/advice.js';
 
+/** The checkout root, for a preview path a browser can reach. */
+const root = new URL('..', import.meta.url).pathname;
+
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(`--${name}`);
 const value = (name) => { const i = argv.indexOf(`--${name}`); return i === -1 ? undefined : argv[i + 1]; };
@@ -209,14 +212,26 @@ body { margin: 0; padding: 22px; background: var(--vscode-editor-background);
        font-size: var(--vscode-font-size); }</style>
 ${body}`;
 
-const out = path.join(os.tmpdir(),
-  `token-pie-${flag('console') ? 'console' : 'preview'}-${flag('light') ? 'light' : 'dark'}.html`);
+/*
+ * Written into the repository, not into os.tmpdir().
+ *
+ * On macOS tmpdir is /var/folders/<hash>/T -- a per-user private directory
+ * that a browser may simply fail to read, which is a tab showing a sad
+ * document icon and no way to tell whether the page or the path was at fault.
+ * A path inside the checkout is one the browser can always reach, is stable
+ * enough to bookmark and reload, and is gitignored.
+ */
+const outDir = path.join(root, '.preview');
+fs.mkdirSync(outDir, { recursive: true });
+const out = path.join(outDir,
+  `${flag('console') ? 'console' : 'panel'}-${flag('light') ? 'light' : 'dark'}.html`);
 // Written aside and renamed, so a browser reloading the same path never reads
 // a half-written document.
 const tmp = `${out}.${process.pid}.tmp`;
 fs.writeFileSync(tmp, html);
 fs.renameSync(tmp, out);
 console.log(`${flag('light') ? 'light' : 'dark'}  ${out}`);
+console.log(`      file://${out}`);
 console.log(`${rollups.length} rollups, ${used.length} theme variables, all defined`);
 
 if (flag('shot')) {
