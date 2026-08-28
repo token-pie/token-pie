@@ -43,6 +43,15 @@ export interface Rollup {
 	outputTokens: number;
 	reasoningTokens: number;
 	cacheReadTokens: number;
+	/**
+	 * Input tokens written into the prompt cache.
+	 *
+	 * These bill at a premium over plain input rather than at the same rate --
+	 * $2.50 per million against $2.00 for claude-sonnet-5 -- so a request whose
+	 * whole context was a cache write costs 25% more than the phrase "charged
+	 * in full" suggests. Only providers that charge for cache writes report it;
+	 * zero on the rest means genuinely nothing was written.
+	 */
 	cacheWriteTokens: number;
 	nanoAiu: number;
 	/**
@@ -160,7 +169,11 @@ export interface ConversationStats {
 	workspace: string;
 }
 
-const VERSION = 9;
+// 10: cacheWriteTokens carries the real count from
+// `gen_ai.usage.cache_creation.input_tokens`. Rollups written before this hold
+// a hardcoded zero, which would read as "nothing was written to cache" rather
+// than "we were not looking", so they are discarded rather than mixed in.
+const VERSION = 10;
 
 /** Distinguishes concurrent writes to the same store. */
 let writeCounter = 0;

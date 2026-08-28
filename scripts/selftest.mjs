@@ -68,6 +68,18 @@ function seed(db, { count, startMs, withCost = true, sessionId = SESSION_A }) {
 			insertAttr.run(spanId, 'copilot_chat.copilot_usage_nano_aiu', String(cost));
 		}
 
+		// Only providers that charge for cache writes report the count, and it
+		// has no column on `spans` -- it exists solely as an attribute. Anthropic
+		// emits it; the OpenAI models in this rotation do not, which is the split
+		// the ingest has to carry through rather than flatten to zero.
+		if (model.startsWith('claude')) {
+			// Deliberately one token over the fresh count. On the real database
+			// the two figures disagree by a few dozen tokens across thousands,
+			// and a cache write can never exceed the input that missed the cache.
+			insertAttr.run(spanId, 'gen_ai.usage.cache_creation.input_tokens',
+				String(12_000 + i * 10 - 9_000 + 1));
+		}
+
 		// An agent turn also emits an invoke_agent span repeating the same token
 		// counts, and an execute_tool span with none. Both must be excluded or
 		// every agent turn is counted twice.
@@ -121,6 +133,19 @@ check('invoke_agent + tool spans excluded', sum(store.all()).requests, 30);
 check('nano_aiu total preserved', sum(store.all()).nanoAiu, firstBatchNano);
 check('models separated', groupBy(store.all(), 'model').size, 3);
 check('unresolvable workspace reported as unknown', [...groupBy(store.all(), 'workspace').keys()][0], 'unknown');
+
+// `cacheWriteTokens` was declared, summed and hardcoded to zero, so the panel
+// could not tell input that was written to cache -- billed at a premium -- from
+// input that was merely not read from it.
+const byModelFirst = groupBy(store.all(), 'model');
+const anthropic = byModelFirst.get('claude-sonnet-4.5');
+const openai = byModelFirst.get('gpt-4o-mini-2024-07-18');
+check('cache writes are read from the attribute, not left at zero',
+  anthropic.cacheWriteTokens > 0, true);
+check('and never exceed the input that missed the cache',
+  anthropic.cacheWriteTokens, Math.max(0, anthropic.inputTokens - anthropic.cacheReadTokens));
+check('a provider that reports none is recorded as none, not as missing',
+  openai.cacheWriteTokens, 0);
 
 console.log('\nre-ingest with no new spans (de-duplication)');
 const second = await ingestAll(store, fixture, undefined, []);
@@ -442,6 +467,39 @@ check('no script tags in webview', /<script/i.test(html), false);
   // A parent blends two rates; a weighted average of prices is not a price.
   check('subtotals carry no price', rate('what you send'), '');
   check('nor does unpriced spend', rate('not measured yet'), '');
+
+  // The row was called "new, charged in full" whatever the tokens were. But
+  // input that misses the cache is usually also *written* to it, and a cache
+  // write bills above plain input -- $2.50 per million against $2.00 on
+  // claude-sonnet-5. The 0.25 credits per 1k the solver recovers for this class
+  // is the published cache-write price, not the published input price, so the
+  // old label denied a premium the row was already carrying.
+  const written = renderReport({
+    rollups: [{ ...priced, cacheWriteTokens: 50000 }], creditsPerNanoAiu: 1e-9,
+    dbCount: 1, lastRefresh: new Date(), costCoverage: 1, warnings: [],
+    projection: undefined, prices: { 'priced-model': stats }, depth: {}
+  });
+  check('a cache write is not described as charged in full',
+    /charged in full/.test(written), false);
+  check('it is named as what it is',
+    /new, and cached for next time/.test(written), true);
+  check('and the surcharge is explained as what buys the discount',
+    /surcharge\s+paid once/.test(written), true);
+
+  // Providers that do not bill for cache writes report none, and on those the
+  // original wording was right. The label follows the data rather than picking.
+  check('a model that writes no cache keeps the old wording',
+    /new, charged in full/.test(costHtml), true);
+  check('and carries no surcharge note', /surcharge/.test(costHtml), false);
+
+  // Neither wording fits a mixed population, and asserting either would be a
+  // claim about tokens that are half one thing and half the other.
+  const mixed = renderReport({
+    rollups: [{ ...priced, cacheWriteTokens: 25000 }], creditsPerNanoAiu: 1e-9,
+    dbCount: 1, lastRefresh: new Date(), costCoverage: 1, warnings: [],
+    projection: undefined, prices: { 'priced-model': stats }, depth: {}
+  });
+  check('a mixed row claims neither', /new to this request/.test(mixed), true);
 
   check('labels avoid internal jargon',
     /input tokens|output tokens|not yet priced|\bturns?\b/.test(costHtml), false);

@@ -3,7 +3,7 @@ import { findTraceDbs, TraceDb } from './locate';
 import {
 	detectSchema, openReadOnly, prepare, toEpochMs, num, str,
 	measureStoredContent,
-	SchemaError, SpanSchema, SPAN_TABLE, ATTR_TABLE, NANO_AIU_KEY
+	SchemaError, SpanSchema, SPAN_TABLE, ATTR_TABLE, NANO_AIU_KEY, CACHE_WRITE_KEY
 } from './schema';
 import { sessionToWorkspace } from './workspaces';
 import { SelectionIndex } from './selection';
@@ -110,11 +110,12 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 		const col = (column: string, fallback = 'NULL') =>
 			has(column) ? `s."${column}"` : fallback;
 
-		// Cost lives in span_attributes rather than on the span row, so pull it
-		// with a correlated subquery. It is the only attribute we need.
-		const nano = schema.hasAttributes
-			? `(SELECT value FROM ${ATTR_TABLE} WHERE span_id = s.span_id AND key = '${NANO_AIU_KEY}')`
+		// Cost and cache writes live in span_attributes rather than on the span
+		// row, so pull them with correlated subqueries.
+		const attr = (key: string) => schema.hasAttributes
+			? `(SELECT value FROM ${ATTR_TABLE} WHERE span_id = s.span_id AND key = '${key}')`
 			: 'NULL';
+		const nano = attr(NANO_AIU_KEY);
 
 		const sql =
 			`SELECT s.span_id AS span_id, s.start_time_ms AS start_ms, ` +
@@ -126,7 +127,8 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 			`${col('cached_tokens', '0')} AS cached_tokens, ` +
 			`${col('reasoning_tokens', '0')} AS reasoning_tokens, ` +
 			`${col('chat_session_id')} AS chat_session_id, ` +
-			`${nano} AS nano_aiu ` +
+			`${nano} AS nano_aiu, ` +
+			`${attr(CACHE_WRITE_KEY)} AS cache_write_tokens ` +
 			`FROM ${SPAN_TABLE} s ` +
 			`WHERE s.operation_name = ? AND s.start_time_ms >= ? ` +
 			// Turn ordinals are only meaningful in time order.
@@ -177,6 +179,18 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 			const sessionId = str(row.chat_session_id);
 			const inputTokens = num(row.input_tokens);
 			const cacheReadTokens = num(row.cached_tokens);
+			// Not every provider charges for cache writes, and those that do not
+			// emit no attribute at all. Absent reads as zero, which is correct:
+			// nothing was written, so nothing was billed at the write rate.
+			//
+			// Clamped to what was actually fresh. The two figures come from
+			// different places and on real data disagree by a few dozen tokens
+			// across thousands; a cache write can never exceed the input that
+			// was not a cache read.
+			const cacheWriteTokens = Math.min(
+				num(row.cache_write_tokens),
+				Math.max(0, inputTokens - cacheReadTokens)
+			);
 			// A request that read nothing from the cache paid full price for
 			// every token of context it carried. Splitting it out here is what
 			// lets the report say how much that cost, rather than reporting a
@@ -203,7 +217,7 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 				outputTokens: num(row.output_tokens),
 				reasoningTokens: num(row.reasoning_tokens),
 				cacheReadTokens,
-				cacheWriteTokens: 0,
+				cacheWriteTokens,
 				nanoAiu,
 				missRequests: missed ? 1 : 0,
 				missInputTokens: missed ? inputTokens : 0,

@@ -275,6 +275,50 @@ function adviceCards(items: Advice[], somethingElseSaid: boolean): string {
  * output was 2% of tokens and 16% of spend, while cached context was 66% of
  * tokens and 12% of spend. Showing tokens there understated output eightfold.
  */
+/**
+ * What the non-cached half of your input actually is.
+ *
+ * "New, charged in full" was wrong in a way that mattered. Tokens that miss the
+ * cache are usually also *written* to it, and a cache write bills above plain
+ * input -- $2.50 per million against $2.00 on claude-sonnet-5. The solver
+ * recovered 0.25 credits per 1k for this class and that figure is the published
+ * cache-write price, not the published input price, so the row was carrying a
+ * premium the label denied.
+ *
+ * Providers that do not charge for cache writes report none, and on those the
+ * old wording was right, so the label follows the data rather than picking one.
+ */
+const MOSTLY = 0.9;
+
+function freshLabel(fresh: number, cacheWrite: number): string {
+	if (fresh <= 0) {
+		return 'new to this request';
+	}
+	const written = cacheWrite / fresh;
+	if (written >= MOSTLY) {
+		return 'new, and cached for next time';
+	}
+	if (written <= 1 - MOSTLY) {
+		return 'new, charged in full';
+	}
+	return 'new to this request';
+}
+
+/**
+ * The premium, named -- because it is the thing that makes the cache pay.
+ *
+ * A cache write costs more than plain input, and a reader who sees only the
+ * higher number reasonably concludes caching is a bad deal. It is the opposite:
+ * the 25% surcharge once is what buys the 90% discount on every repeat.
+ */
+function cacheWriteNote(fresh: number, cacheWrite: number): string {
+	if (fresh <= 0 || cacheWrite / fresh < MOSTLY) {
+		return '';
+	}
+	return `What you send new is also written into the cache &mdash; a surcharge
+		paid once that buys the cheaper rate on every message reusing it.`;
+}
+
 function rateContrast(lead: { model: string; price: Price } | undefined): string {
 	if (!lead || lead.price.fresh <= 0) {
 		return '';
@@ -297,9 +341,10 @@ function compositionBar(
 	prices: Record<string, PriceStats>,
 	creditsPerNanoAiu: number
 ): string {
-	let fresh = 0, cached = 0, output = 0, reasoning = 0;
+	let fresh = 0, cached = 0, output = 0, reasoning = 0, cacheWrite = 0;
 	let costFresh = 0, costCached = 0, costOutput = 0, costReasoning = 0;
 	let pricedFresh = 0, pricedCached = 0, pricedOutput = 0, pricedReasoning = 0;
+	let pricedCacheWrite = 0;
 	let pricedCredits = 0, totalCredits = 0;
 	const priced: { model: string; price: Price }[] = [];
 
@@ -312,6 +357,7 @@ function compositionBar(
 		const t = sum(rows);
 		const f = Math.max(0, t.inputTokens - t.cacheReadTokens);
 		fresh += f;
+		cacheWrite += t.cacheWriteTokens;
 		cached += t.cacheReadTokens;
 		output += t.outputTokens;
 		reasoning += t.reasoningTokens;
@@ -327,6 +373,7 @@ function compositionBar(
 		priced.push({ model, price });
 		pricedCredits += credits;
 		pricedFresh += f;
+		pricedCacheWrite += t.cacheWriteTokens;
 		pricedCached += t.cacheReadTokens;
 		pricedOutput += t.outputTokens;
 		pricedReasoning += t.reasoningTokens;
@@ -355,7 +402,7 @@ function compositionBar(
 	if (!byCost) {
 		const rows: CompRow[] = [
 			{ label: 'what you send', tokens: fresh + cached },
-			{ label: 'new, charged in full', cls: 'c-fresh', tokens: fresh, child: true },
+			{ label: freshLabel(fresh, cacheWrite), cls: 'c-fresh', tokens: fresh, child: true },
 			{ label: 'repeated, from cache', cls: 'c-cached', tokens: cached, child: true },
 			{ label: "Copilot's replies", cls: 'c-output', tokens: output },
 			{ label: 'thinking, never shown', tokens: reasoning, child: true }
@@ -401,7 +448,8 @@ function compositionBar(
 
 	const rows: CompRow[] = [
 		{ label: 'what you send', credits: costInput, tokens: tokensInput },
-		{ label: 'new, charged in full', cls: 'c-fresh', credits: costFresh, tokens: pricedFresh,
+		{ label: freshLabel(pricedFresh, pricedCacheWrite), cls: 'c-fresh',
+		  credits: costFresh, tokens: pricedFresh,
 		  child: true, multiple: relative(costFresh, pricedFresh) },
 		{ label: 'repeated, from cache', cls: 'c-cached', credits: costCached, tokens: pricedCached,
 		  child: true, multiple: relative(costCached, pricedCached) },
@@ -432,7 +480,7 @@ function compositionBar(
 				unpricedCost > 0
 					? `. The ${fmtCredits(unpricedCost)} credits not measured yet need six billed
 					   messages on one model before they can be split`
-					: ''}. ${rateContrast(lead)}</p>
+					: ''}. ${rateContrast(lead)} ${cacheWriteNote(pricedFresh, pricedCacheWrite)}</p>
 	</div>`;
 }
 

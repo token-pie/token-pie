@@ -10,8 +10,23 @@
  *
  * In testing this recovered claude-sonnet-5 as exactly
  * 0.25 / 0.02 / 1.00 credits per 1k tokens with four degrees of freedom and a
- * max residual of 0.0000 credits -- the published rate card, measured rather
- * than assumed. **Output is 4x fresh input and 12.5x cached input**, which is
+ * max residual of 0.0000 credits -- measured rather than assumed.
+ *
+ * Two of those match the published card outright ($0.20 and $10.00 per million,
+ * at 1 credit = $0.01). The first does not: the published *input* price is
+ * $2.00 per million, or 0.20 credits per 1k. 0.25 is the published **cache
+ * write** price of $2.50. That is not an error in the fit -- on this account
+ * `gen_ai.usage.cache_creation.input_tokens` accounts for all but 64 of the
+ * 117,066 tokens that missed the cache, so `fresh` and "written to cache" are
+ * the same population and the solver prices them as one.
+ *
+ * The consequence is that `fresh` is the baseline every multiple on the panel
+ * is quoted against, and that baseline carries a cache-write premium. Output is
+ * 4x `fresh` -- but 5x plain input. Models that bill no cache write have no
+ * such premium, and `report.ts` labels the row from `cacheWriteTokens` rather
+ * than assuming either.
+ *
+ * **Output is 4x fresh input and 12.5x cached input**, which is
  * why reporting composition by token count misstates where the money went.
  *
  * Only sufficient statistics are kept, never the spans: a symmetric 3x3 X'X

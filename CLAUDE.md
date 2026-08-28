@@ -35,6 +35,8 @@ shipping. The differentiation is threefold, in descending order of durability:
    per-class rates can be recovered by least squares from the user's own
    requests — exactly, R² = 1.00000. Output bills at **4× fresh input**, which
    is why anything reported by token count misstates where the money went.
+   Note that on a cache-writing model "fresh" *is* cache-write, so the 1×
+   baseline carries a premium and output is 5× against plain input.
 
 If a change makes one of those weaker, it is the wrong change.
 
@@ -130,8 +132,10 @@ If a change makes one of those weaker, it is the wrong change.
   beside it. `selftest.mjs` checks the alignment rule.
 - **Write for a developer, not for the telemetry.** No word appears in the UI
   that a developer would not use themselves: *message*, not "turn"; *what you
-  send*, not "input tokens"; *new, charged in full* / *repeated, from cache*,
-  not "fresh"/"cached". If a label needs explaining, it is the wrong label.
+  send*, not "input tokens"; *new, and cached for next time* / *repeated, from
+  cache*, not "fresh"/"cached". If a label needs explaining, it is the wrong
+  label. That first label is chosen from `cacheWriteTokens`, not fixed: on a
+  provider that bills no cache write it reads *new, charged in full*.
 - **One screen, one job.** The default view shows the verdict and what to
   change. Every breakdown lives behind a single `<details>`. Adding a section
   is not free — three open tables read as a wall, and a wall is what stops
@@ -160,6 +164,9 @@ Each of these reversed an earlier assumption. Full evidence in `DECISIONS.md`.
 | A plan can return snapshots with no binding quota | Status bar shows `--` legitimately; say so instead of asking for a re-check |
 | A phantom allowance is one with `entitlement: 0`, not one with `has_quota: false` | `isBinding()` tests entitlement only |
 | Cost is linear in fresh/cached/output tokens, so the rate card is solvable | `pricing.ts` recovers it exactly; output is 4× fresh input and 12.5× cached |
+| The solved "fresh" rate 0.25 is the published **cache-write** price ($2.50/M), not input ($2.00/M) | On sonnet, `cache_creation` covers all but 64 of the tokens that missed the cache, so the two classes are one population. Output is 5× plain input |
+| Cache-write counts have **no column** on `spans` — only `gen_ai.usage.cache_creation.input_tokens` | Pulled as an attribute like `nano_aiu`. Absent on providers that do not bill it, which is a fact, not a gap |
+| GitHub's period spend and ours are different windows and different scopes | `reconcile.ts` `periodCoverage` compares them over the same days and names the remainder as spend this install cannot see |
 | Token composition ≠ cost composition | Output was 2% of tokens but 16% of spend. Never report a cost claim by token count |
 | `agent-traces.db` has no retroactive contents | History starts the day tracing is enabled. Transcripts may fill some of the gap; most carry no cost data. See `DECISIONS.md#history` |
 | The whole thread is re-sent every turn | A warm turn at depth 8–15 cost 3.6× one at depth 2–3. Tracked as `depth` buckets in the store |

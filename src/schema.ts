@@ -17,6 +17,15 @@ import { DatabaseSync } from 'node:sqlite';
 export const SPAN_TABLE = 'spans';
 export const ATTR_TABLE = 'span_attributes';
 export const NANO_AIU_KEY = 'copilot_chat.copilot_usage_nano_aiu';
+/**
+ * Tokens written into the prompt cache, which bill at a premium over plain
+ * input -- $2.50 per million against $2.00 for claude-sonnet-5.
+ *
+ * Unlike the token counts, this has no column on `spans`; it exists only as an
+ * attribute, and only for providers that charge for cache writes. Its absence
+ * on a model is a fact about that model's billing, not a gap in the data.
+ */
+export const CACHE_WRITE_KEY = 'gen_ai.usage.cache_creation.input_tokens';
 
 /** Verified against schema_version 1. Higher versions are read optimistically. */
 export const KNOWN_SCHEMA_VERSION = 1;
