@@ -1328,12 +1328,13 @@ const STYLES = `
 
 	/* The week sits beside the verdict, not under it: it answers the same
 	   question the card is already asking -- am I on pace -- and a chart under
-	   the tiles reads as a separate section nobody scrolls to. 20% is enough
-	   for seven short rows and leaves the sentence its measure. */
+	   the tiles reads as a separate section nobody scrolls to. 30%, not 20:
+	   a heavy week reads "1,234" where a light one reads "23.04", and the
+	   value column grows to fit it out of the bar's width. */
 	.verdict-cols { display: flex; gap: 26px; align-items: flex-start; }
 	.verdict-main { flex: 1 1 auto; min-width: 0; }
 	.week {
-		flex: 0 0 20%; min-width: 0;
+		flex: 0 0 30%; min-width: 0;
 		border-left: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
 		padding-left: 18px;
 	}
@@ -1347,7 +1348,10 @@ const STYLES = `
 	.wk-row { display: flex; align-items: center; gap: 8px; padding: 2px 0;
 	          font-size: 0.76rem; }
 	.wk-day { flex: 0 0 2.4em; color: var(--vscode-descriptionForeground); }
-	.wk-track { flex: 1 1 auto; height: 8px; border-radius: 4px; min-width: 0;
+	/* The bar keeps a floor. Its neighbours size to their content, so a week
+	   billed in thousands would otherwise take the track's width for digits and
+	   leave a chart with no chart in it. */
+	.wk-track { flex: 1 1 auto; height: 8px; border-radius: 4px; min-width: 46px;
 	            background: var(--vscode-editorWidget-border, rgba(128,128,128,0.22)); }
 	.wk-fill { display: block; height: 100%; border-radius: 4px; background: var(--hue); }
 	.wk-val { flex: 0 0 auto; min-width: 2.6em; text-align: right;
