@@ -174,5 +174,36 @@ check('a reconciled conversion makes them measurements',
 check('and says nothing is marked',
   /carry no doubt mark/.test(confirmed), true);
 
+// A table where some rows use rowspan and others colspan gives the browser no
+// consistent column count to size against, and the header stops lining up with
+// anything below it. Every row spans exactly five.
+console.log('\nthe rate card table is a table');
+const cols = tr => [...tr.matchAll(/<t[dh]([^>]*)>/g)]
+  .reduce((n, m) => n + Number((/colspan="(\d+)"/.exec(m[1]) || [, 1])[1]), 0);
+const cardRows = [...html.slice(html.indexOf('The rate card'), html.indexOf('The gates'))
+  .matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(m => m[0]);
+check('every row has the same column count',
+  new Set(cardRows.map(cols)).size, 1);
+check('and that count is five', cols(cardRows[0]), 5);
+check('no rowspan is used at all', /rowspan=/.test(html), false);
+
+console.log('\nlinks are links');
+check('the source is a hyperlink, not a pasted address',
+  /<a href="https:\/\/docs\.github\.com[^"]*"[^>]*>GitHub(&#39;|')s published prices<\/a>/
+    .test(html.replace(/\s+/g, ' ')), true);
+check('no bare url is rendered as text',
+  /<code>https?:/.test(html), false);
+check('and it opens outside the panel',
+  [...html.matchAll(/<a\s[^>]*>/g)].every(a => /target="_blank"/.test(a[0])
+    && /rel="noopener noreferrer"/.test(a[0])), true);
+
+// The basis label is the one thing on a row saying how much to trust the
+// number, and a hairline outline in a dim accent was near-invisible.
+console.log('\nthe basis label is legible');
+check('it has a filled ground, not only an outline',
+  /\.basis\.judged \{[^}]*background:/.test(html), true);
+check('with a fallback where color-mix is unsupported',
+  /\.basis\.judged \{[^}]*background: rgba\(/.test(html), true);
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

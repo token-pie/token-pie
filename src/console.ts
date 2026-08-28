@@ -44,6 +44,21 @@ export interface ConsoleInput {
 	lastRefresh?: Date;
 }
 
+/**
+ * A link, never a bare URL.
+ *
+ * A pasted address is unreadable at this size and wraps mid-path; the text says
+ * where it goes. Opened outside the panel, like every link the report emits:
+ * a webview has no back button, so navigating inside it is a dead end.
+ */
+function link(href: string, text: string): string {
+	if (!/^https:\/\//.test(href)) {
+		return escapeHtml(text);
+	}
+	return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${
+		escapeHtml(text)}</a>`;
+}
+
 function num(n: number, places = 4): string {
 	return Number.isFinite(n) ? n.toFixed(places) : '--';
 }
@@ -132,27 +147,35 @@ function rateCardSection(input: ConsoleInput): string {
 		const published = lookup(card, model);
 
 		if (!price) {
-			rows.push(`<tr class="dim"><td>${escapeHtml(model)}</td>
-				<td colspan="4">no solved rate card${stats ? ` (${stats.n} billed messages)` : ''}
-					&mdash; ${published ? `published as <em>${escapeHtml(published.name)}</em>`
-						: 'and not in the published table'}</td></tr>`);
+			rows.push(`<tr class="group-start"><td class="model">${escapeHtml(model)}</td>
+				<td class="dim" colspan="4">no solved rate card${
+					stats ? ` &mdash; ${stats.n} billed message${stats.n === 1 ? '' : 's'}` : ''
+				}${published
+					? `. Published as <em>${escapeHtml(published.name)}</em>`
+					: ', and not in the published table'}</td></tr>`);
 			continue;
 		}
 		const cmp: RateComparison = compare(card, model, price, dating);
+		const name = `<td class="model">${escapeHtml(model)}
+			<span class="dim fit">${price.n} messages &middot; R&sup2; ${price.r2.toFixed(6)}</span></td>`;
+
 		if (cmp.spansPriceChange) {
 			// Comparing here would report a price change as a measurement error.
-			rows.push(`<tr class="dim"><td>${escapeHtml(model)}
-				<span class="dim">n=${price.n}</span></td>
-				<td colspan="4">comparison withheld &mdash; published prices changed on
-					${cmp.spansPriceChange.map(d => escapeHtml(d)).join(', ')}, inside the days
-					these rates were fitted over, so they blend two price regimes and match
-					neither by construction</td></tr>`);
+			rows.push(`<tr class="group-start">${name}
+				<td class="dim" colspan="4">comparison withheld &mdash; published prices changed
+					on ${cmp.spansPriceChange.map(d => escapeHtml(d)).join(', ')}, inside the days
+					these rates were measured, so they blend two price regimes and match neither
+					by construction</td></tr>`);
 			continue;
 		}
-		rows.push(`<tr><td rowspan="${cmp.classes.length}">${escapeHtml(model)}
-			<span class="dim">n=${price.n}, R&sup2;=${price.r2.toFixed(6)}</span></td>
-			${classCells(cmp.classes[0])}</tr>` +
-			cmp.classes.slice(1).map(c => `<tr>${classCells(c)}</tr>`).join(''));
+
+		// `rowspan` against rows that elsewhere use `colspan` leaves the browser
+		// no consistent column count to size against, and the header stopped
+		// lining up with anything. Every row now spans exactly five columns and
+		// the model name is simply blank after its first line.
+		rows.push(cmp.classes.map((c, i) => `<tr${i === 0 ? ' class="group-start"' : ''}>${
+			i === 0 ? name : '<td class="model"></td>'
+		}${classCells(c)}</tr>`).join(''));
 	}
 
 	const age = fetchedAt !== undefined
@@ -200,7 +223,7 @@ function rateCardSection(input: ConsoleInput): string {
 			${escapeHtml(card.effective)}, ${card.models.length} models${
 				cards.length > 1 ? `, ${cards.length} on record` : ''
 			}${note ? ` &mdash; ${escapeHtml(note)}` : ''}.
-			Source: <code>${escapeHtml(card.source)}</code></p>
+			Read from ${link(card.source, "GitHub's published prices")}.</p>
 	</section>`;
 }
 
@@ -411,8 +434,8 @@ const CONSOLE_STYLES = `
 	header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
 	h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
 	h2 {
-		font-size: 0.95rem; margin: 0 0 4px; font-weight: 600;
-		padding-bottom: 6px;
+		font-size: 0.95rem; margin: 0 0 6px; font-weight: 600;
+		padding-bottom: 8px;
 		border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
 	}
 	/* Seventeen gates expanded is the wall this page exists to replace. Each
@@ -444,24 +467,36 @@ const CONSOLE_STYLES = `
 	details.group table tr:last-child td { border-bottom: none; }
 	details.group th:first-child, details.group td:first-child { padding-left: 14px; }
 	details.group th:last-child, details.group td:last-child { padding-right: 14px; }
-	section { margin-top: 26px; }
+	section { margin-top: 34px; }
 	.sub, .dim { color: var(--vscode-descriptionForeground); }
-	.lede { color: var(--vscode-descriptionForeground); margin: 6px 0 14px; text-wrap: pretty; }
+	.lede { color: var(--vscode-descriptionForeground); margin: 8px 0 16px; text-wrap: pretty; }
 	.lede.top { margin-bottom: 0; }
-	table { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: 0.86rem; }
-	th, td { text-align: left; padding: 6px 10px 6px 0; vertical-align: top;
+	/* 10px of right padding alone ran every column into its neighbour. Padding
+	   on both sides, and more of it, so the columns read as columns. */
+	table { width: 100%; border-collapse: collapse; margin: 10px 0 2px; font-size: 0.86rem; }
+	th, td { text-align: left; padding: 9px 18px 9px 0; vertical-align: top;
 		border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.18)); }
-	th { font-weight: 600; color: var(--vscode-descriptionForeground); font-size: 0.78rem;
-		text-transform: uppercase; letter-spacing: 0.04em; }
-	.num { text-align: right; }
+	td:last-child, th:last-child { padding-right: 0; }
+	th { font-weight: 600; color: var(--vscode-descriptionForeground); font-size: 0.75rem;
+		text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
+		padding-bottom: 7px; }
+	.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.mono { font-family: var(--vscode-editor-font-family); }
 	code { font-family: var(--vscode-editor-font-family); font-size: 0.92em; }
-	.why { font-size: 0.92em; max-width: 46ch; margin-top: 2px; }
+	.why { font-size: 0.92em; max-width: 46ch; margin-top: 5px; text-wrap: pretty; }
+	/* The model name and its fit statistics are one label, not two columns. */
+	td.model { white-space: nowrap; padding-right: 22px; }
+	td.model .fit { display: block; font-size: 0.8em; margin-top: 2px; }
+	/* A rule between models, not between every class of the same model. */
+	tr.group-start td { border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.28)); }
+	tr.group-start:first-child td { border-top: none; }
+	a { color: var(--vscode-charts-blue, #3794FF); }
 	.ok { color: var(--vscode-charts-green, #89D185); }
 	.warn { color: var(--vscode-charts-yellow, #CCA700); }
 	.bad { color: var(--vscode-charts-red, #F14C4C); }
 	.unknown { color: var(--vscode-descriptionForeground); }
-	.verdict-line { margin: 10px 0 0; text-wrap: pretty; }
+	.verdict-line { margin: 14px 0 0; text-wrap: pretty; }
+	.note { margin: 14px 0 0; text-wrap: pretty; }
 	.warn-box {
 		border-left: 3px solid var(--vscode-charts-yellow, #CCA700);
 		padding: 8px 12px; margin-top: 12px;
@@ -479,12 +514,27 @@ const CONSOLE_STYLES = `
 	   warning colour -- but it is worth finding without opening every group. */
 	.chip.changed { color: var(--vscode-charts-blue, #3794FF); }
 	summary .count + .chip { margin-left: 8px; }
+	/* A hairline outline in a dim accent was near-invisible at this size. The
+	   label is the one thing on the row that says how much to trust the number,
+	   so it gets a filled ground and a weight that survives being small. */
 	.basis {
-		display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 0.72rem;
-		text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid currentColor;
+		display: inline-block; padding: 2px 8px; border-radius: 4px;
+		font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em;
+		text-transform: uppercase; white-space: nowrap;
+		border: 1px solid transparent;
 	}
-	.basis.derived { color: var(--vscode-charts-green, #89D185); }
-	.basis.judged { color: var(--vscode-charts-orange, #D18616); }
+	.basis.derived {
+		color: var(--vscode-charts-green, #89D185);
+		border-color: var(--vscode-charts-green, #89D185);
+		background: rgba(137, 209, 133, 0.14);
+		background: color-mix(in srgb, var(--vscode-charts-green, #89D185) 16%, transparent);
+	}
+	.basis.judged {
+		color: var(--vscode-charts-orange, #D18616);
+		border-color: var(--vscode-charts-orange, #D18616);
+		background: rgba(209, 134, 22, 0.16);
+		background: color-mix(in srgb, var(--vscode-charts-orange, #D18616) 18%, transparent);
+	}
 	footer {
 		margin-top: 30px; padding-top: 12px; font-size: 0.85rem;
 		color: var(--vscode-descriptionForeground); text-wrap: pretty;

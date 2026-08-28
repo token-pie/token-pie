@@ -15,6 +15,7 @@ import * as path from 'node:path';
 
 import { ingestAll } from '../out/ingest.js';
 import { RollupStore, sum, groupBy } from '../out/store.js';
+import { read } from '../out/tuning.js';
 import { renderReport } from '../out/report.js';
 import { emptyStats, accumulate } from '../out/pricing.js';
 
@@ -554,7 +555,8 @@ check('no script tags in webview', /<script/i.test(html), false);
   check('the breakdown sits outside the advice section',
     /<\/section>\s*(<!--[\s\S]*?-->)?\s*<section>\s*<h2>Where the credits went<\/h2>/.test(html), true);
   check('the unit every figure uses is defined',
-    /Note: An <strong>AI Credit<\/strong> is GitHub's billing unit/.test(html), true);
+    /Note: An <strong>AI Credit<\/strong> is GitHub's billing unit/
+      .test(html.replace(/\s+/g, ' ')), true);
   // It rides in the dead space beside the pace tiles rather than standing as a
   // paragraph above the card, which cost 63px of height for the same words.
   // "cr" and "credits" were both in use, which reads as two units. One word.
@@ -583,7 +585,15 @@ check('no script tags in webview', /<script/i.test(html), false);
     /<p class="lede">[\s\S]*?<section class="verdict"/.test(html), false);
   check('with a reference that is not a bare domain',
     /href="https:\/\/docs\.github\.com\/en\/copilot\/concepts\/billing\/[a-z-]+"/.test(html), true);
-  check('the history window is stated', /up to the last\s*\n?\s*30 days/.test(html), true);
+  check('the history window is stated', /up to the last 30 days/.test(html.replace(/\s+/g, ' ')), true);
+  // `tokenPie.history.days` moves that window, and a note claiming 30 days on a
+  // panel keeping 14 is a lie the reader has no way to catch.
+  check('and follows the setting rather than being hardcoded',
+    /up to the last 14 days/.test(renderReport({
+      rollups: [priced], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+      costCoverage: 1, warnings: [], projection: undefined, prices: {}, depth: {},
+      tuning: read(id => (id === 'history.days' ? 14 : undefined)).tuning
+    }).replace(/\s+/g, ' ')), true);
   check('the title carries the mark', /<svg class="logo"/.test(html), true);
   // A flex container's baseline comes from its first item. With the logo first,
   // <header>'s baseline alignment pinned the date to the image's bottom edge,

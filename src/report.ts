@@ -918,9 +918,12 @@ const LOGO = `<svg class="logo" viewBox="42 42 172 172" width="21" height="21" a
 	</g>
 </svg>`;
 
-const LEDE = `<p class="lede">Note: An <strong>AI Credit</strong> is GitHub's billing unit
-	for Copilot &mdash; one is $0.01, charged on the tokens each message sends and receives.
-	This panel keeps up to the last 30 days.
+// The window is stated from the setting, not hardcoded: `tokenPie.history.days`
+// moves it, and a note claiming 30 days on a panel keeping 14 is a lie the
+// reader has no way to catch.
+const lede = (days: number) => `<p class="lede">Note: An <strong>AI Credit</strong> is
+	GitHub's billing unit for Copilot &mdash; one is $0.01, charged on the tokens each
+	message sends and receives. This panel keeps up to the last ${fmtInt(days)} days.
 	<a href="https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-organizations-and-enterprises"
 	   target="_blank" rel="noopener noreferrer">How credits work</a></p>`;
 
@@ -998,7 +1001,7 @@ ${STYLES}
 			     caption for YOUR PACE -- which it has nothing to do with. -->
 			<div class="say">
 				<p class="sentence">${verdictSentence(p, days.at(-1)?.[0])}</p>
-				${LEDE}
+				${lede(tuning.history.days)}
 			</div>
 		</div>
 		${allowanceMeter(p)}

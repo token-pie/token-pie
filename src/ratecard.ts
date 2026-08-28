@@ -265,12 +265,15 @@ export function effectiveAt(cards: RateCard[], at: number): RateCard | undefined
  * change, which is exactly the retrospective judgement to avoid.
  */
 export function changedDuring(cards: RateCard[], from: number, to: number): RateCard[] {
-	return cards
-		.filter(c => {
-			const at = Date.parse(c.effective);
-			return at > from && at <= to;
-		})
-		.sort((a, b) => Date.parse(a.effective) - Date.parse(b.effective));
+	const sorted = [...cards].sort((a, b) => Date.parse(a.effective) - Date.parse(b.effective));
+	// The earliest card is never a change. Nothing preceded it -- it is where the
+	// record starts. Counting it withheld every comparison on a fresh install,
+	// because the bundled card is dated later than the history it is being asked
+	// about, which is the ordinary case rather than an exceptional one.
+	return sorted.slice(1).filter(c => {
+		const at = Date.parse(c.effective);
+		return at > from && at <= to;
+	});
 }
 
 /** The window a set of solved rates was fitted over. */
