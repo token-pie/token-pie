@@ -4,7 +4,7 @@
   "description": "Local, machine-wide visibility into GitHub Copilot token and AI-credit spend.",
   "author": "Ashish Koshy",
   "icon": "images/icon.png",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "token-pie",
   "license": "MIT",
   "engines": {
@@ -72,7 +72,7 @@
         },
         "tokenPie.creditsPerNanoAiu": {
           "type": "number",
-          "default": 1e-09,
+          "default": 1e-9,
           "markdownDescription": "Conversion from `copilot_usage_nano_aiu` to AI Credits. **Calibrate against your GitHub billing dashboard before trusting absolute figures.**"
         },
         "tokenPie.statusBar.enabled": {
