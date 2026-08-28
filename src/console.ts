@@ -59,6 +59,25 @@ function link(href: string, text: string): string {
 		escapeHtml(text)}</a>`;
 }
 
+/**
+ * A section that stays shut until you want it.
+ *
+ * Four sections open at once is a page you scroll rather than read. The
+ * summary carries the finding -- "1 disagreement", "2 withholding", "never
+ * checked" -- so the closed page answers the question and opening one is for
+ * the working, not for the answer.
+ */
+function pane(title: string, state: string, tone: Tone, body: string, open = false): string {
+	return `
+	<details class="pane"${open ? ' open' : ''}>
+		<summary><span class="chev"></span><span class="pane-title">${title}</span>
+			<span class="state ${tone}">${state}</span></summary>
+		<div class="pane-body">${body}</div>
+	</details>`;
+}
+
+type Tone = 'ok' | 'warn' | 'bad' | 'flat';
+
 function num(n: number, places = 4): string {
 	return Number.isFinite(n) ? n.toFixed(places) : '--';
 }
@@ -95,9 +114,11 @@ function conversionSection(input: ConsoleInput): string {
 	// whether the figures on them are measurements.
 	const conf = conversionConfidence(c, !input.creditsPerNanoAiuIsDefault);
 
-	return `
-	<section>
-		<h2>The conversion</h2>
+	const state = conf.confidence === 'measured'
+		? 'checked against GitHub'
+		: c === undefined ? 'never checked' : `unconfirmed \u00b7 ${c.verdict}`;
+
+	return pane('The conversion', state, conf.confidence === 'measured' ? 'ok' : 'warn', `
 		<p class="lede">Every credit figure in this extension is an exact token count multiplied
 			by one number. The token counts are measured. This is not.</p>
 		<table>
@@ -113,8 +134,7 @@ function conversionSection(input: ConsoleInput): string {
 			<strong class="${conf.confidence === 'measured' ? 'ok' : 'warn'}">${conf.confidence}</strong>.
 			${conf.confidence === 'measured'
 				? 'Findings on the panel carry no doubt mark from this.'
-				: 'Findings on the panel are marked <strong>~</strong> and carry this reason.'}</p>
-	</section>`;
+				: 'Findings on the panel are marked <strong>~</strong> and carry this reason.'}</p>`);
 }
 
 /* ---------------------------------------------------------- rate card --- */
@@ -147,6 +167,7 @@ function rateCardSection(input: ConsoleInput): string {
 	// canyon between "fresh input" and the number it belongs to.
 	const compared: string[] = [];
 	const absent: string[] = [];
+	let agreeing = 0;
 
 	for (const model of byModel.keys()) {
 		const stats = input.prices[model];
@@ -181,6 +202,9 @@ function rateCardSection(input: ConsoleInput): string {
 		// The model names its group once. Internal rules are suppressed so three
 		// classes of one model read as one block rather than as three models
 		// with their names missing.
+		if (cmp.classes.every(c => c.matchedAs === c.label)) {
+			agreeing++;
+		}
 		compared.push(cmp.classes.map((c, i) => `<tr class="${i === 0 ? 'group-start' : 'group-cont'}">${
 			i === 0
 				? `<td class="model">${escapeHtml(model)}<span class="dim fit">${
@@ -236,9 +260,17 @@ function rateCardSection(input: ConsoleInput): string {
 			rather than a record.</p>`
 		: '';
 
-	return `
-	<section>
-		<h2>The rate card</h2>
+	// The finding, counted: a class matching a different published class is the
+	// thing worth opening for.
+	const disagreements = compared.length - agreeing;
+	const state = compared.length === 0
+		? `no model priced yet \u00b7 ${absent.length} waiting`
+		: disagreements > 0
+		? `${disagreements} disagreement${disagreements === 1 ? '' : 's'}`
+		: `${compared.length} model${compared.length === 1 ? '' : 's'} agree`;
+
+	return pane('The rate card', state,
+		compared.length === 0 ? 'flat' : disagreements > 0 ? 'warn' : 'ok', `
 		<p class="lede">What the solver recovered from your own spend, beside what GitHub
 			publishes. A figure that matches a <em>different</em> class than its own name is a
 			correct measurement under a wrong label &mdash; not an error in the fit.
@@ -252,8 +284,7 @@ function rateCardSection(input: ConsoleInput): string {
 			${escapeHtml(card.effective)}, ${card.models.length} models${
 				cards.length > 1 ? `, ${cards.length} on record` : ''
 			}${note ? ` &mdash; ${escapeHtml(note)}` : ''}.
-			Read from ${link(card.source, "GitHub's published prices")}.</p>
-	</section>`;
+			Read from ${link(card.source, "GitHub's published prices")}.</p>`);
 }
 
 function classCells(c: RateComparison['classes'][number]): string {
@@ -364,9 +395,11 @@ function gatesSection(input: ConsoleInput): string {
 	});
 
 	const count = binding.size;
-	return `
-	<section>
-		<h2>The gates</h2>
+	const state = count > 0
+		? `${count} withholding`
+		: `${input.readings.length} thresholds \u00b7 none withholding`;
+
+	return pane('The gates', state, count > 0 ? 'warn' : 'ok', `
 		<p class="lede">Every threshold the panel applies, what it is set to, and whether it
 			is withholding something right now. <strong>Derived</strong> means the number
 			follows from something; <strong>judged</strong> means it was chosen and could
@@ -375,8 +408,7 @@ function gatesSection(input: ConsoleInput): string {
 			? `<p class="verdict-line warn">${count} gate${count === 1 ? ' is' : 's are'}
 				currently withholding output. They are marked below.</p>`
 			: '<p class="verdict-line ok">No gate is currently withholding anything.</p>'}
-		${groups.join('')}
-	</section>`;
+		${groups.join('')}`, count > 0);
 }
 
 /* --------------------------------------------------------- pipeline --- */
@@ -387,9 +419,17 @@ function pipelineSection(input: ConsoleInput): string {
 	const step = (label: string, value: string, note: string) =>
 		`<tr><td>${label}</td><td class="num mono">${value}</td><td class="dim">${note}</td></tr>`;
 
-	return `
-	<section>
-		<h2>The pipeline</h2>
+	// Spans scanned is zero before the first ingest of a session, and "65
+	// messages from 0 spans" reads as a contradiction rather than as a cursor
+	// that has not moved.
+	const messages = `${fmtInt(totals.requests)} message${totals.requests === 1 ? '' : 's'}`;
+	const state = p.errors.length > 0
+		? `${p.errors.length} error${p.errors.length === 1 ? '' : 's'}`
+		: p.spansScanned > 0
+		? `${messages} from ${fmtInt(p.spansScanned)} span${p.spansScanned === 1 ? '' : 's'}`
+		: `${messages} on record`;
+
+	return pane('The pipeline', state, p.errors.length > 0 ? 'bad' : 'flat', `
 		<p class="lede">Every stage between the trace database and the figures on the panel,
 			with what each one dropped.</p>
 		<table>
@@ -412,8 +452,7 @@ function pipelineSection(input: ConsoleInput): string {
 		</table>
 		${p.errors.length > 0
 			? `<div class="warn-box">${p.errors.map(e => `<div>${escapeHtml(e)}</div>`).join('')}</div>`
-			: ''}
-	</section>`;
+			: ''}`, p.errors.length > 0);
 }
 
 /* ----------------------------------------------------------- render --- */
@@ -433,9 +472,8 @@ export function renderConsole(input: ConsoleInput): string {
 			? `data as of ${escapeHtml(input.lastRefresh.toLocaleString())}`
 			: 'never refreshed'}</i></span>
 	</header>
-	<p class="lede top">Nothing here is derived for display. These are the values the
-		extension is running on, in the order the doubt runs: the one constant everything
-		rests on, then the prices, then the gates that decide what you are shown.</p>
+	<p class="lede top">The values the extension is actually running on, in the order the
+		doubt runs. Each line below answers its own question; open one for the working.</p>
 	${conversionSection(input)}
 	${rateCardSection(input)}
 	${gatesSection(input)}
@@ -467,16 +505,44 @@ const CONSOLE_STYLES = `
 		padding-bottom: 8px;
 		border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
 	}
+	/* Four sections open at once is a page you scroll rather than read, so each
+	   is a pane whose summary carries its own answer. Opening one is for the
+	   working, not for the finding. */
+	details.pane {
+		border-radius: 8px; margin-bottom: 10px;
+		background: var(--vscode-editorWidget-background);
+		border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
+	}
+	details.pane > summary {
+		list-style: none; cursor: pointer; padding: 13px 16px;
+		display: flex; gap: 10px; align-items: center;
+	}
+	details.pane > summary::-webkit-details-marker { display: none; }
+	details.pane > summary:hover { background: var(--vscode-list-hoverBackground, transparent); }
+	details.pane[open] > summary { border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.22)); }
+	details.pane[open] > summary .chev { transform: rotate(-135deg); }
+	.pane-title { font-size: 0.92rem; font-weight: 600; }
+	.pane-body { padding: 4px 16px 18px; }
+	.pane-body > .lede:first-child { margin-top: 10px; }
+	/* The answer, on the closed line. */
+	.state {
+		margin-left: auto; font-size: 0.76rem; font-weight: 500;
+		font-variant-numeric: tabular-nums; white-space: nowrap;
+	}
+	.state.ok { color: var(--vscode-charts-green, #89D185); }
+	.state.warn { color: var(--vscode-charts-yellow, #CCA700); }
+	.state.bad { color: var(--vscode-charts-red, #F14C4C); }
+	.state.flat { color: var(--vscode-descriptionForeground); }
+
 	/* Seventeen gates expanded is the wall this page exists to replace. Each
 	   group collapses; the ones with something to answer for open themselves.
 	   Same chevron geometry as the report, so the two pages behave alike. */
 	details.group {
-		border-radius: 7px; margin-bottom: 8px;
-		background: var(--vscode-editorWidget-background);
-		border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
+		border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.18));
 	}
+	details.group:first-of-type { border-top: none; }
 	details.group > summary {
-		list-style: none; cursor: pointer; padding: 10px 14px;
+		list-style: none; cursor: pointer; padding: 11px 2px;
 		display: flex; gap: 9px; align-items: center;
 		font-size: 0.86rem; font-weight: 600;
 	}
@@ -492,11 +558,10 @@ const CONSOLE_STYLES = `
 	}
 	details.group[open] > summary .chev { transform: rotate(-135deg); }
 	.count { font-weight: 400; margin-left: auto; }
-	details.group table { margin: 0; }
+	details.group table { margin: 0 0 10px; }
 	details.group table tr:last-child td { border-bottom: none; }
-	details.group th:first-child, details.group td:first-child { padding-left: 14px; }
-	details.group th:last-child, details.group td:last-child { padding-right: 14px; }
 	section { margin-top: 34px; }
+	h3 { margin-top: 22px; }
 	.sub, .dim { color: var(--vscode-descriptionForeground); }
 	.lede { color: var(--vscode-descriptionForeground); margin: 8px 0 16px; text-wrap: pretty; }
 	.lede.top { margin-bottom: 0; }

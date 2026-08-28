@@ -228,5 +228,42 @@ check('it has a filled ground, not only an outline',
 check('with a fallback where color-mix is unsupported',
   /\.basis\.judged \{[^}]*background: rgba\(/.test(html), true);
 
+// Four sections open at once is a page you scroll rather than read. Closed,
+// each summary has to carry its own answer or collapsing has just hidden the
+// information instead of organising it.
+console.log('\nthe page is four answers before it is four sections');
+check('every section is a pane', (html.match(/<details class="pane"/g) || []).length, 4);
+check('none opens for an ordinary page', /<details class="pane" open>/.test(html), false);
+check('the conversion says it was never checked',
+  /The conversion<\/span>\s*<span class="state warn">never checked/.test(html.replace(/\s+/g, ' ')), true);
+check('the rate card counts the disagreements',
+  /The rate card<\/span> <span class="state warn">1 disagreement</.test(html.replace(/\s+/g, ' ')), true);
+check('the gates say how many and whether any bind',
+  /The gates<\/span> <span class="state ok">17 thresholds \u00b7 none withholding</
+    .test(html.replace(/\s+/g, ' ')), true);
+check('a reconciled conversion says so on the closed line',
+  /The conversion<\/span> <span class="state ok">checked against GitHub</.test(
+    confirmed.replace(/\s+/g, ' ')), true);
+
+// Closed is the default, not the rule: a pane with something wrong in it opens
+// itself, or the finding is one click further away than the problem it reports.
+check('gates open themselves when one is withholding',
+  /<details class="pane" open>\s*<summary>.{0,80}?The gates/
+    .test(thinHtml.replace(/\s+/g, ' ')), true);
+const broken = render({ pipeline: { databases: 1, spansScanned: 1, spansCounted: 1,
+  costSpans: 1, recoveredMessages: 0, errors: ['disk on fire'] } });
+check('and the pipeline opens itself on an error',
+  /The pipeline<\/span> <span class="state bad">1 error</.test(broken.replace(/\s+/g, ' ')), true);
+check('with the pane open', (broken.match(/<details class="pane" open>/g) || []).length, 1);
+
+// "65 messages from 0 spans" reads as a contradiction rather than as a cursor
+// that has not moved yet.
+const unscanned = render({ pipeline: { databases: 0, spansScanned: 0, spansCounted: 0,
+  costSpans: 0, recoveredMessages: 0, errors: [] } });
+check('a pipeline that has not scanned says so without contradicting itself',
+  /message[s]? on record</.test(unscanned), true);
+check('and does not claim messages came from zero spans',
+  /from 0 spans/.test(unscanned), false);
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
