@@ -160,10 +160,21 @@ export function advise(
 
 	// Is it a real slice of how this developer works, throttle date aside?
 	const pattern = (a: Advice) =>
-		a.creditsAtStake >= tuning.advice.minCreditsAtStake &&
 		a.creditsAtStake / totalCredits >= tuning.advice.minShareAtStake;
 
-	const material = (a: Advice) => urgent(a) || pattern(a);
+	/**
+	 * The floor sits over both paths, not inside one of them.
+	 *
+	 * It used to be part of `pattern` only, so raising it did not quieten the
+	 * urgent path at all: someone who asked not to hear about anything under
+	 * five credits still got a two-credit finding whenever the allowance was
+	 * low enough. A setting that does not do what its name says is worse than
+	 * no setting, and this is the only threshold a developer is offered.
+	 */
+	const worthMentioning = (a: Advice) =>
+		a.creditsAtStake >= tuning.advice.minCreditsAtStake;
+
+	const material = (a: Advice) => worthMentioning(a) && (urgent(a) || pattern(a));
 
 	return found
 		.filter(material)

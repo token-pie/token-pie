@@ -30,8 +30,18 @@ export type KnobKind =
 	| 'window';
 
 export interface Knob {
-	/** Setting id under `tokenPie.`, and the path into `Tuning`. */
+	/** Path into `Tuning`, and the legacy setting name. */
 	id: string;
+	/**
+	 * The name this is offered under, when it is offered at all.
+	 *
+	 * Seventeen thresholds in the settings UI was seventeen invitations to
+	 * change something whose consequences only the source explains. A knob is
+	 * only a setting when a developer could reasonably want it different *and*
+	 * the tool stays honest either way. The rest are rules: still shown in the
+	 * console with their reasoning, no longer dressed up as choices.
+	 */
+	setting?: string;
 	kind: KnobKind;
 	default: number;
 	min?: number;
@@ -113,10 +123,13 @@ export const KNOBS: Knob[] = [
 	},
 	{
 		id: 'advice.minCreditsAtStake',
+		setting: 'minCreditsWorthMentioning',
 		kind: 'materiality', default: 0.5, min: 0, unit: 'credits',
-		gates: 'A finding worth less than this is not shown as a pattern.',
+		gates: 'Nothing worth less than this many credits is reported, however it scores '
+			+ 'on the rules below.',
 		basis: 'judged',
-		why: 'A floor in absolute terms, so a trivial sum cannot qualify on share alone.'
+		why: 'The one materiality question only you can answer: what is too small to be '
+			+ 'worth your attention. Raise it to be told less, lower it to be told more.'
 	},
 	{
 		id: 'advice.minShareAtStake',
@@ -161,10 +174,12 @@ export const KNOBS: Knob[] = [
 	},
 	{
 		id: 'projection.tightDaysMargin',
+		setting: 'warnAtDaysLeft',
 		kind: 'wording', default: 2, min: 0, unit: 'days',
-		gates: 'Headroom below this reads "tight" rather than "ok".',
+		gates: 'Warn when the allowance has fewer than this many days of slack left.',
 		basis: 'judged',
-		why: 'One heavy day changes the answer at this margin.'
+		why: 'How much warning you want is a decision about your own week, not something '
+			+ 'the data can settle. One heavy day changes the answer at two.'
 	},
 	{
 		id: 'reconcile.roundingSlack',
@@ -183,6 +198,7 @@ export const KNOBS: Knob[] = [
 	},
 	{
 		id: 'history.days',
+		setting: 'historyDays',
 		kind: 'window', default: 30, min: 1, max: 365, unit: 'days',
 		gates: 'How far back transcripts are read, and how long rollups are kept.',
 		basis: 'judged',
@@ -249,7 +265,11 @@ export function read(get: (id: string) => unknown): { tuning: Tuning; readings: 
 	const out: Record<string, Record<string, number>> = {};
 	const readings: KnobReading[] = [];
 	for (const knob of KNOBS) {
-		const raw = get(knob.id);
+		// The plain name first, then the dotted one. A rule that is no longer a
+		// setting still answers to its old id, so a developer who tuned one
+		// before is not silently reset -- it just stops being advertised.
+		const named = knob.setting !== undefined ? get(knob.setting) : undefined;
+		const raw = named !== undefined ? named : get(knob.id);
 		const supplied = typeof raw === 'number' && Number.isFinite(raw);
 		let value = supplied ? raw : knob.default;
 		if (knob.min !== undefined) {
@@ -269,11 +289,33 @@ export function read(get: (id: string) => unknown): { tuning: Tuning; readings: 
 	return { tuning: out as unknown as Tuning, readings };
 }
 
-/** The `contributes.configuration` block for the ladder, so the two cannot drift. */
+/** Knobs offered as settings. The rest are rules the console explains. */
+export function settings(): Knob[] {
+	return KNOBS.filter(k => k.setting !== undefined);
+}
+
+/** Knobs that are fixed: shown, reasoned about, not offered. */
+export function rules(): Knob[] {
+	return KNOBS.filter(k => k.setting === undefined);
+}
+
+/**
+ * Every setting name this module has ever owned, offered or not.
+ *
+ * The sync script needs it to *remove* entries, not only add them: a knob
+ * demoted to a rule leaves its old setting behind in package.json otherwise,
+ * still listed in the settings UI and no longer connected to anything.
+ */
+export function ownedSettingNames(): string[] {
+	return KNOBS.flatMap(k => [`tokenPie.${k.id}`,
+		...(k.setting ? [`tokenPie.${k.setting}`] : [])]);
+}
+
+/** The `contributes.configuration` block, so the two cannot drift. */
 export function contributions(): Record<string, unknown> {
 	const props: Record<string, unknown> = {};
-	for (const k of KNOBS) {
-		props[`tokenPie.${k.id}`] = {
+	for (const k of settings()) {
+		props[`tokenPie.${k.setting}`] = {
 			type: 'number',
 			default: k.default,
 			...(k.min !== undefined ? { minimum: k.min } : {}),

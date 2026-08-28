@@ -8,15 +8,18 @@
  * without a rebuild cannot ship invisible.
  */
 import fs from 'fs';
-import { contributions } from '../out/tuning.js';
+import { contributions, ownedSettingNames } from '../out/tuning.js';
 
 const file = new URL('../package.json', import.meta.url);
 const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
 const props = pkg.contributes.configuration.properties;
 
-// Settings that are not gates keep their hand-written entries and their order.
+// Hand-written settings keep their entries and their order. Anything this
+// module owns is dropped first and re-added from the list, so a knob demoted
+// to a rule takes its setting with it instead of leaving a dead entry behind.
 const managed = contributions();
-const kept = Object.fromEntries(Object.entries(props).filter(([k]) => !(k in managed)));
+const owned = new Set(ownedSettingNames());
+const kept = Object.fromEntries(Object.entries(props).filter(([k]) => !owned.has(k)));
 const next = { ...kept, ...managed };
 
 const same = JSON.stringify(props) === JSON.stringify(next);

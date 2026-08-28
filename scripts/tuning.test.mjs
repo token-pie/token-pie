@@ -7,7 +7,8 @@
  * reachable from the panel that claims to show it. The rest is bookkeeping the
  * build enforces.
  */
-import { KNOBS, defaults, read, contributions } from '../out/tuning.js';
+import { KNOBS, defaults, read, contributions, settings, rules, ownedSettingNames }
+  from '../out/tuning.js';
 import { advise } from '../out/advice.js';
 import { solve } from '../out/pricing.js';
 
@@ -85,12 +86,36 @@ check('and when the materiality floor is raised past it',
     read(id => (id === 'advice.minShareAtStake' ? 0.99 : undefined)
       ?? undefined).tuning).length, 0);
 
-console.log('\nsettings projection');
+// Seventeen thresholds in the settings UI was seventeen invitations to change
+// something whose consequences only the source explains. A knob is a setting
+// only when a developer could reasonably want it different and the tool stays
+// honest either way; the rest are rules the console explains.
+console.log('\nsettings are the few, rules are the rest');
 const props = contributions();
-check('one setting per knob', Object.keys(props).length, KNOBS.length);
+check('only exposed knobs become settings', Object.keys(props).length, settings().length);
+check('and that is a small number', settings().length, 3);
+check('every knob is either a setting or a rule', settings().length + rules().length, KNOBS.length);
+check('exposed settings have plain names, not dotted paths',
+  Object.keys(props).every(k => k.split('.').length === 2), true);
 check('all namespaced', Object.keys(props).every(k => k.startsWith('tokenPie.')), true);
 check('each carries its rationale into the settings UI',
   Object.values(props).every(v => v.markdownDescription.includes('_')), true);
+
+// A knob demoted to a rule leaves its old setting behind in package.json
+// otherwise: still listed in the settings UI, no longer connected to anything.
+check('the owned names cover both the old id and the new setting',
+  ownedSettingNames().length, KNOBS.length + settings().length);
+
+// Anyone who tuned a threshold before it became a rule should not be silently
+// reset just because it stopped being advertised.
+check('a rule still answers to its old dotted name',
+  read(id => (id === 'pricing.minObservations' ? 12 : undefined)).tuning.pricing.minObservations, 12);
+check('an exposed knob answers to its plain name',
+  read(id => (id === 'minCreditsWorthMentioning' ? 3 : undefined)).tuning.advice.minCreditsAtStake, 3);
+check('and still to its old one',
+  read(id => (id === 'advice.minCreditsAtStake' ? 3 : undefined)).tuning.advice.minCreditsAtStake, 3);
+check('with the plain name winning when both are set',
+  read(id => (id === 'minCreditsWorthMentioning' ? 3 : 9)).tuning.advice.minCreditsAtStake, 3);
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

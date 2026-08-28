@@ -82,7 +82,15 @@ check('the card says where it came from and when',
   /Card in use: <strong>bundled<\/strong>/.test(flat), true);
 
 console.log('\ngates');
-check('every gate is listed', (html.match(/tokenPie\.(advice|pricing|report|projection|reconcile|history)\./g) || []).length, 17);
+const gatesPane = html.slice(html.indexOf('The gates'), html.indexOf('The pipeline'));
+check('every threshold is listed, settings and rules alike',
+  (gatesPane.match(/<code>tokenPie\.[a-zA-Z]/g) || []).length, 17);
+// Most are not choices: they exist so the panel cannot claim more than it
+// measured, and offering them invites turning the honesty off.
+check('only a handful are offered as settings',
+  (html.match(/<code>tokenPie\.(minCreditsWorthMentioning|warnAtDaysLeft|historyDays)<\/code>/g) || []).length, 3);
+check('the rest keep their dotted paths and are not settings',
+  /<code>tokenPie\.pricing\.minR2<\/code>/.test(html), true);
 check('each says whether its value was derived or judged',
   (html.match(/class="basis (derived|judged)"/g) || []).length, 17);
 check('nothing is withholding on sufficient data',
@@ -117,20 +125,23 @@ check('a locked-down CSP', /default-src 'none'/.test(html), true);
 
 // Seventeen gates expanded is the wall of text this page exists to replace.
 console.log('\nthe gates collapse, and open themselves when they matter');
-check('each kind is its own collapsible group',
-  (html.match(/<details class="group"/g) || []).length, 5);
-check('none is open when nothing is withholding or changed',
-  /<details class="group" open>/.test(html), false);
+check('two groups: what you can change, and what you cannot',
+  (html.match(/<details class="group"/g) || []).length, 2);
+check('named for the reader\'s question, not the taxonomy',
+  /What you can change/.test(html) && /Rules that keep the numbers honest/.test(html), true);
+// The handful you can act on is worth showing without a click.
+check('the settings group opens itself',
+  (html.match(/<details class="group" open>/g) || []).length, 1);
 check('each summary carries its own count',
-  (html.match(/class="dim count"/g) || []).length, 5);
+  (html.match(/class="dim count"/g) || []).length, 2);
+check('and the rules group says why it is not a list of choices',
+  /would not reveal more/.test(html.replace(/\s+/g, ' ')), true);
 
 const thinHtml = render({ rollups: [rollup({ requests: 5 })] });
-check('a group holding a withholding gate opens itself',
-  (thinHtml.match(/<details class="group" open>/g) || []).length, 1);
-check('and says so on the closed summary line',
+check('a group holding a withholding rule opens itself too',
+  (thinHtml.match(/<details class="group" open>/g) || []).length, 2);
+check('and says so on its summary line',
   /1 withholding<\/span>/.test(thinHtml), true);
-check('while the other groups stay shut',
-  (thinHtml.match(/<details class="group">/g) || []).length, 4);
 
 const edited = render({ readings: read(id => (id === 'history.days' ? 14 : undefined)).readings });
 check('a group holding a changed gate opens itself too',
@@ -238,8 +249,8 @@ check('the conversion says it was never checked',
   /The conversion<\/span>\s*<span class="state warn">never checked/.test(html.replace(/\s+/g, ' ')), true);
 check('the rate card counts the disagreements',
   /The rate card<\/span> <span class="state warn">1 disagreement</.test(html.replace(/\s+/g, ' ')), true);
-check('the gates say how many and whether any bind',
-  /The gates<\/span> <span class="state ok">17 thresholds \u00b7 none withholding</
+check('the gates summarise as settings against fixed rules',
+  /The gates<\/span> <span class="state ok">3 settings \u00b7 14 fixed rules</
     .test(html.replace(/\s+/g, ' ')), true);
 check('a reconciled conversion says so on the closed line',
   /The conversion<\/span> <span class="state ok">checked against GitHub</.test(

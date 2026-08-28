@@ -84,13 +84,6 @@
           "default": true,
           "markdownDescription": "After each ingest, delete the model output and tool schemas that `github.copilot.chat.otel.maxAttributeSizeChars` cannot suppress. This is the only case where Token Pie writes to Copilot's database. Measured at under 3 ms in steady state; a locked database is skipped, not waited on."
         },
-        "tokenPie.autoPurge.busyTimeoutMs": {
-          "type": "number",
-          "default": 250,
-          "minimum": 0,
-          "maximum": 5000,
-          "markdownDescription": "How long the automatic purge waits for a database lock before giving up. Kept short so it never stalls Copilot; the purge is idempotent, so a skipped cycle is harmless."
-        },
         "tokenPie.rateCard.autoUpdate": {
           "type": "boolean",
           "default": true,
@@ -109,110 +102,19 @@
           "default": null,
           "markdownDescription": "A rate card supplied inline, overriding both the bundled snapshot and any fetched copy. Same shape as `rate-card.json`. Use this to price a model GitHub does not publish, or to correct one."
         },
-        "tokenPie.pricing.minObservations": {
-          "type": "number",
-          "default": 6,
-          "minimum": 4,
-          "markdownDescription": "A model shows no solved rate card, so no per-token prices and no cost split. _Three coefficients need more than three observations. Six leaves three degrees of freedom, which is the fewest that lets the R\u00b2 check below fail._"
-        },
-        "tokenPie.pricing.minR2": {
-          "type": "number",
-          "default": 0.999,
-          "minimum": 0,
-          "maximum": 1,
-          "markdownDescription": "A rate card that fits worse than this is discarded rather than shown. _Cost is an exact rate card, not a trend, so a correct fit lands on 1.000000. Anything materially below means the model is wrong \u2014 a tier change mid-window, or a token class we do not know about. Note this guard has never been near-missed, so it is unfalsified rather than proven: it admits fits a thousand times worse than any observed._"
-        },
-        "tokenPie.advice.minHistoryRequests": {
-          "type": "number",
-          "default": 10,
-          "minimum": 1,
-          "markdownDescription": "All recommendations are withheld below this much total history. _Five requests can be one session that went badly. Ten is where the depth buckets start to fill, so \"how you work\" is visible rather than inferred from a single conversation._"
-        },
-        "tokenPie.advice.minBaselineRequests": {
-          "type": "number",
-          "default": 2,
-          "minimum": 2,
-          "markdownDescription": "A model with fewer cache-hit requests gets no cache-miss finding. _A rate needs more than one observation to be a rate._"
-        },
-        "tokenPie.report.minBucketRequests": {
-          "type": "number",
-          "default": 3,
-          "minimum": 2,
-          "markdownDescription": "A depth bucket below this is left out of the thread-depth ratio. _A \"3.6x\" headline was once stated from two observations against two. This asks whether there is enough to compute a rate, not whether it matters._"
-        },
-        "tokenPie.report.minPricedShare": {
+        "tokenPie.minCreditsWorthMentioning": {
           "type": "number",
           "default": 0.5,
           "minimum": 0,
-          "maximum": 1,
-          "markdownDescription": "Below this share of spend priced, the composition falls back to token counts. _A cost split covering a minority of the bill would look like the whole of it._"
+          "markdownDescription": "Nothing worth less than this many credits is reported, however it scores on the rules below. _The one materiality question only you can answer: what is too small to be worth your attention. Raise it to be told less, lower it to be told more._"
         },
-        "tokenPie.projection.minDaysForRate": {
-          "type": "number",
-          "default": 1,
-          "minimum": 0.5,
-          "markdownDescription": "No burn rate, so no throttle projection \u2014 the verdict reads \"no-rate\". _This was 0.5, which is exactly the one-heavy-afternoon case it exists to exclude; a test projecting a throttle from a single burst caught it._"
-        },
-        "tokenPie.advice.minCreditsAtStake": {
-          "type": "number",
-          "default": 0.5,
-          "minimum": 0,
-          "markdownDescription": "A finding worth less than this is not shown as a pattern. _A floor in absolute terms, so a trivial sum cannot qualify on share alone._"
-        },
-        "tokenPie.advice.minShareAtStake": {
-          "type": "number",
-          "default": 0.05,
-          "minimum": 0,
-          "maximum": 1,
-          "markdownDescription": "A finding below this share of observed spend is not shown as a pattern. _Asks whether this is a real slice of how the person works, independently of whether it threatens the allowance._"
-        },
-        "tokenPie.advice.minShareOfAllowance": {
-          "type": "number",
-          "default": 0.01,
-          "minimum": 0,
-          "maximum": 1,
-          "markdownDescription": "A finding this large against the remaining allowance is shown as urgent, whatever its share of spend. _The urgent path exists because a finding can be small against history and still decide whether the allowance survives the period._"
-        },
-        "tokenPie.advice.minCacheFactor": {
-          "type": "number",
-          "default": 1.5,
-          "minimum": 1,
-          "markdownDescription": "A cache-miss finding is withheld unless misses cost this multiple of hits. _Below this the multiple is ordinary variance rather than a finding._"
-        },
-        "tokenPie.advice.autoDominantShare": {
-          "type": "number",
-          "default": 0.5,
-          "minimum": 0,
-          "maximum": 1,
-          "markdownDescription": "Above this share, advice says Auto chose the model rather than you. _Telling someone to route away from a model Auto picked is advice about a decision they never made, so the wording has to follow who chose._"
-        },
-        "tokenPie.report.cacheWriteDominant": {
-          "type": "number",
-          "default": 0.9,
-          "minimum": 0.5,
-          "maximum": 1,
-          "markdownDescription": "Above this, fresh input is labelled \"and cached for next time\" and the surcharge is explained; below 1 minus this, \"charged in full\". _Between the two the population is genuinely mixed and neither wording is true, so the label says neither._"
-        },
-        "tokenPie.projection.tightDaysMargin": {
+        "tokenPie.warnAtDaysLeft": {
           "type": "number",
           "default": 2,
           "minimum": 0,
-          "markdownDescription": "Headroom below this reads \"tight\" rather than \"ok\". _One heavy day changes the answer at this margin._"
+          "markdownDescription": "Warn when the allowance has fewer than this many days of slack left. _How much warning you want is a decision about your own week, not something the data can settle. One heavy day changes the answer at two._"
         },
-        "tokenPie.reconcile.roundingSlack": {
-          "type": "number",
-          "default": 0.1,
-          "minimum": 0,
-          "markdownDescription": "Absolute slack before two credit figures are called different. _quota_remaining arrives rounded to one decimal, so a delta of two readings can be off by 0.1 through rounding alone._"
-        },
-        "tokenPie.reconcile.relativeTolerance": {
-          "type": "number",
-          "default": 0.05,
-          "minimum": 0,
-          "maximum": 1,
-          "markdownDescription": "Proportional slack added to the absolute one above. _Rounding alone does not scale with the window; this absorbs the drift that does._"
-        },
-        "tokenPie.history.days": {
+        "tokenPie.historyDays": {
           "type": "number",
           "default": 30,
           "minimum": 1,

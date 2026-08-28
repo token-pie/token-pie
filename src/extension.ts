@@ -114,6 +114,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// Published prices, at most weekly and never blocking. The bundled snapshot
 	// is what the comparison runs on until this lands, so nothing waits on it.
+	// The refresh cycle checks again as it runs -- this only covers the first
+	// few minutes after activation, before that cycle has come round.
 	setTimeout(() => void refreshRateCard(), 5000);
 }
 
@@ -288,6 +290,15 @@ async function refresh(interactive: boolean): Promise<void> {
 	} finally {
 		inFlight = undefined;
 	}
+
+	// Published prices, checked on the same cycle as everything else.
+	//
+	// This used to run once, five seconds after activation, so an editor left
+	// open for a month never picked up a price change -- the one span of time
+	// over which prices are most likely to have moved. `isDue` is a stat call
+	// and the fetch itself still fires at most weekly, so riding this cycle
+	// costs nothing.
+	void refreshRateCard();
 }
 
 async function runRefresh(interactive: boolean): Promise<void> {
@@ -373,6 +384,10 @@ function autoPurge(): void {
 	let results: PurgeResult[];
 	try {
 		results = purgeAll({
+			// No longer offered as a setting: a millisecond lock timeout is not a
+			// preference anyone can hold. Still read, so an existing override
+			// keeps working. The purge is idempotent, so a skipped cycle is
+			// harmless and there is nothing here worth tuning.
 			busyTimeoutMs: config().get<number>('autoPurge.busyTimeoutMs', 250),
 			vacuum: 'auto'
 		});

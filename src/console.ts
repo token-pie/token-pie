@@ -350,22 +350,27 @@ function bindingState(input: ConsoleInput): Map<string, string> {
 
 function gatesSection(input: ConsoleInput): string {
 	const binding = bindingState(input);
-	const kinds: [string, string][] = [
-		['evidence', 'Is there enough data to say anything?'],
-		['materiality', 'The claim is true &mdash; is it worth saying?'],
-		['tolerance', 'Are these two figures the same figure?'],
-		['wording', 'Which of several true descriptions to use'],
-		['window', 'How much history to hold']
+	// Two groups, not five. The five were my vocabulary for why a threshold
+	// exists; this is the reader's question -- can I change it, and if not, why
+	// is it what it is.
+	const groups: [string, string, (r: KnobReading) => boolean][] = [
+		['What you can change', 'Settings, under <code>tokenPie.</code>',
+			r => r.knob.setting !== undefined],
+		['Rules that keep the numbers honest',
+			'Not settings. Each one stops the panel claiming something the data '
+			+ 'does not support, so loosening it would not reveal more &mdash; it '
+			+ 'would invent more.',
+			r => r.knob.setting === undefined]
 	];
 
-	const groups = kinds.map(([kind, heading]) => {
-		const mine = input.readings.filter(r => r.knob.kind === kind);
+	const rendered = groups.map(([heading, blurb, belongs]) => {
+		const mine = input.readings.filter(belongs);
 		const withholding = mine.filter(r => binding.has(r.knob.id)).length;
 		const changed = mine.filter(r => r.overridden).length;
 		const rows = mine.map(r => {
 			const b = binding.get(r.knob.id);
 			return `<tr class="${b ? 'binding' : ''}">
-				<td><code>tokenPie.${escapeHtml(r.knob.id)}</code>
+				<td><code>tokenPie.${escapeHtml(r.knob.setting ?? r.knob.id)}</code>
 					${b ? `<span class="chip">withholding now &mdash; ${escapeHtml(b)}</span>` : ''}
 					<div class="dim">${escapeHtml(r.knob.gates)}</div></td>
 				<td class="num mono">${r.value}${r.requested !== undefined
@@ -374,10 +379,9 @@ function gatesSection(input: ConsoleInput): string {
 				<td><span class="basis ${r.knob.basis}">${r.knob.basis}</span>
 					<div class="dim why">${escapeHtml(r.knob.why)}</div></td></tr>`;
 		});
-		// Open only when there is something to answer for. Seventeen gates
-		// expanded is the wall of text this page exists to replace; a group
-		// that is withholding, or that someone has changed, is the exception.
-		const open = withholding > 0 || changed > 0;
+		// Open when there is something to answer for, and always for the handful
+		// you can actually act on.
+		const open = withholding > 0 || changed > 0 || mine.some(r => r.knob.setting);
 		const tally = [
 			withholding > 0 ? `<span class="chip">${withholding} withholding</span>` : '',
 			changed > 0 ? `<span class="chip changed">${changed} changed</span>` : ''
@@ -386,6 +390,7 @@ function gatesSection(input: ConsoleInput): string {
 		<details class="group"${open ? ' open' : ''}>
 			<summary><span class="chev"></span>${heading}
 				<span class="dim count">${mine.length}</span>${tally}</summary>
+			<p class="note dim group-blurb">${blurb}</p>
 			<table>
 				<tr><th>Gate</th><th class="num">In effect</th><th class="num">Default</th>
 				    <th>Why this number</th></tr>
@@ -395,20 +400,23 @@ function gatesSection(input: ConsoleInput): string {
 	});
 
 	const count = binding.size;
+	const settable = input.readings.filter(r => r.knob.setting !== undefined).length;
 	const state = count > 0
 		? `${count} withholding`
-		: `${input.readings.length} thresholds \u00b7 none withholding`;
+		: `${settable} setting${settable === 1 ? '' : 's'} \u00b7 ${
+			input.readings.length - settable} fixed rules`;
 
 	return pane('The gates', state, count > 0 ? 'warn' : 'ok', `
 		<p class="lede">Every threshold the panel applies, what it is set to, and whether it
-			is withholding something right now. <strong>Derived</strong> means the number
-			follows from something; <strong>judged</strong> means it was chosen and could
-			reasonably be chosen otherwise.</p>
+			is withholding something right now. Most are not yours to change: they exist so
+			the panel cannot claim more than it measured. <strong>Derived</strong> means the
+			number follows from something; <strong>judged</strong> means it was chosen and
+			could reasonably be chosen otherwise.</p>
 		${count > 0
 			? `<p class="verdict-line warn">${count} gate${count === 1 ? ' is' : 's are'}
 				currently withholding output. They are marked below.</p>`
 			: '<p class="verdict-line ok">No gate is currently withholding anything.</p>'}
-		${groups.join('')}`, count > 0);
+		${rendered.join('')}`, count > 0);
 }
 
 /* --------------------------------------------------------- pipeline --- */
@@ -479,9 +487,11 @@ export function renderConsole(input: ConsoleInput): string {
 	${gatesSection(input)}
 	${pipelineSection(input)}
 	<footer>
-		Every gate above is a setting under <code>tokenPie.</code> &mdash; open Settings and
-		search for it, or edit <code>settings.json</code>. Values outside a gate's range are
-		clamped rather than obeyed; when that happens this page shows both figures.
+		The three settings above live under <code>tokenPie.</code> &mdash; open Settings and
+		search for one, or edit <code>settings.json</code>. Values outside a setting's range
+		are clamped rather than obeyed; when that happens this page shows both figures.
+		The fixed rules are shown so you can see what the panel is doing, not so you can
+		turn it off.
 	</footer>
 </body>
 </html>`;
@@ -588,6 +598,7 @@ const CONSOLE_STYLES = `
 	details.group[open] > summary .chev { transform: rotate(-135deg); }
 	.count { font-weight: 400; margin-left: auto; }
 	details.group table { margin: 0 0 var(--gap-card); }
+	.group-blurb { margin: 0 0 var(--gap-line); max-width: 70ch; }
 	details.group table tr:last-child td { border-bottom: none; }
 	h3 { font-size: 0.82rem; font-weight: 600; color: var(--vscode-descriptionForeground);
 	     margin: var(--gap-region) 0 var(--gap-line); }

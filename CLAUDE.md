@@ -144,6 +144,11 @@ If a change makes one of those weaker, it is the wrong change.
   "where did it go", which is reference material. At least one view must answer
   "what did I do that cost this", in units a developer thinks in — a request, a
   turn, a thread — never a rate per 1,000 tokens.
+- **A threshold is a setting only if changing it leaves the tool honest.**
+  Seventeen were exposed; three are. The rest exist so the panel cannot claim
+  more than it measured, so loosening one would not reveal more, it would
+  invent more. They stay visible in the console with their reasoning, and still
+  answer to their dotted names in `settings.json` for debugging.
 - **`--vscode-charts-*` are fill colours, not text colours.** Nothing
   guarantees a chart colour contrasts with anything as text; the editor's
   warning foreground is ~2.9:1 on a light theme. Text uses
@@ -201,8 +206,9 @@ src/
   confidence.ts  measured | bounded | estimated, and how doubt propagates.
                  `estimated` is emitted by conversionConfidence() and combined
                  in advise(); nothing else may claim a credit figure is measured
-  tuning.ts      every gate in one place, with its provenance. Settings are
-                 GENERATED from it -- run `npm run sync:settings` after editing
+  tuning.ts      every gate in one place, with its provenance. Only knobs with
+                 a `setting` name are offered; the rest are rules the console
+                 explains. Settings are GENERATED -- `npm run sync:settings`
   ratecard.ts    GitHub's published prices as data; the second opinion on the
                  solved card. Bundled snapshot, user override, weekly fetch.
                  Cards are APPENDED with an effective date, never replaced -- a
