@@ -96,9 +96,22 @@ const readme = read('readme.md');
 const images = [...readme.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map(m => m[1]);
 check('every image is an absolute URL', images.every(u => u.startsWith('https://')),
   images.find(u => !u.startsWith('https://')));
+// One request per image, not two. `-o /dev/null` still transfers the whole
+// body, so asking for the status and then asking for the bytes downloaded every
+// screenshot twice -- and this loop is the only part of the build that waits on
+// a network.
+//
+// --connect-timeout because raw.githubusercontent.com resolves to four
+// addresses and one of them can be a black hole on a given network. curl waits
+// ten seconds on a silent SYN before trying the next, which turned this stage
+// into a minute of no output and looked like the build had stopped. Three
+// seconds is far above a real handshake and far below that wait.
+const served = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-served-'));
 for (const url of images) {
+  const body = path.join(served, path.basename(url));
   const code = execFileSync('curl',
-    ['-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '15', url]).toString();
+    ['-s', '-o', body, '-w', '%{http_code}',
+     '--connect-timeout', '3', '--max-time', '30', url]).toString();
   // A redirect is the failure that shipped: the Marketplace does not follow
   // them, so the image silently never appears.
   check(`${path.basename(url)} is served directly`, code === '200', `HTTP ${code}`);
@@ -108,11 +121,9 @@ for (const url of images) {
   // release's UI to everyone reading the Marketplace page.
   const localFile = path.join(root, 'images', path.basename(url));
   if (code === '200' && fs.existsSync(localFile)) {
-    const served = execFileSync('curl', ['-s', '--max-time', '20', url],
-      { maxBuffer: 64 * 1024 * 1024 });
     const digest = b => crypto.createHash('sha256').update(b).digest('hex').slice(0, 12);
     const mine = digest(fs.readFileSync(localFile));
-    const theirs = digest(served);
+    const theirs = digest(fs.readFileSync(body));
     check(`${path.basename(url)} matches the local copy`, mine === theirs,
       `local ${mine}, served ${theirs} — push images/ before publishing`);
   }
