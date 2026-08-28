@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.2 - 2026-08-28
+
+### Fixed
+
+- ingest looked for a span name the database may not use
+- coverage judged history, not what was actually recorded
+- one model is one row, and a floor says it is a floor
+
+
 ## 0.3.1 - 2026-08-28
 
 ### Fixed
