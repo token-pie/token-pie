@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 - 2026-08-28
+
+### Fixed
+
+- the rate note said "that" with nothing to point at
+
+
 ## 0.3.0 - 2026-08-28
 
 ### Added
