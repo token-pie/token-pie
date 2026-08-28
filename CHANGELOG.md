@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.3 - 2026-08-28
+
+### Fixed
+
+- a day key is a local day, and half the code read it as UTC
+- an empty database is not a broken install, and notes need room
+
+
 ## 0.3.2 - 2026-08-28
 
 ### Fixed
