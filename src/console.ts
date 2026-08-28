@@ -598,7 +598,12 @@ const CONSOLE_STYLES = `
 	details.group[open] > summary .chev { transform: rotate(-135deg); }
 	.count { font-weight: 400; margin-left: auto; }
 	details.group table { margin: 0 0 var(--gap-card); }
-	.group-blurb { margin: 0 0 var(--gap-line); max-width: 70ch; }
+	/* Prose introducing a block takes the block gap, like every other.
+	   Selected through its parent rather than by class alone: .note sets a zero
+	   bottom margin and is declared later, so at equal specificity it would win
+	   on order -- which is how two spacing bugs and a contrast bug have now
+	   been introduced. */
+	details.group > .group-blurb { margin: 0 0 var(--gap-block); max-width: 70ch; }
 	details.group table tr:last-child td { border-bottom: none; }
 	h3 { font-size: 0.82rem; font-weight: 600; color: var(--vscode-descriptionForeground);
 	     margin: var(--gap-region) 0 var(--gap-line); }
