@@ -70,7 +70,10 @@ check('no images beyond the manifest icon', strayImages.length === 0, strayImage
 // Inverted for good: these are the only things allowed out.
 const allowed = [
   /^package\.json$/, /^readme\.md$/i, /^changelog\.md$/i, /^license[^/]*$/i,
-  /^out\/[a-z]+\.js$/, new RegExp(`^${icon.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+  /^out\/[a-z]+\.js$/, new RegExp(`^${icon.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+  // The published price table. Shipped so the comparison against measured
+  // rates works offline and on first run, before any weekly fetch.
+  /^rate-card\.json$/
 ];
 const unexpected = files
   .map(f => path.relative(ext, f))

@@ -48,6 +48,14 @@
       {
         "command": "tokenPie.showLogs",
         "title": "Token Pie: Show Logs"
+      },
+      {
+        "command": "tokenPie.debugConsole",
+        "title": "Token Pie: Debug Console"
+      },
+      {
+        "command": "tokenPie.refreshRateCard",
+        "title": "Token Pie: Refresh Published Prices"
       }
     ],
     "configuration": {
@@ -80,6 +88,24 @@
           "minimum": 0,
           "maximum": 5000,
           "markdownDescription": "How long the automatic purge waits for a database lock before giving up. Kept short so it never stalls Copilot; the purge is idempotent, so a skipped cycle is harmless."
+        },
+        "tokenPie.rateCard.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Once a week, fetch a newer copy of GitHub's published model prices from `tokenPie.rateCard.url`. The extension ships a dated snapshot and works offline without this; the fetch only keeps the *comparison* against your measured rates current. Set to `false` for no outbound requests."
+        },
+        "tokenPie.rateCard.url": {
+          "type": "string",
+          "default": "https://raw.githubusercontent.com/token-pie/token-pie/main/rate-card.json",
+          "markdownDescription": "Where the weekly refresh reads published prices from. Point this at your own file if you are on negotiated or enterprise pricing; the format is the bundled `rate-card.json`. A response that does not parse as a complete rate card is discarded rather than partly applied."
+        },
+        "tokenPie.rateCard.models": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "A rate card supplied inline, overriding both the bundled snapshot and any fetched copy. Same shape as `rate-card.json`. Use this to price a model GitHub does not publish, or to correct one."
         },
         "tokenPie.pricing.minObservations": {
           "type": "number",
@@ -203,7 +229,7 @@
     "purge": "tsc -p . && node scripts/purge-content.mjs",
     "test:entitlement": "tsc -p . && node scripts/entitlement.test.mjs",
     "test:projection": "tsc -p . && node scripts/projection.test.mjs",
-    "test": "tsc -p . && node scripts/entitlement.test.mjs && node scripts/projection.test.mjs && node scripts/advice.test.mjs && node scripts/confidence.test.mjs && node scripts/pricing.test.mjs && node scripts/depth.test.mjs && node scripts/fleet.test.mjs && node scripts/backfill.test.mjs && node scripts/reconcile.test.mjs && node scripts/tuning.test.mjs && node scripts/responsive.test.mjs && node scripts/selftest.mjs",
+    "test": "tsc -p . && node scripts/entitlement.test.mjs && node scripts/projection.test.mjs && node scripts/advice.test.mjs && node scripts/confidence.test.mjs && node scripts/pricing.test.mjs && node scripts/depth.test.mjs && node scripts/fleet.test.mjs && node scripts/backfill.test.mjs && node scripts/reconcile.test.mjs && node scripts/tuning.test.mjs && node scripts/ratecard.test.mjs && node scripts/console.test.mjs && node scripts/responsive.test.mjs && node scripts/selftest.mjs",
     "test:advice": "tsc -p . && node scripts/advice.test.mjs",
     "test:pricing": "tsc -p . && node scripts/pricing.test.mjs",
     "test:depth": "tsc -p . && node scripts/depth.test.mjs",
@@ -220,7 +246,10 @@
     "audit": "node scripts/release-audit.mjs",
     "test:reconcile": "tsc -p . && node scripts/reconcile.test.mjs",
     "test:tuning": "tsc -p . && node scripts/tuning.test.mjs",
-    "sync:settings": "tsc -p . && node scripts/sync-settings.mjs"
+    "sync:settings": "tsc -p . && node scripts/sync-settings.mjs",
+    "console": "tsc -p . && node scripts/preview.mjs --console",
+    "test:ratecard": "tsc -p . && node scripts/ratecard.test.mjs",
+    "test:console": "tsc -p . && node scripts/console.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -16,7 +16,7 @@ import { PriceStats, Price, solve } from './pricing';
  * anyone can act on. Both are gone.
  */
 
-function fmtInt(n: number): string {
+export function fmtInt(n: number): string {
 	return Math.round(n).toLocaleString('en-US');
 }
 
@@ -60,7 +60,7 @@ export function creditsOf(nanoAiu: number, creditsPerNanoAiu: number): number {
 	return nanoAiu * creditsPerNanoAiu;
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
 	return value.replace(/[&<>"']/g, c =>
 		({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)
 	);
@@ -1412,7 +1412,7 @@ const STYLES = `
 `;
 
 /** Per-day credits and message counts, the shape `periodCoverage` compares. */
-function creditsByDay(
+export function creditsByDay(
 	rollups: Rollup[],
 	creditsPerNanoAiu: number
 ): Map<string, { credits: number; requests: number }> {

@@ -7,15 +7,17 @@ import { clearWorkspaceCache } from './workspaces';
 import { clearSelectionCache } from './selection';
 import { purgeAll, PurgeResult } from './purge';
 import { fetchEntitlement, governingSnapshot, hasCopilotAccess, QuotaError } from './quota';
-import { ReadingStore, toReading, reconcile } from './reconcile';
+import { ReadingStore, toReading, reconcile, periodCoverage } from './reconcile';
 import { userDirs, readTurns, clearTurnCache, Turn } from './sessions';
 import { project, statusLabel, Projection } from './projection';
 import { Progress, phaseLabel } from './progress';
 import { Entitlement } from './entitlement';
 import { RollupStore } from './store';
 import { KNOWN_SCHEMA_VERSION, num } from './schema';
-import { renderReport } from './report';
+import { renderReport, creditsByDay } from './report';
 import { Tuning, KnobReading, read } from './tuning';
+import { renderConsole } from './console';
+import { LoadedCard, load as loadCard, refresh as refreshCard, isDue } from './ratecard';
 
 const DB_EXPORTER_SETTING = 'github.copilot.chat.otel.dbSpanExporter.enabled';
 const OTEL_ENABLED_SETTING = 'github.copilot.chat.otel.enabled';
@@ -26,6 +28,7 @@ let store: RollupStore;
 let statusBar: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
 let panel: vscode.WebviewPanel | undefined;
+let consolePanel: vscode.WebviewPanel | undefined;
 let timer: NodeJS.Timeout | undefined;
 let lastRefresh: Date | undefined;
 let lastResult: IngestResult | undefined;
@@ -70,6 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
 			return refresh(true);
 		}),
 		vscode.commands.registerCommand('tokenPie.doctor', () => doctor()),
+		vscode.commands.registerCommand('tokenPie.debugConsole', () => showConsole(context)),
+		vscode.commands.registerCommand('tokenPie.refreshRateCard', () => refreshRateCard(true)),
 		vscode.commands.registerCommand('tokenPie.purgeContent', () => purgeContent()),
 		vscode.commands.registerCommand('tokenPie.checkQuota', () => checkQuota()),
 		vscode.commands.registerCommand('tokenPie.showLogs', () => output.show(true))
@@ -77,8 +82,18 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('tokenPie')) {
-				scheduleRefresh();
+			if (!e.affectsConfiguration('tokenPie')) {
+				return;
+			}
+			scheduleRefresh();
+			// Both pages read the gate ladder live. Someone raising a floor to
+			// see what it was withholding should see the answer immediately,
+			// which is the only way the console is worth opening twice.
+			if (panel) {
+				panel.webview.html = buildHtml();
+			}
+			if (consolePanel) {
+				consolePanel.webview.html = buildConsoleHtml();
 			}
 		})
 	);
@@ -96,6 +111,10 @@ export function activate(context: vscode.ExtensionContext): void {
 	// Deferred so activation returns immediately: VS Code renders the item
 	// before any of this begins, and each phase repaints it as it goes.
 	setTimeout(() => void refresh(false), 0);
+
+	// Published prices, at most weekly and never blocking. The bundled snapshot
+	// is what the comparison runs on until this lands, so nothing waits on it.
+	setTimeout(() => void refreshRateCard(), 5000);
 }
 
 export function deactivate(): void {
@@ -627,6 +646,117 @@ function buildHtml(): string {
 			recoveredMessages: lastResult?.backfill?.turnsCounted ?? 0
 		}
 	});
+}
+
+/* ------------------------------------------------------- rate card --- */
+
+/** Where a fetched card is cached. Beside the rollup, not inside the package. */
+function cardCachePath(): string | undefined {
+	return extensionContext
+		? path.join(extensionContext.globalStorageUri.fsPath, 'rate-card.json')
+		: undefined;
+}
+
+function currentCard(): LoadedCard {
+	return loadCard({
+		bundledPath: path.join(extensionContext!.extensionUri.fsPath, 'rate-card.json'),
+		cachePath: cardCachePath(),
+		override: config().get('rateCard.models') ?? undefined
+	});
+}
+
+/**
+ * Weekly, and never on the critical path.
+ *
+ * Nothing on the panel needs this to succeed: the extension ships a dated
+ * snapshot, so a machine that never reaches the network still compares measured
+ * rates against published ones. A refused fetch is logged and forgotten.
+ */
+async function refreshRateCard(manual = false): Promise<void> {
+	const cachePath = cardCachePath();
+	if (!cachePath) {
+		return;
+	}
+	if (!manual && !config().get<boolean>('rateCard.autoUpdate', true)) {
+		return;
+	}
+	if (!manual && !isDue(cachePath)) {
+		return;
+	}
+	const url = config().get<string>(
+		'rateCard.url',
+		'https://raw.githubusercontent.com/token-pie/token-pie/main/rate-card.json'
+	);
+	const result = await refreshCard(url, cachePath);
+	output.appendLine(
+		`rate card refresh: ${result.ok ? 'updated' : 'kept previous'} -- ${result.note}`
+	);
+	if (manual) {
+		void vscode.window.showInformationMessage(
+			result.ok
+				? `Token Pie: published prices updated -- ${result.note}.`
+				: `Token Pie: kept the existing price table -- ${result.note}.`
+		);
+		if (consolePanel) {
+			consolePanel.webview.html = buildConsoleHtml();
+		}
+	}
+}
+
+/* --------------------------------------------------- debug console --- */
+
+function buildConsoleHtml(): string {
+	const { tuning: t, readings } = tuning();
+	const inspected = config().inspect<number>('creditsPerNanoAiu');
+	return renderConsole({
+		rollups: store.since(t.history.days),
+		creditsPerNanoAiu: creditsPerNanoAiu(),
+		// `inspect` distinguishes "left alone" from "set to the same value",
+		// which matters here: the page's whole claim is that this number is
+		// assumed unless somebody has checked it.
+		creditsPerNanoAiuIsDefault:
+			inspected?.globalValue === undefined && inspected?.workspaceValue === undefined,
+		prices: store.priceStats(),
+		readings,
+		card: currentCard(),
+		// The same reconciliation the panel draws, so the two pages cannot
+		// disagree about whether the conversion has been checked.
+		coverage: periodCoverage({
+			resetDate: projection?.resetDate,
+			githubCredits: projection?.creditsUsed ??
+				(projection?.entitlement !== undefined && projection?.remaining !== undefined
+					? Math.max(0, projection.entitlement - projection.remaining)
+					: undefined),
+			creditsByDay: creditsByDay(store.since(t.history.days), creditsPerNanoAiu()),
+			tuning: t
+		}),
+		pipeline: {
+			databases: lastResult?.dbCount ?? 0,
+			spansScanned: lastResult?.spansScanned ?? 0,
+			spansCounted: lastResult?.spansCounted ?? 0,
+			costSpans: lastResult?.costSpans ?? 0,
+			recoveredMessages: lastResult?.backfill?.turnsCounted ?? 0,
+			errors: lastResult?.errors ?? []
+		},
+		lastRefresh
+	});
+}
+
+function showConsole(context: vscode.ExtensionContext): void {
+	if (consolePanel) {
+		consolePanel.reveal();
+		consolePanel.webview.html = buildConsoleHtml();
+		return;
+	}
+	consolePanel = vscode.window.createWebviewPanel(
+		'tokenPie.console',
+		'Token Pie: Debug Console',
+		vscode.ViewColumn.Active,
+		{ enableScripts: false, retainContextWhenHidden: true }
+	);
+	consolePanel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'images', 'icon.png');
+	consolePanel.webview.html = buildConsoleHtml();
+	consolePanel.onDidDispose(() => { consolePanel = undefined; }, undefined, context.subscriptions);
 }
 
 function showReport(context: vscode.ExtensionContext): void {

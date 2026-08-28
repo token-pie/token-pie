@@ -164,6 +164,7 @@ Each of these reversed an earlier assumption. Full evidence in `DECISIONS.md`.
 | A plan can return snapshots with no binding quota | Status bar shows `--` legitimately; say so instead of asking for a re-check |
 | A phantom allowance is one with `entitlement: 0`, not one with `has_quota: false` | `isBinding()` tests entitlement only |
 | Cost is linear in fresh/cached/output tokens, so the rate card is solvable | `pricing.ts` recovers it exactly; output is 4× fresh input and 12.5× cached |
+| GPT-5.6 Luna and Terra publish a cache-write price too, but emit no `cache_creation` attribute on this account | Only Anthropic's path populates it here. Do not infer "no cache write" from a missing attribute alone |
 | The solved "fresh" rate 0.25 is the published **cache-write** price ($2.50/M), not input ($2.00/M) | On sonnet, `cache_creation` covers all but 64 of the tokens that missed the cache, so the two classes are one population. Output is 5× plain input |
 | Cache-write counts have **no column** on `spans` — only `gen_ai.usage.cache_creation.input_tokens` | Pulled as an attribute like `nano_aiu`. Absent on providers that do not bill it, which is a fact, not a gap |
 | GitHub's period spend and ours are different windows and different scopes | `reconcile.ts` `periodCoverage` compares them over the same days and names the remainder as spend this install cannot see |
@@ -192,6 +193,10 @@ src/
   confidence.ts  measured | bounded | estimated, and how doubt propagates
   tuning.ts      every gate in one place, with its provenance. Settings are
                  GENERATED from it -- run `npm run sync:settings` after editing
+  ratecard.ts    GitHub's published prices as data; the second opinion on the
+                 solved card. Bundled snapshot, user override, weekly fetch
+  console.ts     the debug console: the conversion, the rate card, the gates
+                 (marked when withholding), the pipeline. `npm run console`
   report.ts      the webview. No scripts; <details> for progressive disclosure.
   purge.ts       the only writer to a database we do not own
   sessions.ts    session-file turns; used for reconciliation, NOT for spend

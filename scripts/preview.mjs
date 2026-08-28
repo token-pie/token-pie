@@ -12,6 +12,7 @@
  *   npm run preview -- --light   light theme
  *   npm run preview -- --why     why each recommendation did or did not appear
  *   npm run preview -- --file X  a saved rollup.json instead of the live one
+ *   npm run preview -- --console  the debug console instead of the panel
  *
  * No vscode import, so it runs from a plain shell.
  */
@@ -21,7 +22,11 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { renderReport } from '../out/report.js';
 import { project } from '../out/projection.js';
-import { defaults } from '../out/tuning.js';
+import { defaults, read } from '../out/tuning.js';
+import { renderConsole } from '../out/console.js';
+import { load as loadCard } from '../out/ratecard.js';
+import { periodCoverage } from '../out/reconcile.js';
+import { creditsByDay } from '../out/report.js';
 
 // The preview reads the same ladder the panel does, so raising a floor in
 // settings shows up here rather than only in the shipped extension.
@@ -149,7 +154,9 @@ const DARK = {
   'list-hoverBackground': '#2a2d2e', 'charts-foreground': '#cccccc',
   'charts-blue': '#3794ff', 'charts-green': '#89d185', 'charts-purple': '#b180d7',
   'charts-red': '#f14c4c', 'charts-yellow': '#cca700',
-  'inputValidation-warningBackground': '#352a05', 'inputValidation-warningBorder': '#b89500'
+  'inputValidation-warningBackground': '#352a05', 'inputValidation-warningBorder': '#b89500',
+  'charts-orange': '#d18616', 'panel-border': '#2b2b2b',
+  'textBlockQuote-background': '#2a2a2a'
 };
 const LIGHT = {
   ...DARK, 'foreground': '#3b3b3b', 'editor-background': '#ffffff',
@@ -157,16 +164,43 @@ const LIGHT = {
   'editorWidget-background': '#f8f8f8', 'editorWidget-border': '#c8c8c8',
   'list-hoverBackground': '#f0f0f0', 'charts-foreground': '#3b3b3b',
   'charts-blue': '#1a85ff', 'charts-green': '#388a34', 'charts-purple': '#652d90',
-  'inputValidation-warningBackground': '#fff8c5'
+  'inputValidation-warningBackground': '#fff8c5',
+  'charts-orange': '#bf6a02', 'panel-border': '#e5e5e5',
+  'textBlockQuote-background': '#f3f3f3'
 };
 
 const theme = flag('light') ? LIGHT : DARK;
-const body = renderReport({
-  rollups, creditsPerNanoAiu: CR, dbCount: 1, lastRefresh: new Date(),
-  costCoverage: 1, warnings: [], projection,
-  prices: data.prices ?? {}, depth: data.depth ?? {},
-  conversations: data.conversations ?? {}
-});
+
+// The console reads defaults here: a preview cannot see VS Code's settings, and
+// showing overrides that are not in effect would be worse than showing none.
+const body = flag('console')
+  ? renderConsole({
+      rollups, creditsPerNanoAiu: CR, creditsPerNanoAiuIsDefault: CR === 1e-9,
+      prices: data.prices ?? {},
+      readings: read(() => undefined).readings,
+      card: loadCard({ bundledPath: new URL('../rate-card.json', import.meta.url).pathname }),
+      coverage: periodCoverage({
+        resetDate: projection?.resetDate,
+        githubCredits: projection?.creditsUsed ?? (projection?.entitlement !== undefined
+          && projection?.remaining !== undefined
+          ? Math.max(0, projection.entitlement - projection.remaining) : undefined),
+        creditsByDay: creditsByDay(rollups, CR)
+      }),
+      pipeline: {
+        databases: 1, spansScanned: 0, spansCounted: rollups.reduce((n, r) => n + r.requests, 0),
+        costSpans: rollups.filter(r => r.nanoAiu > 0).reduce((n, r) => n + r.requests, 0),
+        recoveredMessages: rollups.filter(r => r.source === 'reported')
+          .reduce((n, r) => n + r.requests, 0),
+        errors: []
+      },
+      lastRefresh: new Date()
+    })
+  : renderReport({
+      rollups, creditsPerNanoAiu: CR, dbCount: 1, lastRefresh: new Date(),
+      costCoverage: 1, warnings: [], projection,
+      prices: data.prices ?? {}, depth: data.depth ?? {},
+      conversations: data.conversations ?? {}
+    });
 
 // A variable the stylesheet uses but this file does not define renders as a
 // browser default and silently misrepresents the panel -- the exact failure
@@ -188,7 +222,8 @@ body { margin: 0; padding: 22px; background: var(--vscode-editor-background);
        font-size: var(--vscode-font-size); }</style>
 ${body}`;
 
-const out = path.join(os.tmpdir(), `token-pie-preview-${flag('light') ? 'light' : 'dark'}.html`);
+const out = path.join(os.tmpdir(),
+  `token-pie-${flag('console') ? 'console' : 'preview'}-${flag('light') ? 'light' : 'dark'}.html`);
 fs.writeFileSync(out, html);
 console.log(`${flag('light') ? 'light' : 'dark'}  ${out}`);
 console.log(`${rollups.length} rollups, ${used.length} theme variables, all defined`);

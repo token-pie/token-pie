@@ -58,6 +58,11 @@ if (!fast) {
 /* ------------------------------------------------------------ compile --- */
 run('compile', 'npx', ['tsc', '-p', '.']);
 
+/* ---------------------------------------------------------- settings --- */
+// The gate ladder is the list; package.json is a projection of it. A knob added
+// in code without a rebuild would ship invisible, with no setting to change it.
+run('settings', 'node', ['scripts/sync-settings.mjs', '--check']);
+
 /* --------------------------------------------------------------- test --- */
 const testOut = run('test', 'npm', ['test']);
 const passes = (testOut.match(/PASS/g) || []).length;
