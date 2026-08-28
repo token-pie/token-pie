@@ -35,15 +35,20 @@ jobs:
         id: tag
         run: echo "name=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      # v4 declares `using: node20`, which the runner now warns is deprecated;
+      # v7 declares node24. This is the runtime the action itself executes in
+      # and has nothing to do with the Node the build below runs on.
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.tag.outputs.name }}
           # The release audit runs `git describe` against the previous tag, and
           # a shallow clone has neither the tags nor the commits it counts.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
+          # What the build runs on, pinned to the major developers use here.
+          # Independent of the action's own runtime above.
           node-version: 22
           cache: npm
 
