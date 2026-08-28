@@ -1,5 +1,5 @@
 import { Entitlement, governingSnapshot, daysUntilReset } from './entitlement';
-import { Rollup } from './store';
+import { Rollup, dayStartMs } from './store';
 import { Tuning, defaults } from './tuning';
 
 /**
@@ -163,7 +163,7 @@ function burnPerDay(
 		return undefined;
 	}
 	const days = [...new Set(rollups.map(r => r.day))].sort();
-	const first = Date.parse(`${days[0]}T00:00:00`);
+	const first = dayStartMs(days[0]);
 	if (Number.isNaN(first)) {
 		return undefined;
 	}

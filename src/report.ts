@@ -1,4 +1,4 @@
-import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum } from './store';
+import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum, dayStartMs } from './store';
 import { Projection } from './projection';
 import { PeriodCoverage, periodCoverage, conversionConfidence } from './reconcile';
 import { bareModel, modelKey } from './ratecard';
@@ -1050,7 +1050,7 @@ export function renderReport(input: ReportInput): string {
 		// against days elapsed. Parsed as UTC to match the day keys it is
 		// compared with, which are built the same way.
 		traceStartMs: input.history?.traceStartDay !== undefined
-			? Date.parse(`${input.history.traceStartDay}T00:00:00.000Z`)
+			? dayStartMs(input.history.traceStartDay)
 			: undefined,
 		tuning
 	});
@@ -1311,7 +1311,7 @@ function prettyDay(d: string): string {
 }
 
 function daysSince(day: string): number {
-	return (Date.now() - Date.parse(`${day}T00:00:00`)) / 86_400_000;
+	return (Date.now() - dayStartMs(day)) / 86_400_000;
 }
 
 /** Exactly one per view. The number the panel exists to deliver. */

@@ -3,6 +3,27 @@ import * as path from 'path';
 import { Selection } from './selection';
 
 export type Source = 'measured' | 'reported';
+
+/**
+ * Midnight, local time, on a day key.
+ *
+ * `dayKey()` builds these from getFullYear/getMonth/getDate, so a day string
+ * is a LOCAL calendar day. Half the code parsed it back with a trailing `Z`
+ * and half without, putting the same day up to a timezone offset apart
+ * depending on which parser saw it -- a billing-period boundary in one place,
+ * a burn-rate denominator in another.
+ *
+ * In UTC the two agree and the difference is invisible, which is why it
+ * survived: the release workflow runs in UTC and no developer machine here
+ * does, so a rate computed identically in both gave different answers.
+ */
+export function dayStartMs(day: string): number {
+	const [y, m, d] = day.split('-').map(Number);
+	if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+		return NaN;
+	}
+	return new Date(y, m - 1, d).getTime();
+}
 import { PriceStats, emptyStats, accumulate } from './pricing';
 
 /**

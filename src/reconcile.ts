@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Entitlement, QuotaSnapshot, governingSnapshot } from './entitlement';
 import { Turn } from './sessions';
 import { Tuning, defaults } from './tuning';
+import { dayStartMs } from './store';
 import { Confidence } from './confidence';
 
 /**
@@ -199,10 +200,8 @@ export interface PeriodCoverage {
 	note: string;
 }
 
-/** A day string (YYYY-MM-DD) as a UTC epoch. */
-function dayMs(day: string): number {
-	return Date.parse(`${day}T00:00:00.000Z`);
-}
+/** A day string (YYYY-MM-DD) as an epoch. Local, because dayKey() is. */
+const dayMs = dayStartMs;
 
 /**
  * One month back from the reset date.

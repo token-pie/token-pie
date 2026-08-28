@@ -13,11 +13,21 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { ingestAll } from '../out/ingest.js';
-import { RollupStore, sum, groupBy } from '../out/store.js';
-import { read } from '../out/tuning.js';
-import { renderReport } from '../out/report.js';
-import { emptyStats, accumulate } from '../out/pricing.js';
+/**
+ * Pinned to UTC, before the modules under test load.
+ *
+ * A day key is a LOCAL calendar day; a reset date is a UTC instant from
+ * GitHub. The reconciliation fixture below asserts which of the two totals
+ * agree, and near a period boundary that depends on where the machine is --
+ * correct behaviour, and useless in an assertion about exact credits.
+ */
+process.env.TZ = 'UTC';
+
+const { ingestAll } = await import('../out/ingest.js');
+const { RollupStore, sum, groupBy } = await import('../out/store.js');
+const { read } = await import('../out/tuning.js');
+const { renderReport } = await import('../out/report.js');
+const { emptyStats, accumulate } = await import('../out/pricing.js');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'token-pie-selftest-'));
 const dbPath = path.join(dir, 'agent-traces.db');

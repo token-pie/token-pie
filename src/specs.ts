@@ -27,6 +27,7 @@ import { KnobReading } from './tuning';
 import { LoadedCard, compare, lookup, RateComparison, effectiveAt } from './ratecard';
 import { PeriodCoverage, conversionConfidence } from './reconcile';
 import { escapeHtml, fmtInt, creditsOf } from './report';
+import { dayStartMs } from './store';
 
 export interface SpecsInput {
 	rollups: Rollup[];
@@ -156,7 +157,7 @@ function rateCardSection(input: SpecsInput): string {
 
 	// The days the solved rates were actually fitted over. A card published
 	// after they end has no bearing on what those requests were billed.
-	const days = input.rollups.map(r => Date.parse(`${r.day}T00:00:00.000Z`))
+	const days = input.rollups.map(r => dayStartMs(r.day))
 		.filter(Number.isFinite)
 		.sort((a, b) => a - b);
 	const window = days.length > 0

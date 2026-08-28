@@ -7,8 +7,18 @@
  * different: unseen spend on another machine, a miscalibrated conversion, and
  * the one that looks like unseen spend but is only a short history.
  */
-import { periodCoverage, periodStartFrom, conversionConfidence } from '../out/reconcile.js';
-import { advise } from '../out/advice.js';
+/**
+ * Pinned to UTC, before the modules under test load.
+ *
+ * A day key is a LOCAL calendar day; a reset date is a UTC instant from
+ * GitHub. Comparing them means a day near the period boundary falls on either
+ * side depending where the machine is, which is correct behaviour and useless
+ * in a fixture asserting exact credit totals.
+ */
+process.env.TZ = 'UTC';
+
+const { periodCoverage, periodStartFrom, conversionConfidence } = await import('../out/reconcile.js');
+const { advise } = await import('../out/advice.js');
 
 let failures = 0;
 const check = (label, got, want) => {

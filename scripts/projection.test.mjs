@@ -1,6 +1,20 @@
 #!/usr/bin/env node
-/** Projection maths, including the cases that decide the status bar colour. */
-import { project, statusLabel } from '../out/projection.js';
+/**
+ * Projection maths, including the cases that decide the status bar colour.
+ *
+ * Pinned to UTC, and set before the module under test is loaded.
+ *
+ * A burn rate is credits over elapsed days; a day key is a LOCAL calendar day;
+ * a reset date is a UTC instant from GitHub. Where local midnight falls
+ * therefore moves the denominator and the horizon, and that is correct -- a
+ * developer in +14 really does have different day boundaries. What is not
+ * correct is a test asserting "6h left" without saying which zone it means.
+ * It passed for a year on machines west of UTC and failed the first time the
+ * release workflow ran it on a runner set to UTC.
+ */
+process.env.TZ = 'UTC';
+
+const { project, statusLabel } = await import('../out/projection.js');
 
 let failures = 0;
 const check = (label, actual, expected) => {
@@ -10,6 +24,13 @@ const check = (label, actual, expected) => {
 };
 
 const NOW = Date.parse('2026-08-26T12:00:00Z');
+
+/** A day key, built the way ingest's dayKey() builds them: local, which is UTC here. */
+const dayKey = (ms) => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+         `-${String(d.getDate()).padStart(2, '0')}`;
+};
 const ent = (remaining, entitlement, resetDate) => ({
   snapshots: [{ name: 'premium_interactions', entitlement, remaining, remainingExact: remaining,
                 percentRemaining: (remaining / entitlement) * 100, hasQuota: true, unlimited: false }],
@@ -19,7 +40,7 @@ const ent = (remaining, entitlement, resetDate) => ({
 const roll = (credits, days) => {
   const out = [];
   for (let i = 0; i < days; i++) {
-    const d = new Date(NOW - i * 86400000).toISOString().slice(0, 10);
+    const d = dayKey(NOW - i * 86400000);
     out.push({ day: d, model: 'm', workspace: 'w', operation: 'chat', selection: 'manual', requests: 1,
                inputTokens: 0, outputTokens: 0, reasoningTokens: 0,
                cacheReadTokens: 0, cacheWriteTokens: 0, nanoAiu: (credits / days) / 1e-9 });
@@ -60,8 +81,11 @@ p = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), [], 1e-9, NOW);
 check('sustainable burn still offered', Math.round(p.sustainableDailyBurn), 18);
 
 console.log('\nsub-day horizon renders as hours');
+// 5 day keys spanning 4.5 days to noon, 100 credits => 22.22/day; 5 remaining
+// is 0.225 days, or 5.4 hours. The 6h this used to expect was the same sum in
+// a timezone where local midnight falls earlier, making the window 4.73 days.
 p = project(ent(5, 1500, '2026-09-05T00:00:00.000Z'), roll(100, 5), 1e-9, NOW);
-check('label in hours', statusLabel(p), '6h left');
+check('label in hours', statusLabel(p), '5h left');
 
 console.log('\nan exhausted allowance');
 const spent = { snapshots: [{ name: 'premium_interactions', entitlement: 10000,
