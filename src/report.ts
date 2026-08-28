@@ -1255,7 +1255,7 @@ const STYLES = `
 	/* The sentence and the note share the column beside the hero figure. */
 	.say { flex: 1 1 260px; min-width: 240px; }
 	.say .sentence { flex: none; }
-	.lede { margin: 6px 0 0;
+	.lede { margin: 9px 0 0;
 	        font-size: 0.74rem; line-height: 1.55;
 	        font-style: italic; color: var(--vscode-descriptionForeground); }
 	.lede a { color: var(--vscode-charts-blue, #4a9eff); }

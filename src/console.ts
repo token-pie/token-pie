@@ -488,6 +488,24 @@ export function renderConsole(input: ConsoleInput): string {
 }
 
 const CONSOLE_STYLES = `
+	/*
+	 * One vertical scale, and every margin drawn from it.
+	 *
+	 * Spacing here was set per element as each one was noticed, which is why
+	 * fixing it never stayed fixed: a margin tuned against a neighbour that
+	 * later moved leaves a zero nobody sees again until it is on screen. The
+	 * two that shipped -- the lede against the first pane, the verdict line
+	 * against the gate groups -- were both margins zeroed for a layout that no
+	 * longer existed. Named steps make "which gap is this" answerable without
+	 * measuring, and scripts/spacing.test.mjs measures anyway.
+	 */
+	:root {
+		--gap-line: 8px;     /* two lines that belong together */
+		--gap-para: 14px;    /* one paragraph to the next */
+		--gap-block: 20px;   /* prose to the block it introduces */
+		--gap-region: 30px;  /* one region to an unrelated one */
+		--gap-card: 10px;    /* sibling cards, which carry their own borders */
+	}
 	body {
 		font-family: var(--vscode-font-family);
 		font-size: var(--vscode-font-size);
@@ -498,7 +516,7 @@ const CONSOLE_STYLES = `
 		max-width: 1000px;
 		margin: 0 auto;
 	}
-	header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+	header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 0; }
 	h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
 	h2 {
 		font-size: 0.95rem; margin: 0 0 6px; font-weight: 600;
@@ -509,7 +527,7 @@ const CONSOLE_STYLES = `
 	   is a pane whose summary carries its own answer. Opening one is for the
 	   working, not for the finding. */
 	details.pane {
-		border-radius: 8px; margin-bottom: 10px;
+		border-radius: 8px; margin-bottom: var(--gap-card);
 		background: var(--vscode-editorWidget-background);
 		border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
 	}
@@ -522,8 +540,8 @@ const CONSOLE_STYLES = `
 	details.pane[open] > summary { border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.22)); }
 	details.pane[open] > summary .chev { transform: rotate(-135deg); }
 	.pane-title { font-size: 0.92rem; font-weight: 600; }
-	.pane-body { padding: 4px 16px 18px; }
-	.pane-body > .lede:first-child { margin-top: 10px; }
+	.pane-body { padding: 0 16px var(--gap-block); }
+	.pane-body > *:first-child { margin-top: var(--gap-para); }
 	/* The answer, on the closed line. */
 	.state {
 		margin-left: auto; font-size: 0.76rem; font-weight: 500;
@@ -558,16 +576,16 @@ const CONSOLE_STYLES = `
 	}
 	details.group[open] > summary .chev { transform: rotate(-135deg); }
 	.count { font-weight: 400; margin-left: auto; }
-	details.group table { margin: 0 0 10px; }
+	details.group table { margin: 0 0 var(--gap-card); }
 	details.group table tr:last-child td { border-bottom: none; }
-	section { margin-top: 34px; }
-	h3 { margin-top: 22px; }
+	h3 { font-size: 0.82rem; font-weight: 600; color: var(--vscode-descriptionForeground);
+	     margin: var(--gap-region) 0 var(--gap-line); }
 	.sub, .dim { color: var(--vscode-descriptionForeground); }
-	.lede { color: var(--vscode-descriptionForeground); margin: 8px 0 16px; text-wrap: pretty; }
-	.lede.top { margin-bottom: 0; }
+	.lede { color: var(--vscode-descriptionForeground);
+	        margin: var(--gap-para) 0 var(--gap-block); text-wrap: pretty; }
 	/* 10px of right padding alone ran every column into its neighbour. Padding
 	   on both sides, and more of it, so the columns read as columns. */
-	table { width: 100%; border-collapse: collapse; margin: 10px 0 2px; font-size: 0.86rem; }
+	table { width: 100%; border-collapse: collapse; margin: var(--gap-line) 0 0; font-size: 0.86rem; }
 	th, td { text-align: left; padding: 9px 18px 9px 0; vertical-align: top;
 		border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.18)); }
 	td:last-child, th:last-child { padding-right: 0; }
@@ -611,11 +629,13 @@ const CONSOLE_STYLES = `
 	.warn { color: var(--vscode-charts-yellow, #CCA700); }
 	.bad { color: var(--vscode-charts-red, #F14C4C); }
 	.unknown { color: var(--vscode-descriptionForeground); }
-	.verdict-line { margin: 14px 0 0; text-wrap: pretty; }
-	.note { margin: 14px 0 0; text-wrap: pretty; }
+	.verdict-line { margin: var(--gap-para) 0 var(--gap-block); text-wrap: pretty; }
+	.note { margin: var(--gap-para) 0 0; text-wrap: pretty; }
+	/* Nothing trails space against the pane's own bottom padding. */
+	.pane-body > *:last-child { margin-bottom: 0; }
 	.warn-box {
 		border-left: 3px solid var(--vscode-charts-yellow, #CCA700);
-		padding: 8px 12px; margin-top: 12px;
+		padding: 8px 12px; margin-top: var(--gap-block);
 		background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.08));
 	}
 	/* A withholding gate is the reason someone opened this page. */
@@ -652,7 +672,7 @@ const CONSOLE_STYLES = `
 		background: color-mix(in srgb, var(--vscode-charts-orange, #D18616) 18%, transparent);
 	}
 	footer {
-		margin-top: 30px; padding-top: 12px; font-size: 0.85rem;
+		margin-top: var(--gap-region); padding-top: var(--gap-para); font-size: 0.85rem;
 		color: var(--vscode-descriptionForeground); text-wrap: pretty;
 		border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
 	}
