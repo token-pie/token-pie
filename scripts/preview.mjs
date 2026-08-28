@@ -12,7 +12,7 @@
  *   npm run preview -- --light   light theme
  *   npm run preview -- --why     why each recommendation did or did not appear
  *   npm run preview -- --file X  a saved rollup.json instead of the live one
- *   npm run preview -- --console  the debug console instead of the panel
+ *   npm run preview -- --specs   Token Specs instead of the panel
  *   npm run preview -- --shot     render to PNG with headless Chrome
  *
  * `--shot` exists because structure is not appearance. A rate card table whose
@@ -29,7 +29,7 @@ import { execFile, spawn } from 'node:child_process';
 import { renderReport } from '../out/report.js';
 import { project } from '../out/projection.js';
 import { defaults, read } from '../out/tuning.js';
-import { renderConsole } from '../out/console.js';
+import { renderSpecs } from '../out/specs.js';
 import { load as loadCard } from '../out/ratecard.js';
 import { periodCoverage } from '../out/reconcile.js';
 import { creditsByDay } from '../out/report.js';
@@ -160,8 +160,8 @@ const theme = flag('light') ? LIGHT : DARK;
 
 // The console reads defaults here: a preview cannot see VS Code's settings, and
 // showing overrides that are not in effect would be worse than showing none.
-const body = flag('console')
-  ? renderConsole({
+const body = flag('specs')
+  ? renderSpecs({
       rollups, creditsPerNanoAiu: CR, creditsPerNanoAiuIsDefault: CR === 1e-9,
       prices: data.prices ?? {},
       readings: read(() => undefined).readings,
@@ -224,7 +224,7 @@ ${body}`;
 const outDir = path.join(root, '.preview');
 fs.mkdirSync(outDir, { recursive: true });
 const out = path.join(outDir,
-  `${flag('console') ? 'console' : 'panel'}-${flag('light') ? 'light' : 'dark'}.html`);
+  `${flag('specs') ? 'specs' : 'panel'}-${flag('light') ? 'light' : 'dark'}.html`);
 // Written aside and renamed, so a browser reloading the same path never reads
 // a half-written document.
 const tmp = `${out}.${process.pid}.tmp`;

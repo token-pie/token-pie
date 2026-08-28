@@ -30,7 +30,7 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { renderReport } from '../out/report.js';
-import { renderConsole } from '../out/console.js';
+import { renderSpecs } from '../out/specs.js';
 import { parse } from '../out/ratecard.js';
 import { read } from '../out/tuning.js';
 import { DARK, LIGHT, vars } from './themes.mjs';
@@ -264,7 +264,7 @@ const rollup = (over = {}) => ({
 });
 
 const pages = {
-  console: renderConsole({
+  console: renderSpecs({
     rollups: [rollup(), rollup({ model: 'gpt-5.6-luna', requests: 3 })],
     creditsPerNanoAiu: 1e-9, creditsPerNanoAiuIsDefault: true, prices: {},
     readings: read(() => undefined).readings,

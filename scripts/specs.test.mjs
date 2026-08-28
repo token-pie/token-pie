@@ -8,7 +8,7 @@
  * as assumed rather than shown as a bare number.
  */
 import fs from 'fs';
-import { renderConsole } from '../out/console.js';
+import { renderSpecs } from '../out/specs.js';
 import { read } from '../out/tuning.js';
 import { parse } from '../out/ratecard.js';
 
@@ -51,7 +51,7 @@ const stats = (() => {
   return s;
 })();
 
-const render = (over = {}) => renderConsole({
+const render = (over = {}) => renderSpecs({
   rollups: [rollup()], creditsPerNanoAiu: 1e-9, creditsPerNanoAiuIsDefault: true,
   prices: { 'claude-sonnet-5': stats }, readings: read(() => undefined).readings,
   card, pipeline: { databases: 1, spansScanned: 60, spansCounted: 20, costSpans: 20,

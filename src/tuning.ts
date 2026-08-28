@@ -8,7 +8,7 @@
  * short of reading the code.
  *
  * Two things follow from collecting them here. Every one becomes a setting
- * without hand-writing a `package.json` entry per knob, and the debug console
+ * without hand-writing a `package.json` entry per knob, and Token Specs
  * can show the whole ladder with the current reading beside each rung, which is
  * what turns a silent panel into a legible one.
  *

@@ -58,7 +58,7 @@ export interface Advice {
  * a real slice of how this person works?
  *
  * The floors themselves live in `tuning.ts` with the rest of the ladder, so the
- * debug console can show what each one is currently withholding.
+ * Token Specs can show what each one is currently withholding.
  */
 
 

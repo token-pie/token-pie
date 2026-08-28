@@ -1,10 +1,14 @@
 /**
- * Everything the panel decided, and why.
+ * Token Specs: everything the panel decided, and why.
  *
  * The report answers "where did the credits go". This answers the question a
  * developer asks when the report will not tell them something: which gate is
  * withholding it, what value is that gate set to, and where did that value come
  * from. Before this the answer required reading the source.
+ *
+ * Named for what it holds rather than for who it is for. "Debug console" said
+ * this was for fixing the extension; it is the specification the figures are
+ * computed to, and a reader checking a number is not debugging anything.
  *
  * Three sections, in the order the doubt runs:
  *
@@ -24,7 +28,7 @@ import { LoadedCard, compare, lookup, RateComparison, effectiveAt } from './rate
 import { PeriodCoverage, conversionConfidence } from './reconcile';
 import { escapeHtml, fmtInt, creditsOf } from './report';
 
-export interface ConsoleInput {
+export interface SpecsInput {
 	rollups: Rollup[];
 	creditsPerNanoAiu: number;
 	creditsPerNanoAiuIsDefault: boolean;
@@ -92,7 +96,7 @@ function num(n: number, places = 4): string {
  * product proves it. Saying so here is cheaper than implying certainty
  * everywhere else.
  */
-function conversionSection(input: ConsoleInput): string {
+function conversionSection(input: SpecsInput): string {
 	const c = input.coverage;
 	const verdict = !c
 		? { cls: 'unknown', text: 'Not checked yet. Run <strong>Token Pie: Check Quota</strong> ' +
@@ -146,7 +150,7 @@ function conversionSection(input: ConsoleInput): string {
  * published class than its own name -- a correct measurement under a wrong
  * label, which is exactly what "fresh input" turned out to be.
  */
-function rateCardSection(input: ConsoleInput): string {
+function rateCardSection(input: SpecsInput): string {
 	const { card, cards, origin, fetchedAt, note } = input.card;
 	const byModel = groupBy(input.rollups, 'model');
 
@@ -310,7 +314,7 @@ function classCells(c: RateComparison['classes'][number]): string {
  * Computed from the same rollups the panel drew, so this cannot claim a gate
  * passed that the panel found failing.
  */
-function bindingState(input: ConsoleInput): Map<string, string> {
+function bindingState(input: SpecsInput): Map<string, string> {
 	const out = new Map<string, string>();
 	const totals: Totals = sum(input.rollups);
 	const requests = totals.requests;
@@ -348,7 +352,7 @@ function bindingState(input: ConsoleInput): Map<string, string> {
 	return out;
 }
 
-function gatesSection(input: ConsoleInput): string {
+function gatesSection(input: SpecsInput): string {
 	const binding = bindingState(input);
 	// Two groups, not five. The five were my vocabulary for why a threshold
 	// exists; this is the reader's question -- can I change it, and if not, why
@@ -421,7 +425,7 @@ function gatesSection(input: ConsoleInput): string {
 
 /* --------------------------------------------------------- pipeline --- */
 
-function pipelineSection(input: ConsoleInput): string {
+function pipelineSection(input: SpecsInput): string {
 	const p = input.pipeline;
 	const totals = sum(input.rollups);
 	const step = (label: string, value: string, note: string) =>
@@ -465,17 +469,17 @@ function pipelineSection(input: ConsoleInput): string {
 
 /* ----------------------------------------------------------- render --- */
 
-export function renderConsole(input: ConsoleInput): string {
+export function renderSpecs(input: SpecsInput): string {
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
-<style>${CONSOLE_STYLES}</style>
+<style>${SPECS_STYLES}</style>
 </head>
 <body>
 	<header>
-		<h1>Token Pie &mdash; debug console</h1>
+		<h1>Token Pie &mdash; Token Specs</h1>
 		<span class="sub"><i>${input.lastRefresh
 			? `data as of ${escapeHtml(input.lastRefresh.toLocaleString())}`
 			: 'never refreshed'}</i></span>
@@ -497,7 +501,7 @@ export function renderConsole(input: ConsoleInput): string {
 </html>`;
 }
 
-const CONSOLE_STYLES = `
+const SPECS_STYLES = `
 	/*
 	 * One vertical scale, and every margin drawn from it.
 	 *

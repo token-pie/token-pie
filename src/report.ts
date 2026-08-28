@@ -1069,7 +1069,7 @@ ${STYLES}
 		<code>copilotCredits</code>, which omits messages you retried or cancelled and were
 		still charged for. Every price, threshold and conversion behind this page &mdash; and
 		which of them is currently withholding something &mdash; is in the
-		<strong>debug console</strong>, on the gear in this editor's title bar.
+		<strong>Token Specs</strong>, on the gear in this editor's title bar.
 	</footer>
 </body>
 </html>`;

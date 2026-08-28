@@ -213,7 +213,7 @@ src/
                  solved card. Bundled snapshot, user override, weekly fetch.
                  Cards are APPENDED with an effective date, never replaced -- a
                  new price must not judge spend that predates it
-  console.ts     the debug console: the conversion, the rate card, the gates
+  specs.ts       Token Specs: the conversion, the rate card, the gates
                  (marked when withholding), the pipeline. `npm run console`
   report.ts      the webview. No scripts; <details> for progressive disclosure.
                  Narrow layout is a @media breakpoint; a sidebar view was tried

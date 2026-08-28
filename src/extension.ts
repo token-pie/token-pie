@@ -16,7 +16,7 @@ import { RollupStore } from './store';
 import { KNOWN_SCHEMA_VERSION, num } from './schema';
 import { renderReport, creditsByDay } from './report';
 import { Tuning, KnobReading, read } from './tuning';
-import { renderConsole } from './console';
+import { renderSpecs } from './specs';
 import { LoadedCard, load as loadCard, refresh as refreshCard, isDue } from './ratecard';
 
 const DB_EXPORTER_SETTING = 'github.copilot.chat.otel.dbSpanExporter.enabled';
@@ -73,7 +73,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			return refresh(true);
 		}),
 		vscode.commands.registerCommand('tokenPie.doctor', () => doctor()),
-		vscode.commands.registerCommand('tokenPie.debugConsole', () => showConsole(context)),
+		vscode.commands.registerCommand('tokenPie.tokenSpecs', () => showSpecs(context)),
 		vscode.commands.registerCommand('tokenPie.refreshRateCard', () => refreshRateCard(true)),
 		vscode.commands.registerCommand('tokenPie.purgeContent', () => purgeContent()),
 		vscode.commands.registerCommand('tokenPie.checkQuota', () => checkQuota()),
@@ -728,12 +728,12 @@ async function refreshRateCard(manual = false): Promise<void> {
 	repaint();
 }
 
-/* --------------------------------------------------- debug console --- */
+/* ----------------------------------------------------- token specs --- */
 
-function buildConsoleHtml(): string {
+function buildSpecsHtml(): string {
 	const { tuning: t, readings } = tuning();
 	const inspected = config().inspect<number>('creditsPerNanoAiu');
-	return renderConsole({
+	return renderSpecs({
 		rollups: store.since(t.history.days),
 		creditsPerNanoAiu: creditsPerNanoAiu(),
 		// `inspect` distinguishes "left alone" from "set to the same value",
@@ -767,20 +767,20 @@ function buildConsoleHtml(): string {
 	});
 }
 
-function showConsole(context: vscode.ExtensionContext): void {
+function showSpecs(context: vscode.ExtensionContext): void {
 	if (consolePanel) {
 		consolePanel.reveal();
-		consolePanel.webview.html = buildConsoleHtml();
+		consolePanel.webview.html = buildSpecsHtml();
 		return;
 	}
 	consolePanel = vscode.window.createWebviewPanel(
-		'tokenPie.console',
-		'Token Pie: Debug Console',
+		'tokenPie.specs',
+		'Token Pie: Token Specs',
 		vscode.ViewColumn.Active,
 		{ enableScripts: false, retainContextWhenHidden: true }
 	);
 	consolePanel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'images', 'icon.png');
-	consolePanel.webview.html = buildConsoleHtml();
+	consolePanel.webview.html = buildSpecsHtml();
 	consolePanel.onDidDispose(() => { consolePanel = undefined; }, undefined, context.subscriptions);
 }
 
@@ -790,7 +790,7 @@ function repaint(): void {
 		panel.webview.html = buildHtml();
 	}
 	if (consolePanel) {
-		consolePanel.webview.html = buildConsoleHtml();
+		consolePanel.webview.html = buildSpecsHtml();
 	}
 }
 
