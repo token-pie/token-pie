@@ -173,7 +173,7 @@
     "specs": "tsc -p . && node scripts/preview.mjs --specs",
     "release": "node scripts/release.mjs",
     "test:release": "node scripts/release.test.mjs",
-    "diagnose": "tsc -p . && node scripts/diagnose.mjs"
+    "diagnose": "node scripts/diagnose.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

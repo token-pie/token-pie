@@ -15,13 +15,26 @@
  * Workspace names are the only field that could carry anything private, and
  * they are not printed. Model names and figures are.
  *
- *   npm run diagnose
- *   npm run diagnose -- --file <rollup.json>
+ *   node diagnose.mjs                 this machine's saved rollup
+ *   node diagnose.mjs --file <path>   a rollup.json copied from another machine
+ *   node diagnose.mjs --since <date>  split it at the billing period start
+ *
+ * No build step and no dependencies: copy this one file anywhere and run it.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { slug } from '../out/ratecard.js';
+
+// Deliberately duplicated from src/ratecard.ts, for the same reason
+// scripts/probe.mjs duplicates part of src/locate.ts: this has to run on the
+// machine whose panel looks wrong, and that machine may have the extension
+// from the Marketplace and no checkout at all. One file, plain `node`, nothing
+// installed.
+const slug = name => name
+	.toLowerCase()
+	.replace(/\(.*?\)/g, '')
+	.replace(/[^a-z0-9]+/g, '-')
+	.replace(/^-|-$/g, '');
 
 const argv = process.argv.slice(2);
 const value = name => { const i = argv.indexOf(`--${name}`); return i === -1 ? undefined : argv[i + 1]; };
