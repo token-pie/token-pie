@@ -427,7 +427,7 @@ a threshold, and a thin figure is withheld rather than badged. See
 | `MIN_CACHE_FACTOR = 1.5` | Ordinary variance reported as a finding. |
 | `isBinding()` | `governingSnapshot` returned a phantom `premium_interactions` quota (`0/0`, `has_quota: false`) on an account with 99.2% remaining. |
 | `seen: Record<id, timestamp>` | Storing bare ids meant a pass counting nothing wiped memory, and the next pass re-counted the 5-minute overlap. |
-| `operation_name = 'chat'` | `invoke_agent` repeats its child's 18,183 tokens, doubling every agent turn. |
+| Operations are those carrying `copilot_usage_nano_aiu` | `invoke_agent` repeats its child's 18,183 tokens, doubling every agent turn. Hardcoding `chat` fixed that and broke a machine that spells it otherwise; the cost attribute is what actually separates them. |
 
 These are not tunable knobs. Lowering one to make a card appear reintroduces
 the bug it was written for.

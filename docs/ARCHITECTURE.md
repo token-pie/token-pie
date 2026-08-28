@@ -16,7 +16,7 @@ flowchart TB
 
     subgraph tp["Token Pie — all local"]
         LOC["locate.ts<br/><i>find every profile/channel</i>"]
-        ING["ingest.ts<br/><i>operation_name = 'chat'</i>"]
+        ING["ingest.ts<br/><i>operations carrying the cost attribute</i>"]
         WSM["workspaces.ts<br/><i>session → repo</i>"]
         SEL["selection.ts<br/><i>session,model → auto|manual</i>"]
         BF["backfill.ts<br/><i>transcripts → history<br/>marked as a floor</i>"]
@@ -158,6 +158,60 @@ history, never an input to the projection. Most transcripts predate VS Code
 recording cost at all, so on many machines it recovers nothing; the panel says
 so rather than looking empty.
 
+### A floor says it is a floor
+
+Excluded from `burnPerDay` was the only place the distinction was honoured.
+The panel's own totals added `measured` and `reported` and said nothing, so a
+machine whose trace database yielded nothing showed "862 credits over 31
+messages" as though it were a measurement, under a footer naming the cost
+record it had never read. `sourceNote()` now states the split, and the footer
+names whichever source the figures actually came from.
+
+## What this machine could have seen
+
+Reconciling our total against GitHub's is only honest over days this machine
+was recording. `reconcile.ts` used to judge that by where local history
+starts — which backfill pushes back thirty days, proving nothing was
+*measured*. On a machine that began tracing on the 27th, history started on
+the 30th of the previous month, before the billing period did, so the check
+meant to catch exactly that passed and a shortfall of 19,094 credits was
+reported as spend on other machines.
+
+Only the trace database bounds what could have been seen, so `periodCoverage`
+takes `traceStartMs` and judges the share of the elapsed period it was running
+for. Below `reconcile.minRecordedShare` the verdict is inconclusive and the
+note names the cause: days never watched, not spend elsewhere. A machine with
+no trace database at all is its own case.
+
+## One model, however it is spelled
+
+The same model arrives under several spellings depending on which field
+carried it — `copilot/claude-opus-4.6` from the request, `claude-opus-4-6`
+from the response, `aitk-foundry/Microsoft Foundry/(AK-AIF)gpt-5.6-luna` where
+a gateway prefixed its own routing twice. Everything up to the last slash is a
+route and a leading parenthetical is a deployment label; neither is what
+answered the call.
+
+`modelKey()` in `ratecard.ts` folds them; `bareModel()` gives the label. Group
+on the key, never the raw string — doing so made one model two rows whose
+shares each looked like half the truth, and left the price lookup unable to
+find a prefixed name at all.
+
+## Day keys are local days
+
+`dayKey()` builds day strings from `getFullYear/getMonth/getDate`, so a day
+key is a **local** calendar day. Parse it back with `dayStartMs()` from
+`store.ts`. Four places used to append a `Z` and four did not, putting the same
+day up to a timezone offset apart depending on which parser saw it — a
+billing-period boundary in one, a burn-rate denominator in another. In UTC the
+two agree, so the disagreement was invisible on every developer machine and
+appeared the first time the release workflow ran.
+
+Reset dates really are UTC instants from GitHub and are parsed as such. The
+date-arithmetic tests pin `process.env.TZ` before importing what they
+exercise, because where local midnight falls genuinely moves a horizon and a
+fixture asserting "6h left" has to say which zone it means.
+
 ## The two joins, and what they cost
 
 `agent-traces.db` knows `chat_session_id` and nothing else about context. Both
@@ -213,6 +267,18 @@ stateDiagram-v2
         from a broken one.
     end note
 ```
+
+### Faults and findings
+
+The status bar sends its click to the log rather than the report whenever
+`lastErrors` is non-empty, and shows the broken mark. That is right for a
+fault and wrong for a finding: reading a database perfectly and discovering it
+holds nothing billable is not a degraded install, and filing it as one made
+the panel unreachable on the single machine that most needed to read it.
+
+`IngestResult` carries `notices` beside `errors`. Both reach the reader — as
+panel warnings and in Token Specs — and only `errors` degrades the item. When
+adding a message, ask whether the extension failed or the data disappointed.
 
 ## Verdict pipeline
 
@@ -603,6 +669,31 @@ user-facing commits with nothing written, and notes when there are fewer bullets
 than commits — which is now a signal that someone edited the generated section,
 and worth a glance rather than an alarm. It cannot verify a word of the prose.
 
+## Diagnosing a panel that looks wrong
+
+`scripts/diagnose.mjs` prints what the panel is adding up: every day with its
+**year**, the split by `source`, the two sides of the billing-period boundary,
+and model labels grouped by `modelKey()` so ones that are a single model
+appear as such.
+
+It reads the saved `rollup.json` rather than `agent-traces.db` — that is
+exactly what the panel renders from, it needs no database access, and it runs
+on a machine with the extension from the Marketplace and no checkout. One
+file, plain `node`, nothing installed:
+
+```bash
+node scripts/diagnose.mjs --since 2026-08-01
+node scripts/diagnose.mjs --file <a rollup.json from another machine>
+```
+
+Workspace names are the only field that could carry anything private and are
+deliberately not printed, so its output can be pasted into an issue.
+
+It exists because a machine showed "862 credits over 31 messages" and, one
+line below, "this machine accounts for 20.48". Both came from the same
+rollups and the same conversion; only a date filter separated them, and
+nothing on the page said which days fell on which side of it.
+
 ## Previewing the panel
 
 `renderReport` is pure — it takes data and returns a string, with no `vscode`
@@ -669,8 +760,15 @@ chat_session_id, turn_index, ttft_ms`
 Notes that matter:
 
 - `input_tokens` is the **total**, with `cached_tokens` a subset of it.
-- `operation_name` is one of `chat`, `invoke_agent`, `execute_tool`. Only `chat`
-  is billable; `invoke_agent` repeats its child's counts.
+- `operation_name` is usually one of `chat`, `invoke_agent`, `execute_tool`,
+  `embeddings`. Only the LLM call is billable; `invoke_agent` repeats its
+  child's counts, so counting every span with tokens doubles every agent turn.
+  **Do not hardcode `chat`** — a work machine held the other three and no
+  `chat` at all, and a hardcoded filter matched nothing while
+  `MIN(start_time_ms)`, which is unfiltered, still reported when recording
+  began. `ingest.ts` asks which operation names carry
+  `copilot_usage_nano_aiu` and uses those: only the billable span carries it,
+  which is what distinguished it from the wrapper all along.
 - `agent_name` separates your turns (`panel/editAgent`) from work Copilot does
   on your behalf (`title`, `progressMessages`).
 - Version this against `KNOWN_SCHEMA_VERSION` in `schema.ts`. The upstream

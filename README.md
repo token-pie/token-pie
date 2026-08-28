@@ -490,11 +490,18 @@ Lens reads the columns directly and dips into that table for exactly one thing:
 
 ### Design notes
 
-**Only `chat` spans are counted.** This is load-bearing. An agent turn also
-emits an `invoke_agent` span that repeats its child `chat` span's token counts
-verbatim — the same 18,183 input tokens on both — while carrying no cost
-attribute. Counting every span with tokens would double every agent turn.
-`execute_tool` spans carry no tokens at all.
+**Only the billable span is counted, and its name is discovered.** This is
+load-bearing. An agent turn also emits an `invoke_agent` span that repeats its
+child's token counts verbatim — the same 18,183 input tokens on both — while
+carrying no cost attribute. Counting every span with tokens would double every
+agent turn. `execute_tool` spans carry no tokens at all.
+
+The filter used to be the literal `chat`, which matched nothing on a machine
+holding `execute_tool`, `embeddings` and `invoke_agent` and no `chat` — and
+said nothing, because the query reporting when recording began is unfiltered.
+The name was never what separated them: only the billable span carries the
+cost attribute, so Token Pie asks each database which operation names carry it
+and counts those.
 
 **Workspace comes from a session bridge, not an attribute.** No span records
 the workspace. Spans carry `chat_session_id`, and VS Code stores chat sessions
