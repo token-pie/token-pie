@@ -974,6 +974,12 @@ export function renderReport(input: ReportInput): string {
 			? Math.max(0, p.entitlement - p.remaining)
 			: undefined),
 		creditsByDay: creditsByDay(rollups, creditsPerNanoAiu),
+		// Day granularity is enough: what is being counted is days recorded
+		// against days elapsed. Parsed as UTC to match the day keys it is
+		// compared with, which are built the same way.
+		traceStartMs: input.history?.traceStartDay !== undefined
+			? Date.parse(`${input.history.traceStartDay}T00:00:00.000Z`)
+			: undefined,
 		tuning
 	});
 

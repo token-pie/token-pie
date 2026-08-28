@@ -197,6 +197,16 @@ export const KNOBS: Knob[] = [
 		why: 'Rounding alone does not scale with the window; this absorbs the drift that does.'
 	},
 	{
+		id: 'reconcile.minRecordedShare',
+		kind: 'tolerance', default: 0.9, min: 0, max: 1, unit: 'share',
+		gates: 'How much of the billing period must have been recorded before a ' +
+			'shortfall is called spend from elsewhere.',
+		basis: 'judged',
+		why: 'A machine that was tracing for two days of a 28-day period cannot ' +
+			'tell unseen spend from unrecorded days, and used to blame the first. ' +
+			'Nine tenths leaves room for a restart without excusing a real gap.'
+	},
+	{
 		id: 'history.days',
 		setting: 'historyDays',
 		kind: 'window', default: 30, min: 1, max: 365, unit: 'days',
@@ -216,7 +226,7 @@ export interface Tuning {
 	};
 	report: { minBucketRequests: number; minPricedShare: number; cacheWriteDominant: number };
 	projection: { minDaysForRate: number; tightDaysMargin: number };
-	reconcile: { roundingSlack: number; relativeTolerance: number };
+	reconcile: { roundingSlack: number; relativeTolerance: number; minRecordedShare: number };
 	history: { days: number };
 }
 

@@ -9,7 +9,7 @@
  */
 import fs from 'fs';
 import { renderSpecs } from '../out/specs.js';
-import { read } from '../out/tuning.js';
+import { read, KNOBS, settings } from '../out/tuning.js';
 import { parse } from '../out/ratecard.js';
 
 let failures = 0;
@@ -84,7 +84,7 @@ check('the card says where it came from and when',
 console.log('\ngates');
 const gatesPane = html.slice(html.indexOf('The gates'), html.indexOf('The pipeline'));
 check('every threshold is listed, settings and rules alike',
-  (gatesPane.match(/<code>tokenPie\.[a-zA-Z]/g) || []).length, 17);
+  (gatesPane.match(/<code>tokenPie\.[a-zA-Z]/g) || []).length, KNOBS.length);
 // Most are not choices: they exist so the panel cannot claim more than it
 // measured, and offering them invites turning the honesty off.
 check('only a handful are offered as settings',
@@ -92,7 +92,7 @@ check('only a handful are offered as settings',
 check('the rest keep their dotted paths and are not settings',
   /<code>tokenPie\.pricing\.minR2<\/code>/.test(html), true);
 check('each says whether its value was derived or judged',
-  (html.match(/class="basis (derived|judged)"/g) || []).length, 17);
+  (html.match(/class="basis (derived|judged)"/g) || []).length, KNOBS.length);
 check('nothing is withholding on sufficient data',
   /No gate is currently withholding anything/.test(html), true);
 
@@ -249,8 +249,10 @@ check('the conversion says it was never checked',
   /The conversion<\/span>\s*<span class="state warn">never checked/.test(html.replace(/\s+/g, ' ')), true);
 check('the rate card counts the disagreements',
   /The rate card<\/span> <span class="state warn">1 disagreement</.test(html.replace(/\s+/g, ' ')), true);
+const exposed = settings().length;
 check('the gates summarise as settings against fixed rules',
-  /The gates<\/span> <span class="state ok">3 settings \u00b7 14 fixed rules</
+  new RegExp(`The gates</span> <span class="state ok">${exposed} settings ` +
+    `\u00b7 ${KNOBS.length - exposed} fixed rules<`)
     .test(html.replace(/\s+/g, ' ')), true);
 check('a reconciled conversion says so on the closed line',
   /The conversion<\/span> <span class="state ok">checked against GitHub</.test(

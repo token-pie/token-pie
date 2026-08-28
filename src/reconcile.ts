@@ -173,8 +173,19 @@ export function reconcile(
 export interface PeriodCoverage {
 	/** Start of the current billing period, inferred from the reset date. */
 	periodStart: number;
-	/** Earliest day we hold data for. */
+	/** Earliest day we hold data for, from either source. */
 	historyStart?: number;
+	/**
+	 * When this machine actually began recording, if it ever did.
+	 *
+	 * Distinct from `historyStart`, and the distinction is the whole point:
+	 * backfilled chat transcripts push history back before the period began
+	 * while proving nothing was measured. Only the trace database bounds what
+	 * could have been seen.
+	 */
+	traceStart?: number;
+	/** Fraction of the elapsed period the trace database was recording for. */
+	recordedShare?: number;
 	/** What GitHub reports spent this period. */
 	githubCredits: number;
 	/** What this machine measured over the days it covers. */
@@ -217,10 +228,12 @@ export function periodCoverage(input: {
 	githubCredits?: number;
 	/** Our per-day credit figures, keyed by YYYY-MM-DD. */
 	creditsByDay: Map<string, { credits: number; requests: number }>;
+	/** When the trace database starts, epoch ms. Absent means nothing measured. */
+	traceStartMs?: number;
 	now?: number;
 	tuning?: Tuning;
 }): PeriodCoverage | undefined {
-	const { resetDate, githubCredits, creditsByDay } = input;
+	const { resetDate, githubCredits, creditsByDay, traceStartMs } = input;
 	const tuning = input.tuning ?? defaults();
 	const now = input.now ?? Date.now();
 	if (resetDate === undefined || githubCredits === undefined) {
@@ -242,9 +255,29 @@ export function periodCoverage(input: {
 	const localRequests = inPeriod.reduce((n, d) => n + d.requests, 0);
 	const unaccounted = githubCredits - localCredits;
 
+	// Only the days the trace database was running could ever have been seen.
+	// Judging coverage by the earliest day we hold data for was the defect: a
+	// machine with two days of measurement and a month of backfilled
+	// transcripts reported history beginning before the period did, passed the
+	// check meant to catch exactly that, and blamed 19,094 unread credits on
+	// other machines.
+	const DAY_MS = 86_400_000;
+	// Both spans measured from the same instant, and the ratio taken before any
+	// rounding. Flooring `elapsed` at a day instead made a period a few hours
+	// old look barely covered when it was covered entirely.
+	const elapsed = now - periodStart;
+	const recordedFrom = traceStartMs !== undefined
+		? Math.max(periodStart, traceStartMs)
+		: undefined;
+	const recordedShare = recordedFrom !== undefined && elapsed > 0
+		? Math.min(1, Math.max(0, now - recordedFrom) / elapsed)
+		: recordedFrom !== undefined ? 1 : undefined;
+
 	const result: PeriodCoverage = {
 		periodStart,
 		historyStart,
+		traceStart: traceStartMs,
+		recordedShare,
 		githubCredits,
 		localCredits,
 		localRequests,
@@ -259,18 +292,27 @@ export function periodCoverage(input: {
 		return result;
 	}
 
-	// A day of slack: history that starts within the first day of the period
-	// is close enough that the reader is not being misled.
-	const DAY = 86_400_000;
 	if (historyStart === undefined) {
 		result.note = 'No local history to compare against.';
 		return result;
 	}
-	if (historyStart > periodStart + DAY) {
-		const missed = Math.round((historyStart - periodStart) / DAY);
+
+	// Nothing was measured at all, so every figure below came from chat
+	// transcripts -- a floor, and no basis for saying where the rest went.
+	if (traceStartMs === undefined) {
 		result.note =
-			`Local history begins ${missed} day${missed === 1 ? '' : 's'} into the ` +
-			'billing period, so the shortfall below is partly days we never saw.';
+			'Nothing was measured on this machine this period. The figures below ' +
+			'come from chat transcripts, which record less than was billed.';
+		return result;
+	}
+
+	if (recordedShare !== undefined && recordedShare < tuning.reconcile.minRecordedShare) {
+		const recorded = Math.max(1, Math.round((now - (recordedFrom ?? now)) / DAY_MS));
+		const total = Math.max(recorded + 1, Math.round(elapsed / DAY_MS));
+		result.note =
+			`This machine was only recording for ${recorded} of the ${total} days ` +
+			'in this billing period, so the shortfall below is mostly days it was ' +
+			'never watching rather than spend somewhere else.';
 		return result;
 	}
 

@@ -36,6 +36,15 @@ function history(resetDate, credits, requests) {
   return map;
 }
 
+/**
+ * Recording that has run since the period began.
+ *
+ * A verdict about where spend went depends on how much of the period this
+ * machine was watching, so a fixture that means "we saw all of it" has to say
+ * so. Passing nothing now means nothing was measured, which is its own case.
+ */
+const recordingAllPeriod = resetDate => periodStartFrom(resetDate);
+
 /** History that only begins `days` ago, however long the period has run. */
 function recent(days, credits) {
   const map = new Map();
@@ -59,14 +68,16 @@ check('no GitHub figure', periodCoverage({ resetDate: RESET, creditsByDay: histo
 
 console.log('\nagreement');
 const complete = periodCoverage({
-  resetDate: RESET, githubCredits: 22.6, creditsByDay: history(RESET, 22.4)
+  resetDate: RESET, githubCredits: 22.6, traceStartMs: recordingAllPeriod(RESET),
+  creditsByDay: history(RESET, 22.4)
 });
 check('within rounding and 5% is agreement', complete.verdict, 'complete');
 check('and the note does not allege unseen spend', complete.note.includes('outside'), false);
 
 console.log('\nunseen spend');
 const partial = periodCoverage({
-  resetDate: RESET, githubCredits: 40, creditsByDay: history(RESET, 22)
+  resetDate: RESET, githubCredits: 40, traceStartMs: recordingAllPeriod(RESET),
+  creditsByDay: history(RESET, 22)
 });
 check('a large shortfall is spend elsewhere', partial.verdict, 'partial');
 check('the gap is reported, not the ratio alone', Math.round(partial.unaccounted), 18);
@@ -74,7 +85,8 @@ check('share is the fraction we explain', Math.round(partial.share * 100), 55);
 
 console.log('\nmeasuring more than we were billed');
 const over = periodCoverage({
-  resetDate: RESET, githubCredits: 10, creditsByDay: history(RESET, 30)
+  resetDate: RESET, githubCredits: 10, traceStartMs: recordingAllPeriod(RESET),
+  creditsByDay: history(RESET, 30)
 });
 check('points at the conversion, not at other machines', over.verdict, 'over');
 check('and names the setting to check', over.note.includes('creditsPerNanoAiu'), true);
@@ -83,10 +95,43 @@ check('and names the setting to check', over.note.includes('creditsPerNanoAiu'),
 // Its 2 credits against GitHub's 40 is not evidence of 38 spent elsewhere.
 console.log('\na short history is not evidence');
 const short = periodCoverage({
+  resetDate: RESET, githubCredits: 40,
+  traceStartMs: Date.now() - 2 * DAY, creditsByDay: recent(2, 2)
+});
+check('recording that started mid-period is inconclusive', short.verdict, 'inconclusive');
+check('and says how much of the period was watched', short.note.includes('only recording for'), true);
+// Denying that the gap is spend elsewhere, not asserting it. A substring
+// cannot tell the two apart, so assert the verdict that gates the claim.
+check('and does not reach the verdict that alleges it', short.verdict === 'partial', false);
+
+// The work-machine failure, exactly. Chat-transcript backfill put history back
+// before the period began while the trace database had been running for a day,
+// so the old check -- which asked where history started -- passed, and a
+// shortfall of 19,094 credits was reported as spend on other machines.
+console.log('\nbackfill is not evidence of recording');
+const backfilled = new Map([
+  [iso(periodStartFrom(RESET) - 2 * DAY), { credits: 841, requests: 30 }],
+  [iso(Date.now() - 1 * DAY), { credits: 20, requests: 1 }]
+]);
+const contaminated = periodCoverage({
+  resetDate: RESET, githubCredits: 19114,
+  traceStartMs: Date.now() - 1 * DAY, creditsByDay: backfilled
+});
+check('history reaching back before the period does not license a verdict',
+  contaminated.verdict, 'inconclusive');
+check('the note blames the gap on not watching', contaminated.note.includes('never watching'), true);
+check('recorded share is reported', contaminated.recordedShare < 0.2, true);
+
+console.log('\nnothing measured at all');
+const unmeasured = periodCoverage({
   resetDate: RESET, githubCredits: 40, creditsByDay: recent(2, 2)
 });
-check('history starting mid-period is inconclusive', short.verdict, 'inconclusive');
-check('and says why', short.note.includes('into the'), true);
+check('no trace database is inconclusive', unmeasured.verdict, 'inconclusive');
+// The panel's footer names copilot_usage_nano_aiu as the source of every
+// credit figure. When nothing was measured that is false, and the line that
+// reconciles the two totals is where it has to be said.
+check('and says the figures came from transcripts',
+  unmeasured.note.includes('transcripts'), true);
 
 console.log('\nnothing spent yet');
 const idle = periodCoverage({ resetDate: RESET, githubCredits: 0, creditsByDay: history(RESET, 0) });

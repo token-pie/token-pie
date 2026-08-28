@@ -759,6 +759,7 @@ function buildSpecsHtml(): string {
 					? Math.max(0, projection.entitlement - projection.remaining)
 					: undefined),
 			creditsByDay: creditsByDay(store.since(t.history.days), creditsPerNanoAiu()),
+			traceStartMs: lastResult?.traceStartMs,
 			tuning: t
 		}),
 		pipeline: {

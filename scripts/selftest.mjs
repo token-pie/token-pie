@@ -382,6 +382,10 @@ check('no script tags in webview', /<script/i.test(html), false);
       verdict: 'ok', quotaId: 'premium_interactions', entitlement: 1500,
       remaining: 1500 - creditsUsed, creditsUsed, resetDate: reset
     },
+    // A verdict about where spend went depends on how much of the period this
+    // machine was watching, so a fixture asserting one has to say. Recording
+    // from the period start is what "we saw all of it" means.
+    history: { traceStartDay: today, recoveredMessages: 0 },
     prices: {}, depth: {}
   });
 
