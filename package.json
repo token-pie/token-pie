@@ -26,8 +26,12 @@
         "title": "Token Pie: Enable Local Trace Collection"
       },
       {
+        "command": "tokenPie.reveal",
+        "title": "Token Pie: Show Usage"
+      },
+      {
         "command": "tokenPie.showReport",
-        "title": "Token Pie: Show Usage Report",
+        "title": "Token Pie: Open Usage Report in an Editor Tab",
         "icon": "$(pie-chart)"
       },
       {
