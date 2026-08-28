@@ -705,19 +705,29 @@ async function refreshRateCard(manual = false): Promise<void> {
 		'https://raw.githubusercontent.com/token-pie/token-pie/main/rate-card.json'
 	);
 	const result = await refreshCard(url, cachePath);
-	output.appendLine(
-		`rate card refresh: ${result.ok ? 'updated' : 'kept previous'} -- ${result.note}`
-	);
-	if (manual) {
-		void vscode.window.showInformationMessage(
-			result.ok
-				? `Token Pie: published prices updated -- ${result.note}.`
-				: `Token Pie: kept the existing price table -- ${result.note}.`
-		);
-		if (consolePanel) {
-			consolePanel.webview.html = buildConsoleHtml();
-		}
+	output.appendLine(`rate card refresh: ${result.outcome} -- ${result.note}`);
+	if (!manual) {
+		return;
 	}
+
+	// A source with no card yet is the ordinary state, not a fault: the bundled
+	// table is what the comparison runs on either way, and it is dated. Saying
+	// "kept the existing price table -- 404" reads as a broken extension when
+	// nothing is wrong, so each outcome says what it actually means for you.
+	const card = currentCard().card;
+	const bundled = `The bundled table, effective ${card.effective}, is still in use.`;
+	const message =
+		result.outcome === 'updated'
+			? `Token Pie: published prices updated -- ${result.note}.`
+		: result.outcome === 'not-published'
+			? `Token Pie: no newer price list published at that URL yet. ${bundled}`
+		: result.outcome === 'malformed'
+			? `Token Pie: that URL did not return a rate card, so it was ignored. ${bundled}`
+			: `Token Pie: could not reach the price list -- ${result.note}. ${bundled}`;
+	void (result.outcome === 'updated' || result.outcome === 'not-published'
+		? vscode.window.showInformationMessage(message)
+		: vscode.window.showWarningMessage(message));
+	repaint();
 }
 
 /* --------------------------------------------------- debug console --- */

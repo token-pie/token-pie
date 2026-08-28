@@ -198,5 +198,25 @@ check('the superseded single-card cache is still read',
     .cards.some(c => c.effective === '2026-07-01'), true);
 fs.rmSync(hdir, { recursive: true, force: true });
 
+// A source that has not published a card yet is the ordinary state of a fresh
+// install, not a fault -- the bundled table is what the comparison runs on
+// either way. Reporting it as a failure teaches the reader to distrust a page
+// working exactly as designed.
+console.log('\nwhat a failed fetch actually means');
+const rdir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-fetch-'));
+const rcache = path.join(rdir, 'c.json');
+const outcome = async (url) => (await refresh(url, rcache)).outcome;
+check('a 404 is "not published", not a failure',
+  await outcome('https://raw.githubusercontent.com/token-pie/token-pie/main/does-not-exist.json'),
+  'not-published');
+check('an unresolvable host is unreachable',
+  await outcome('https://token-pie-no-such-host.invalid/rate-card.json'), 'unreachable');
+check('a page that is not a rate card is malformed',
+  await outcome('https://raw.githubusercontent.com/token-pie/token-pie/main/README.md'),
+  'malformed');
+check('and none of them wrote a cache',
+  fs.existsSync(rcache), false);
+fs.rmSync(rdir, { recursive: true, force: true });
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -496,11 +496,21 @@ export function isDue(cachePath: string, now = Date.now()): boolean {
  * is a setting: an enterprise on negotiated pricing points it at their own
  * file, and the same code path serves both.
  */
+export type RefreshOutcome =
+	/** A newer card was fetched and cached. */
+	| 'updated'
+	/** The source has no card yet. Expected, and not a fault. */
+	| 'not-published'
+	/** The URL answered, but not with a rate card. */
+	| 'malformed'
+	/** The request failed: offline, proxied, timed out, refused. */
+	| 'unreachable';
+
 export async function refresh(
 	url: string,
 	cachePath: string,
 	now = Date.now()
-): Promise<{ ok: boolean; note: string }> {
+): Promise<{ ok: boolean; outcome: RefreshOutcome; note: string }> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 	try {
@@ -509,17 +519,37 @@ export async function refresh(
 			headers: { accept: 'application/json' }
 		});
 		if (!res.ok) {
-			return { ok: false, note: `${url} returned ${res.status}` };
+			// A 404 is the ordinary state of a source that has not published a
+			// card yet, and the bundled snapshot is what the comparison runs on
+			// either way. Reporting it as a failure teaches the reader to
+			// distrust a page that is working exactly as designed.
+			return {
+				ok: false,
+				outcome: res.status === 404 ? 'not-published' : 'unreachable',
+				note: `${url} returned ${res.status}`
+			};
 		}
 		const text = await res.text();
 		if (text.length > MAX_CARD_BYTES) {
-			return { ok: false, note: `response over ${MAX_CARD_BYTES} bytes; ignored` };
+			return { ok: false, outcome: 'malformed',
+				note: `response over ${MAX_CARD_BYTES} bytes; ignored` };
 		}
-		const card = parse(JSON.parse(text));
+		// Parsed in its own guard: a body that is not JSON at all throws, and
+		// letting that reach the outer catch reported a wrong URL serving HTML
+		// as a network failure, which points at the wrong thing to fix.
+		let payload: unknown;
+		try {
+			payload = JSON.parse(text);
+		} catch {
+			return { ok: false, outcome: 'malformed',
+				note: 'response was not JSON' };
+		}
+		const card = parse(payload);
 		if (!card) {
 			// Deliberately not partial: half a card would price some models and
 			// silently skip others while looking complete.
-			return { ok: false, note: 'response was not a valid rate card; kept the previous one' };
+			return { ok: false, outcome: 'malformed',
+				note: 'response was not a valid rate card' };
 		}
 		// Appended, never substituted. Prices that have been superseded are still
 		// the right prices for the days they covered.
@@ -538,11 +568,13 @@ export async function refresh(
 		const added = cards.length > existing.length;
 		return {
 			ok: true,
+			outcome: 'updated',
 			note: `${card.models.length} models, effective ${card.effective}` +
 				(added ? `; ${cards.length} card(s) on record` : '; prices unchanged')
 		};
 	} catch (err) {
-		return { ok: false, note: err instanceof Error ? err.message : String(err) };
+		return { ok: false, outcome: 'unreachable',
+			note: err instanceof Error ? err.message : String(err) };
 	} finally {
 		clearTimeout(timer);
 	}
