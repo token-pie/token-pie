@@ -149,13 +149,17 @@ const spanning = render({
   rollups: [rollup(), rollup({ day: '2026-09-02' })]
 });
 check('a window spanning a price change withholds the comparison',
-  /comparison withheld/.test(spanning.replace(/\s+/g, ' ')), true);
+  /the comparison is withheld/.test(spanning.replace(/\s+/g, ' ')), true);
 check('and names the date the prices changed',
-  /2026-08-28/.test(spanning), true);
+  /Published prices changed on 2026-08-28/.test(spanning.replace(/\s+/g, ' ')), true);
+// Withheld belongs with the other models that have no comparison, not as a
+// malformed row inside a table of figures.
+check('and it sits in the not-compared list, not in the comparison',
+  spanning.indexOf('the comparison is withheld') > spanning.indexOf('Not compared'), true);
 
 const settled = render({ card: { card: older, cards: [older], origin: 'bundled' } });
 check('a window inside one regime compares normally',
-  /comparison withheld/.test(settled), false);
+  /the comparison is withheld/.test(settled), false);
 check('history predating every card says the comparison is an assumption',
   /assumption rather than a record/.test(render().replace(/\s+/g, ' ')), true);
 
@@ -177,15 +181,34 @@ check('and says nothing is marked',
 // A table where some rows use rowspan and others colspan gives the browser no
 // consistent column count to size against, and the header stops lining up with
 // anything below it. Every row spans exactly five.
-console.log('\nthe rate card table is a table');
+// Column counts were uniform and the table still rendered wrong: a colspan
+// sentence laid out across columns 2-5 set the width of the CLASS column, so
+// the figures sat a canyon away from the class they belonged to. The models
+// that have no comparison are their own table now, and the comparison holds
+// nothing but figures.
+console.log('\nthe rate card is two tables, because it is two things');
+// Needs both kinds of model: one the solver could price and one it could not.
+const mixed = render({ rollups: [rollup(), rollup({ model: 'gpt-5.6-luna', requests: 3 })] });
+const section = mixed.slice(mixed.indexOf('The rate card'), mixed.indexOf('The gates'));
 const cols = tr => [...tr.matchAll(/<t[dh]([^>]*)>/g)]
   .reduce((n, m) => n + Number((/colspan="(\d+)"/.exec(m[1]) || [, 1])[1]), 0);
-const cardRows = [...html.slice(html.indexOf('The rate card'), html.indexOf('The gates'))
-  .matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(m => m[0]);
-check('every row has the same column count',
-  new Set(cardRows.map(cols)).size, 1);
-check('and that count is five', cols(cardRows[0]), 5);
-check('no rowspan is used at all', /rowspan=/.test(html), false);
+const rowsOf = table => [...table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(m => m[0]);
+const rates = section.slice(section.indexOf('<table class="rates">'));
+check('the comparison table has no colspan at all',
+  /colspan/.test(rates.slice(0, rates.indexOf('</table>'))), false);
+check('every comparison row is five columns',
+  new Set(rowsOf(rates.slice(0, rates.indexOf('</table>'))).map(cols)).size, 1);
+check('no rowspan anywhere', /rowspan=/.test(mixed), false);
+check('models without a card are listed separately', /<h3>Not compared<\/h3>/.test(mixed), true);
+check('and that list is two columns', cols(rowsOf(
+  section.slice(section.indexOf('<table class="absent">')))[0]), 2);
+
+// width:1% shrinks a column to its longest *word* unless nowrap comes with it,
+// which wrapped "fresh input" onto two lines and broke a model id into five.
+check('shrink-to-fit columns are paired with nowrap',
+  /table\.rates td\.cls \{[^}]*white-space: nowrap/.test(html), true);
+check('and the model column is not overridden back to wrapping',
+  /table\.absent td\.model \{[^}]*white-space: normal/.test(html), false);
 
 console.log('\nlinks are links');
 check('the source is a hyperlink, not a pasted address',

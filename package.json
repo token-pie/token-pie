@@ -71,7 +71,7 @@
         },
         "tokenPie.creditsPerNanoAiu": {
           "type": "number",
-          "default": 1e-09,
+          "default": 1e-9,
           "markdownDescription": "Conversion from `copilot_usage_nano_aiu` to AI Credits. **Calibrate against your GitHub billing dashboard before trusting absolute figures.**"
         },
         "tokenPie.statusBar.enabled": {
@@ -113,14 +113,14 @@
           "type": "number",
           "default": 6,
           "minimum": 4,
-          "markdownDescription": "A model shows no solved rate card, so no per-token prices and no cost split. _Three coefficients need more than three observations. Six leaves three degrees of freedom, which is the fewest that lets the R2 check below fail._"
+          "markdownDescription": "A model shows no solved rate card, so no per-token prices and no cost split. _Three coefficients need more than three observations. Six leaves three degrees of freedom, which is the fewest that lets the R² check below fail._"
         },
         "tokenPie.pricing.minR2": {
           "type": "number",
           "default": 0.999,
           "minimum": 0,
           "maximum": 1,
-          "markdownDescription": "A rate card that fits worse than this is discarded rather than shown. _Cost is an exact rate card, not a trend, so a correct fit lands on 1.000000. Anything materially below means the model is wrong -- a tier change mid-window, or a token class we do not know about. Note this guard has never been near-missed, so it is unfalsified rather than proven: it admits fits a thousand times worse than any observed._"
+          "markdownDescription": "A rate card that fits worse than this is discarded rather than shown. _Cost is an exact rate card, not a trend, so a correct fit lands on 1.000000. Anything materially below means the model is wrong — a tier change mid-window, or a token class we do not know about. Note this guard has never been near-missed, so it is unfalsified rather than proven: it admits fits a thousand times worse than any observed._"
         },
         "tokenPie.advice.minHistoryRequests": {
           "type": "number",
@@ -151,7 +151,7 @@
           "type": "number",
           "default": 1,
           "minimum": 0.5,
-          "markdownDescription": "No burn rate, so no throttle projection -- the verdict reads \"no-rate\". _This was 0.5, which is exactly the one-heavy-afternoon case it exists to exclude; a test projecting a throttle from a single burst caught it._"
+          "markdownDescription": "No burn rate, so no throttle projection — the verdict reads \"no-rate\". _This was 0.5, which is exactly the one-heavy-afternoon case it exists to exclude; a test projecting a throttle from a single burst caught it._"
         },
         "tokenPie.advice.minCreditsAtStake": {
           "type": "number",
@@ -265,7 +265,8 @@
     "sync:settings": "tsc -p . && node scripts/sync-settings.mjs",
     "console": "tsc -p . && node scripts/preview.mjs --console",
     "test:ratecard": "tsc -p . && node scripts/ratecard.test.mjs",
-    "test:console": "tsc -p . && node scripts/console.test.mjs"
+    "test:console": "tsc -p . && node scripts/console.test.mjs",
+    "shot": "tsc -p . && node scripts/preview.mjs --shot && node scripts/preview.mjs --console --shot"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

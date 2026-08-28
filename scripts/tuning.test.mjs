@@ -25,6 +25,12 @@ check('every knob says what it gates', KNOBS.every(k => k.gates.length > 10), tr
 check('and why that value', KNOBS.every(k => k.why.length > 20), true);
 check('and whether that value was derived or judged',
   KNOBS.every(k => k.basis === 'derived' || k.basis === 'judged'), true);
+// `gates` and `why` are rendered verbatim into the console and the settings
+// UI, so the source's ASCII comment conventions must not travel with them.
+check('no comment-style double hyphen reaches the reader',
+  KNOBS.filter(k => / -- /.test(k.why + ' ' + k.gates)).map(k => k.id).join(', '), '');
+check('nor an unformatted R2',
+  KNOBS.filter(k => /\bR2\b/.test(k.why + ' ' + k.gates)).map(k => k.id).join(', '), '');
 check('defaults sit inside their own bounds', KNOBS.every(k =>
   (k.min === undefined || k.default >= k.min) &&
   (k.max === undefined || k.default <= k.max)), true);

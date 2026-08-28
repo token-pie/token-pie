@@ -13,6 +13,12 @@
  *   npm run preview -- --why     why each recommendation did or did not appear
  *   npm run preview -- --file X  a saved rollup.json instead of the live one
  *   npm run preview -- --console  the debug console instead of the panel
+ *   npm run preview -- --shot     render to PNG with headless Chrome
+ *
+ * `--shot` exists because structure is not appearance. A rate card table whose
+ * every row had the same column count still rendered with a canyon between the
+ * class and its figures, because a colspan sentence in another row was setting
+ * the column width. Nothing short of looking at it catches that.
  *
  * No vscode import, so it runs from a plain shell.
  */
@@ -231,7 +237,25 @@ fs.writeFileSync(out, html);
 console.log(`${flag('light') ? 'light' : 'dark'}  ${out}`);
 console.log(`${rollups.length} rollups, ${used.length} theme variables, all defined`);
 
-if (!flag('no-open')) {
+if (flag('shot')) {
+  const chrome = process.platform === 'darwin'
+    ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    : process.env.CHROME ?? 'google-chrome';
+  if (!fs.existsSync(chrome)) {
+    console.error(`no headless browser at ${chrome}; set CHROME=<path>`);
+    process.exit(1);
+  }
+  // Every <details> forced open: a collapsed page screenshots as a list of
+  // summaries and says nothing about the tables inside them.
+  const opened = out.replace(/\.html$/, '-open.html');
+  fs.writeFileSync(opened, html.replace(/<details([^>]*?)(?<! open)>/g, '<details$1 open>'));
+  const png = out.replace(/\.html$/, '.png');
+  execFile(chrome, ['--headless', '--disable-gpu', '--hide-scrollbars',
+    '--virtual-time-budget=1500', `--window-size=${value('width') ?? 1500},${value('height') ?? 4200}`,
+    `--screenshot=${png}`, `file://${opened}`], () => {
+      console.log(`shot  ${png}`);
+    });
+} else if (!flag('no-open')) {
   const cmd = process.platform === 'darwin' ? 'open'
     : process.platform === 'win32' ? 'explorer' : 'xdg-open';
   execFile(cmd, [out], () => {});

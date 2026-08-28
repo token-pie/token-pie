@@ -59,7 +59,7 @@ export const KNOBS: Knob[] = [
 		gates: 'A model shows no solved rate card, so no per-token prices and no cost split.',
 		basis: 'derived',
 		why: 'Three coefficients need more than three observations. Six leaves three ' +
-			'degrees of freedom, which is the fewest that lets the R2 check below fail.'
+			'degrees of freedom, which is the fewest that lets the R\u00b2 check below fail.'
 	},
 	{
 		id: 'pricing.minR2',
@@ -67,7 +67,7 @@ export const KNOBS: Knob[] = [
 		gates: 'A rate card that fits worse than this is discarded rather than shown.',
 		basis: 'judged',
 		why: 'Cost is an exact rate card, not a trend, so a correct fit lands on ' +
-			'1.000000. Anything materially below means the model is wrong -- a tier ' +
+			'1.000000. Anything materially below means the model is wrong \u2014 a tier ' +
 			'change mid-window, or a token class we do not know about. Note this ' +
 			'guard has never been near-missed, so it is unfalsified rather than ' +
 			'proven: it admits fits a thousand times worse than any observed.'
@@ -106,7 +106,7 @@ export const KNOBS: Knob[] = [
 	{
 		id: 'projection.minDaysForRate',
 		kind: 'evidence', default: 1, min: 0.5, unit: 'days',
-		gates: 'No burn rate, so no throttle projection -- the verdict reads "no-rate".',
+		gates: 'No burn rate, so no throttle projection \u2014 the verdict reads "no-rate".',
 		basis: 'judged',
 		why: 'This was 0.5, which is exactly the one-heavy-afternoon case it exists to ' +
 			'exclude; a test projecting a throttle from a single burst caught it.'

@@ -140,43 +140,74 @@ function rateCardSection(input: ConsoleInput): string {
 		: undefined;
 	const dating = window ? { cards, window } : undefined;
 
-	const rows: string[] = [];
+	// Two tables, not one. A model with a solved card contributes five columns
+	// of figures; a model without one contributes a sentence. Forced into the
+	// same grid the sentence wins -- a `colspan` row is laid out across columns
+	// 2 to 5, so ~700px of prose set the width of the CLASS column and left a
+	// canyon between "fresh input" and the number it belongs to.
+	const compared: string[] = [];
+	const absent: string[] = [];
+
 	for (const model of byModel.keys()) {
 		const stats = input.prices[model];
 		const price: Price | undefined = stats ? solve(stats, input.creditsPerNanoAiu) : undefined;
 		const published = lookup(card, model);
+		const seen = stats
+			? `${fmtInt(stats.n)} billed message${stats.n === 1 ? '' : 's'}`
+			: 'no billed messages';
 
 		if (!price) {
-			rows.push(`<tr class="group-start"><td class="model">${escapeHtml(model)}</td>
-				<td class="dim" colspan="4">no solved rate card${
-					stats ? ` &mdash; ${stats.n} billed message${stats.n === 1 ? '' : 's'}` : ''
-				}${published
-					? `. Published as <em>${escapeHtml(published.name)}</em>`
-					: ', and not in the published table'}</td></tr>`);
+			absent.push(`<tr><td class="model">${escapeHtml(model)}</td>
+				<td class="dim">${seen} &mdash; a rate card needs
+					${input.readings.find(r => r.knob.id === 'pricing.minObservations')?.value ?? 6}
+					on one model.
+					${published
+						? `Published as <em>${escapeHtml(published.name)}</em>.`
+						: 'Not in the published table.'}</td></tr>`);
 			continue;
 		}
+
 		const cmp: RateComparison = compare(card, model, price, dating);
-		const name = `<td class="model">${escapeHtml(model)}
-			<span class="dim fit">${price.n} messages &middot; R&sup2; ${price.r2.toFixed(6)}</span></td>`;
-
 		if (cmp.spansPriceChange) {
-			// Comparing here would report a price change as a measurement error.
-			rows.push(`<tr class="group-start">${name}
-				<td class="dim" colspan="4">comparison withheld &mdash; published prices changed
-					on ${cmp.spansPriceChange.map(d => escapeHtml(d)).join(', ')}, inside the days
-					these rates were measured, so they blend two price regimes and match neither
-					by construction</td></tr>`);
+			// Comparing would report a price change as a measurement error.
+			absent.push(`<tr><td class="model">${escapeHtml(model)}</td>
+				<td class="dim">Published prices changed on
+					${cmp.spansPriceChange.map(d => escapeHtml(d)).join(', ')}, inside the days
+					these rates were measured. They blend two price regimes and match neither
+					by construction, so the comparison is withheld.</td></tr>`);
 			continue;
 		}
 
-		// `rowspan` against rows that elsewhere use `colspan` leaves the browser
-		// no consistent column count to size against, and the header stopped
-		// lining up with anything. Every row now spans exactly five columns and
-		// the model name is simply blank after its first line.
-		rows.push(cmp.classes.map((c, i) => `<tr${i === 0 ? ' class="group-start"' : ''}>${
-			i === 0 ? name : '<td class="model"></td>'
+		// The model names its group once. Internal rules are suppressed so three
+		// classes of one model read as one block rather than as three models
+		// with their names missing.
+		compared.push(cmp.classes.map((c, i) => `<tr class="${i === 0 ? 'group-start' : 'group-cont'}">${
+			i === 0
+				? `<td class="model">${escapeHtml(model)}<span class="dim fit">${
+					fmtInt(price.n)} messages &middot; R&sup2; ${price.r2.toFixed(6)}</span></td>`
+				: '<td class="model"></td>'
 		}${classCells(c)}</tr>`).join(''));
 	}
+
+	const comparison = compared.length === 0 ? '' : `
+		<table class="rates">
+			<colgroup><col class="c-model"><col class="c-class"><col class="c-num">
+				<col class="c-num"><col class="c-agree"></colgroup>
+			<tr><th>Model</th><th>Class</th><th class="num">Measured</th>
+			    <th class="num">Published</th><th>Agreement</th></tr>
+			${compared.join('')}
+		</table>`;
+
+	const notCompared = absent.length === 0 ? '' : `
+		<h3>Not compared</h3>
+		<table class="absent">
+			<colgroup><col class="c-model"><col></colgroup>
+			<tr><th>Model</th><th>Why</th></tr>
+			${absent.join('')}
+		</table>`;
+
+	const nothing = compared.length === 0 && absent.length === 0
+		? '<p class="dim">No models yet.</p>' : '';
 
 	const age = fetchedAt !== undefined
 		? `fetched ${new Date(fetchedAt).toLocaleDateString()}`
@@ -213,11 +244,9 @@ function rateCardSection(input: ConsoleInput): string {
 			correct measurement under a wrong label &mdash; not an error in the fit.
 			Rates are compared against the card that was in force over the days they were
 			measured, never against a later one.</p>
-		<table>
-			<tr><th>Model</th><th>Class</th><th class="num">Measured</th>
-			    <th class="num">Published</th><th>Agreement</th></tr>
-			${rows.join('') || '<tr><td colspan="5" class="dim">no models yet</td></tr>'}
-		</table>
+		${comparison}
+		${notCompared}
+		${nothing}
 		${dated}
 		<p class="note dim">Card in use: <strong>${origin}</strong>, ${age}, effective
 			${escapeHtml(card.effective)}, ${card.models.length} models${
@@ -236,7 +265,7 @@ function classCells(c: RateComparison['classes'][number]): string {
 		? `<span class="warn">matches <strong>${escapeHtml(c.matchedAs)}</strong> instead</span>`
 		: `<span class="bad">matches no published class${
 			c.ratio ? ` (${c.ratio.toFixed(2)}x expected)` : ''}</span>`;
-	return `<td>${escapeHtml(c.label)}</td>
+	return `<td class="cls">${escapeHtml(c.label)}</td>
 		<td class="num mono">${num(c.solved)}</td>
 		<td class="num mono">${c.published !== undefined ? num(c.published) : '&mdash;'}</td>
 		<td>${agreement}</td>`;
@@ -487,10 +516,32 @@ const CONSOLE_STYLES = `
 	/* The model name and its fit statistics are one label, not two columns. */
 	td.model { white-space: nowrap; padding-right: 22px; }
 	td.model .fit { display: block; font-size: 0.8em; margin-top: 2px; }
-	/* A rule between models, not between every class of the same model. */
-	tr.group-start td { border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.28)); }
-	tr.group-start:first-child td { border-top: none; }
 	a { color: var(--vscode-charts-blue, #3794FF); }
+
+	/* The comparison is five narrow columns of figures and nothing else, so the
+	   numbers sit next to the class they belong to instead of across a gap left
+	   by prose in some other row. AGREEMENT takes the slack because it is the
+	   only cell whose text length varies. */
+	table.rates td, table.rates th { border-bottom: none; }
+	table.rates col.c-model { width: 1%; }
+	table.rates col.c-class { width: 1%; }
+	table.rates td.cls { white-space: nowrap; padding-right: 26px; }
+	table.rates col.c-num { width: 1%; }
+	table.rates col.c-agree { width: auto; }
+	table.rates td.num, table.rates th.num { padding-right: 24px; }
+	/* One rule per model, not one per class: three rows of the same model are
+	   one block, and ruling between them made each look like a model whose name
+	   had gone missing. */
+	table.rates tr.group-start:not(:nth-child(2)) td {
+		border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.22));
+	}
+	table.rates tr.group-start td { padding-top: 14px; }
+	table.rates tr.group-cont td { padding-top: 2px; }
+	table.rates tr:last-child td { padding-bottom: 14px; }
+
+	/* Two columns, and the reason is prose, so it may wrap and take the width. */
+	table.absent col.c-model { width: 1%; }
+	table.absent td:last-child { text-wrap: pretty; }
 	.ok { color: var(--vscode-charts-green, #89D185); }
 	.warn { color: var(--vscode-charts-yellow, #CCA700); }
 	.bad { color: var(--vscode-charts-red, #F14C4C); }
