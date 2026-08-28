@@ -1064,8 +1064,9 @@ ${STYLES}
 		Credits come from <code>copilot_chat.copilot_usage_nano_aiu</code>, the cost Copilot
 		reports per request &mdash; not list pricing, and not the transcript's own
 		<code>copilotCredits</code>, which omits messages you retried or cancelled and were
-		still charged for. Check <code>tokenPie.creditsPerNanoAiu</code> against your billing
-		dashboard before treating absolute figures as authoritative.
+		still charged for. Every price, threshold and conversion behind this page &mdash; and
+		which of them is currently withholding something &mdash; is in the
+		<strong>debug console</strong>, on the gear in this editor's title bar.
 	</footer>
 </body>
 </html>`;
@@ -1266,7 +1267,11 @@ const STYLES = `
 	           background: var(--vscode-editorWidget-background);
 	           border: 1px solid var(--vscode-widget-border, transparent);
 	           border-left: 3px solid var(--hue); }
-	.verdict-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+	/* Row and column gaps differ deliberately. The hero's unit label ("% left")
+	   is small text ending where the note's small text begins, so a gap sized
+	   for the big numeral leaves the two reading as one run. Wrapped on a narrow
+	   panel the figure sits above the note and needs far less. */
+	.verdict-top { display: flex; align-items: center; gap: 14px 30px; flex-wrap: wrap; }
 	.hero { font-size: 2.5rem; font-weight: 600; line-height: 1; color: var(--hue); flex: none; }
 	.hero .unit { font-size: 1.15rem; font-weight: 500; margin-left: 7px;
 	              color: var(--vscode-descriptionForeground); }

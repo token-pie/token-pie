@@ -515,6 +515,11 @@ check('no script tags in webview', /<script/i.test(html), false);
   check('and the page says what the mark is',
     /The <strong>~<\/strong> on each figure is the credit/.test(unverified), true);
 
+  // Command Palette was the only way in, which is not discoverable enough for
+  // a page whose job is answering "why is the panel not telling me anything".
+  check('the panel says where the console is',
+    /debug console/.test(html) && /title bar/.test(html), true);
+
   check('labels avoid internal jargon',
     /input tokens|output tokens|not yet priced|\bturns?\b/.test(costHtml), false);
   check('what you send and what comes back are both named',

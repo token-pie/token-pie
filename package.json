@@ -27,7 +27,8 @@
       },
       {
         "command": "tokenPie.showReport",
-        "title": "Token Pie: Show Usage Report"
+        "title": "Token Pie: Show Usage Report",
+        "icon": "$(pie-chart)"
       },
       {
         "command": "tokenPie.refresh",
@@ -51,7 +52,8 @@
       },
       {
         "command": "tokenPie.debugConsole",
-        "title": "Token Pie: Debug Console"
+        "title": "Token Pie: Debug Console",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "tokenPie.refreshRateCard",
@@ -218,6 +220,20 @@
           "markdownDescription": "How far back transcripts are read, and how long rollups are kept. _One monthly billing period plus slack. Longer costs a slower first scan._"
         }
       }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "tokenPie.debugConsole",
+          "when": "activeWebviewPanelId == 'tokenPie.report'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tokenPie.showReport",
+          "when": "activeWebviewPanelId == 'tokenPie.console'",
+          "group": "navigation@1"
+        }
+      ]
     }
   },
   "scripts": {
