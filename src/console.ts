@@ -543,14 +543,25 @@ const CONSOLE_STYLES = `
 	.pane-body { padding: 0 16px var(--gap-block); }
 	.pane-body > *:first-child { margin-top: var(--gap-para); }
 	/* The answer, on the closed line. */
+	/* The answer, on the closed line: readable text with the tone in a dot
+	   beside it. A dot is a graphic and carries no legibility burden, so the
+	   words stay in a colour the theme guarantees against its own background. */
 	.state {
 		margin-left: auto; font-size: 0.76rem; font-weight: 500;
 		font-variant-numeric: tabular-nums; white-space: nowrap;
+		color: var(--vscode-foreground);
+		display: inline-flex; align-items: center; gap: 7px;
 	}
-	.state.ok { color: var(--vscode-charts-green, #89D185); }
-	.state.warn { color: var(--vscode-charts-yellow, #CCA700); }
-	.state.bad { color: var(--vscode-charts-red, #F14C4C); }
+	.state::before {
+		content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none;
+		background: var(--vscode-descriptionForeground);
+	}
+	.state.ok, .state.warn, .state.bad { color: var(--vscode-foreground); }
+	.state.ok::before { background: var(--vscode-charts-green, #89D185); }
+	.state.warn::before { background: var(--vscode-charts-yellow, #CCA700); }
+	.state.bad::before { background: var(--vscode-charts-red, #F14C4C); }
 	.state.flat { color: var(--vscode-descriptionForeground); }
+	.state.flat::before { display: none; }
 
 	/* Seventeen gates expanded is the wall this page exists to replace. Each
 	   group collapses; the ones with something to answer for open themselves.
@@ -599,7 +610,8 @@ const CONSOLE_STYLES = `
 	/* The model name and its fit statistics are one label, not two columns. */
 	td.model { white-space: nowrap; padding-right: 22px; }
 	td.model .fit { display: block; font-size: 0.8em; margin-top: 2px; }
-	a { color: var(--vscode-charts-blue, #3794FF); }
+	/* The theme's own link colour, which is contrast-checked; charts-blue is not. */
+	a { color: var(--vscode-textLink-foreground, #3794FF); }
 
 	/* The comparison is five narrow columns of figures and nothing else, so the
 	   numbers sit next to the class they belong to instead of across a gap left
@@ -625,9 +637,17 @@ const CONSOLE_STYLES = `
 	/* Two columns, and the reason is prose, so it may wrap and take the width. */
 	table.absent col.c-model { width: 1%; }
 	table.absent td:last-child { text-wrap: pretty; }
-	.ok { color: var(--vscode-charts-green, #89D185); }
-	.warn { color: var(--vscode-charts-yellow, #CCA700); }
-	.bad { color: var(--vscode-charts-red, #F14C4C); }
+	/*
+	 * Status words inside sentences carry no colour.
+	 *
+	 * Yellow is the case that settles it: the editor's own warning foreground
+	 * is around #BF8803 on a light theme, which is 2.9:1 against white and
+	 * fails outright. Colouring two of the three and not the warning would be
+	 * worse than colouring none -- so the meaning stays in the word, at a
+	 * weight that makes it findable, and colour stays on the dots, borders and
+	 * grounds that carry no legibility burden.
+	 */
+	.ok, .warn, .bad { color: var(--vscode-foreground); font-weight: 600; }
 	.unknown { color: var(--vscode-descriptionForeground); }
 	.verdict-line { margin: var(--gap-para) 0 var(--gap-block); text-wrap: pretty; }
 	.note { margin: var(--gap-para) 0 0; text-wrap: pretty; }
@@ -641,35 +661,48 @@ const CONSOLE_STYLES = `
 	/* A withholding gate is the reason someone opened this page. */
 	tr.binding td { background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.10)); }
 	.chip {
-		display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 9px;
+		display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 9px;
 		font-size: 0.74rem; font-weight: 400; white-space: nowrap; flex: none;
-		color: var(--vscode-charts-yellow, #CCA700);
-		border: 1px solid currentColor;
+		color: var(--vscode-foreground);
+		border: 1px solid var(--vscode-charts-yellow, #CCA700);
+		background: rgba(204, 167, 0, 0.16);
+		background: color-mix(in srgb, var(--vscode-charts-yellow, #CCA700) 18%, transparent);
 	}
 	/* A gate someone has set is not a problem, so it does not borrow the
 	   warning colour -- but it is worth finding without opening every group. */
-	.chip.changed { color: var(--vscode-charts-blue, #3794FF); }
+	.chip.changed {
+		border-color: var(--vscode-charts-blue, #3794FF);
+		background: rgba(55, 148, 255, 0.16);
+		background: color-mix(in srgb, var(--vscode-charts-blue, #3794FF) 18%, transparent);
+	}
 	summary .count + .chip { margin-left: 8px; }
-	/* A hairline outline in a dim accent was near-invisible at this size. The
-	   label is the one thing on the row that says how much to trust the number,
-	   so it gets a filled ground and a weight that survives being small. */
+	/*
+	 * The word is in the foreground colour; the accent is the border and the
+	 * ground behind it.
+	 *
+	 * Twice this label was accent-coloured text on a tint of the same accent,
+	 * and twice it came back unreadable. --vscode-charts-* are fill colours for
+	 * chart marks; nothing guarantees they contrast with anything as *text*, and
+	 * at 0.68rem there is no margin to spend. The foreground colour is the one
+	 * value a theme does guarantee to be legible on its own background, so the
+	 * word uses it and the colour does the job colour is good at.
+	 */
 	.basis {
 		display: inline-block; padding: 2px 8px; border-radius: 4px;
 		font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em;
 		text-transform: uppercase; white-space: nowrap;
+		color: var(--vscode-foreground);
 		border: 1px solid transparent;
 	}
 	.basis.derived {
-		color: var(--vscode-charts-green, #89D185);
 		border-color: var(--vscode-charts-green, #89D185);
-		background: rgba(137, 209, 133, 0.14);
-		background: color-mix(in srgb, var(--vscode-charts-green, #89D185) 16%, transparent);
+		background: rgba(137, 209, 133, 0.18);
+		background: color-mix(in srgb, var(--vscode-charts-green, #89D185) 20%, transparent);
 	}
 	.basis.judged {
-		color: var(--vscode-charts-orange, #D18616);
 		border-color: var(--vscode-charts-orange, #D18616);
-		background: rgba(209, 134, 22, 0.16);
-		background: color-mix(in srgb, var(--vscode-charts-orange, #D18616) 18%, transparent);
+		background: rgba(209, 134, 22, 0.20);
+		background: color-mix(in srgb, var(--vscode-charts-orange, #D18616) 22%, transparent);
 	}
 	footer {
 		margin-top: var(--gap-region); padding-top: var(--gap-para); font-size: 0.85rem;

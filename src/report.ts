@@ -1258,7 +1258,9 @@ const STYLES = `
 	.lede { margin: 9px 0 0;
 	        font-size: 0.74rem; line-height: 1.55;
 	        font-style: italic; color: var(--vscode-descriptionForeground); }
-	.lede a { color: var(--vscode-charts-blue, #4a9eff); }
+	/* The theme's link colour is contrast-checked against its background;
+	   charts-blue is a fill colour for chart marks and is not. */
+	.lede a { color: var(--vscode-textLink-foreground, #4a9eff); }
 	h2 { font-size: 0.72rem; margin: 20px 0 8px; text-transform: uppercase;
 	     letter-spacing: 0.07em; color: var(--vscode-descriptionForeground); font-weight: 600; }
 	h2.first { margin-top: 0; }

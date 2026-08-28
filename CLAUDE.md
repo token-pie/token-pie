@@ -144,6 +144,12 @@ If a change makes one of those weaker, it is the wrong change.
   "where did it go", which is reference material. At least one view must answer
   "what did I do that cost this", in units a developer thinks in — a request, a
   turn, a thread — never a rate per 1,000 tokens.
+- **`--vscode-charts-*` are fill colours, not text colours.** Nothing
+  guarantees a chart colour contrasts with anything as text; the editor's
+  warning foreground is ~2.9:1 on a light theme. Text uses
+  `--vscode-foreground`, `--vscode-textLink-foreground`, or a description
+  colour; accents live on dots, borders and grounds, which carry no legibility
+  burden. `npm run test:rendering` measures every text run in both themes.
 - **Never state a cost claim in tokens.** Output bills at 4× fresh input and
   12.5× cached, so a token-weighted bar under a cost heading is wrong. Weight
   by cost, or label the units plainly.

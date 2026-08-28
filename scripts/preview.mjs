@@ -33,6 +33,7 @@ import { renderConsole } from '../out/console.js';
 import { load as loadCard } from '../out/ratecard.js';
 import { periodCoverage } from '../out/reconcile.js';
 import { creditsByDay } from '../out/report.js';
+import { DARK, LIGHT, vars as themeVars } from './themes.mjs';
 
 // The preview reads the same ladder the panel does, so raising a floor in
 // settings shows up here rather than only in the shipped extension.
@@ -151,29 +152,6 @@ if (flag('why')) {
 // Dark and light stand-ins for the variables the webview inherits from VS Code.
 // Values are lifted from the default themes; the assertion below is what keeps
 // this list from drifting out of step with the stylesheet.
-const DARK = {
-  'foreground': '#cccccc', 'font-family': 'system-ui, -apple-system, sans-serif',
-  'font-size': '13px', 'editor-background': '#1f1f1f',
-  'editor-font-family': 'Menlo, Monaco, monospace',
-  'descriptionForeground': '#9d9d9d', 'widget-border': '#3c3c3c',
-  'editorWidget-background': '#252526', 'editorWidget-border': '#454545',
-  'list-hoverBackground': '#2a2d2e', 'charts-foreground': '#cccccc',
-  'charts-blue': '#3794ff', 'charts-green': '#89d185', 'charts-purple': '#b180d7',
-  'charts-red': '#f14c4c', 'charts-yellow': '#cca700',
-  'inputValidation-warningBackground': '#352a05', 'inputValidation-warningBorder': '#b89500',
-  'charts-orange': '#d18616', 'panel-border': '#2b2b2b',
-  'textBlockQuote-background': '#2a2a2a'
-};
-const LIGHT = {
-  ...DARK, 'foreground': '#3b3b3b', 'editor-background': '#ffffff',
-  'descriptionForeground': '#6a6a6a', 'widget-border': '#d4d4d4',
-  'editorWidget-background': '#f8f8f8', 'editorWidget-border': '#c8c8c8',
-  'list-hoverBackground': '#f0f0f0', 'charts-foreground': '#3b3b3b',
-  'charts-blue': '#1a85ff', 'charts-green': '#388a34', 'charts-purple': '#652d90',
-  'inputValidation-warningBackground': '#fff8c5',
-  'charts-orange': '#bf6a02', 'panel-border': '#e5e5e5',
-  'textBlockQuote-background': '#f3f3f3'
-};
 
 const theme = flag('light') ? LIGHT : DARK;
 
@@ -222,7 +200,7 @@ if (missing.length) {
   process.exit(1);
 }
 
-const vars = Object.entries(theme).map(([k, v]) => `  --vscode-${k}: ${v};`).join('\n');
+const vars = themeVars(theme);
 const html = `<!doctype html><meta charset="utf-8"><title>Token Pie — preview</title>
 <style>:root {\n${vars}\n}
 html { background: var(--vscode-editor-background); }

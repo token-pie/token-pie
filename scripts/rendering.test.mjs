@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * Vertical spacing, measured rather than eyeballed.
+ * What the pages actually render as, measured rather than eyeballed.
+ *
+ * Two things are checked here because both were got wrong the same way --
+ * by looking at the CSS and deciding it seemed fine. Spacing, and contrast.
  *
  * Margins here were set per element as each cramped pair was noticed, which is
  * why fixing them never stayed fixed: a margin tuned against a neighbour that
@@ -14,6 +17,11 @@
  * border box, so a 0px box gap can still read as comfortable and a 10px one
  * can still read as cramped. What is asserted is what the eye sees.
  *
+ * Contrast is the same story: a chip styled as a dim accent on a dim tint of
+ * the same accent reads as legible in the source and is unreadable on screen.
+ * The ratio is computed against the effective background -- the first ancestor
+ * that actually paints one -- in both themes.
+ *
  * Skips when Chrome is absent rather than failing, since it is a rendering
  * check and there is nothing to render in.
  */
@@ -25,6 +33,7 @@ import { renderReport } from '../out/report.js';
 import { renderConsole } from '../out/console.js';
 import { parse } from '../out/ratecard.js';
 import { read } from '../out/tuning.js';
+import { DARK, LIGHT, vars } from './themes.mjs';
 
 const CHROME = process.env.CHROME ?? (process.platform === 'darwin'
   ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -60,8 +69,17 @@ const check = (label, got, want) => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${ok ? '' : `  (got ${got}, want ${want})`}`);
 };
 
+/**
+ * WCAG AA: 4.5:1 for body text, 3:1 once text is large enough to carry itself
+ * (24px, or 18.66px when bold). Holding a 2.5rem figure to the body bar would
+ * force a colour it does not need.
+ */
+const MIN_CONTRAST = 4.5;
+const MIN_CONTRAST_LARGE = 3;
+
 const PROBE = `<script>(() => {
   const rows = [];
+  const contrast = [];
   const label = e => e.tagName.toLowerCase() +
     (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/).join('.') : '');
   // Inline elements sit inside a line box; the gap between two of them is
@@ -86,16 +104,67 @@ const PROBE = `<script>(() => {
     }
   };
   walk(document.body);
+
+  // Contrast, against whatever actually paints behind the text rather than
+  // against what the rule nearest it declares.
+  const rgb = v => (v.match(/[\\d.]+/g) || []).map(Number);
+  const opaque = e => {
+    for (let n = e; n && n !== document.documentElement.parentNode; n = n.parentElement) {
+      const c = rgb(getComputedStyle(n).backgroundColor);
+      if (c.length >= 3 && (c[3] === undefined || c[3] > 0.85)) return c;
+    }
+    return [0, 0, 0];
+  };
+  const lum = c => {
+    const f = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+  };
+  const ratio = (a, b) => {
+    const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+    return (x + 0.05) / (y + 0.05);
+  };
+  for (const e of document.querySelectorAll('*')) {
+    const text = [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+    if (!text) continue;
+    const st = getComputedStyle(e);
+    if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) < 0.9) continue;
+    const fg = rgb(st.color);
+    if (fg.length < 3) continue;
+    const px = parseFloat(st.fontSize) || 0;
+    const bold = Number(st.fontWeight) >= 700 || st.fontWeight === 'bold';
+    contrast.push({
+      large: px >= 24 || (bold && px >= 18.66),
+      px: Math.round(px * 10) / 10,
+      ratio: Math.round(ratio(fg, opaque(e)) * 100) / 100,
+      what: e.tagName.toLowerCase() +
+        (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/).join('.') : ''),
+      text: (e.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 26)
+    });
+  }
+
   const pre = document.createElement('pre');
   pre.id = 'measurements';
-  pre.textContent = JSON.stringify(rows);
+  pre.textContent = JSON.stringify({ rows, contrast });
   document.body.appendChild(pre);
 })();</script>`;
 
-function measure(html, file) {
+/**
+ * The page painted in a theme, the way the webview host paints it.
+ *
+ * Without this the probe measures against browser defaults -- black on white --
+ * and every contrast reading is a fiction.
+ */
+function themed(html, theme) {
+  const palette = theme === 'light' ? LIGHT : DARK;
+  return html.replace('<style>',
+    `<style>:root {\n${vars(palette)}\n}\n` +
+    `html, body { background: var(--vscode-editor-background); }\n`);
+}
+
+function measure(html, file, theme = 'dark') {
   // The pages ship `default-src 'none'`, which is right for a webview and
   // blocks the probe, and every <details> is opened so nothing hides.
-  const prepared = html
+  const prepared = themed(html, theme)
     .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/g, '')
     .replace(/<details([^>]*?)(?<! open)>/g, '<details$1 open>') + PROBE;
   fs.writeFileSync(file, prepared);
@@ -144,15 +213,25 @@ const pages = {
 };
 
 for (const [name, html] of Object.entries(pages)) {
-  console.log(`\n${name}`);
-  const rows = await measure(html, path.join(dir, `${name}.html`));
-  check('something was measured', rows.length > 20, true);
-  const cramped = rows.filter(r => r.gap < MIN_GAP
-    && !DELIBERATELY_TIGHT.has(`${r.from}->${r.to}`));
-  check(`no two blocks sit closer than ${MIN_GAP}px`,
-    cramped.map(r => `${r.from}->${r.to}@${r.gap}px`).join(', '), '');
-  const worst = Math.min(...rows.map(r => r.gap));
-  console.log(`        ${rows.length} adjacent pairs, tightest ${worst}px`);
+  for (const theme of ['dark', 'light']) {
+    console.log(`\n${name} (${theme})`);
+    const { rows, contrast } = await measure(html, path.join(dir, `${name}-${theme}.html`), theme);
+
+    check('something was measured', rows.length > 20, true);
+    const cramped = rows.filter(r => r.gap < MIN_GAP
+      && !DELIBERATELY_TIGHT.has(`${r.from}->${r.to}`));
+    check(`no two blocks sit closer than ${MIN_GAP}px`,
+      cramped.map(r => `${r.from}->${r.to}@${r.gap}px`).join(', '), '');
+    console.log(`        ${rows.length} adjacent pairs, tightest ${
+      Math.min(...rows.map(r => r.gap))}px`);
+
+    const dim = contrast.filter(c => c.ratio < (c.large ? MIN_CONTRAST_LARGE : MIN_CONTRAST));
+    check(`every run of text clears its WCAG bar`,
+      dim.map(c => `${c.what} "${c.text}" ${c.px}px @${c.ratio}:1`).join(', '), '');
+    const body = contrast.filter(c => !c.large);
+    console.log(`        ${contrast.length} text runs, faintest body ${
+      Math.min(...body.map(c => c.ratio))}:1`);
+  }
 }
 
 fs.rmSync(dir, { recursive: true, force: true });
