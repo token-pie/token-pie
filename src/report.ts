@@ -956,9 +956,6 @@ export function renderReport(input: ReportInput): string {
 
 	// One day is not a trend. A single-column bar chart is always 100% full and
 	// says nothing; below two days the number itself is the honest form.
-	const trend = days.length >= 2
-		? `<h2>Daily spend</h2><div class="chart">${sparkColumns(days, creditsPerNanoAiu)}</div>`
-		: '';
 
 	// The one assumption every credit figure rests on, resolved once and passed
 	// down rather than re-derived per finding.
@@ -993,6 +990,8 @@ ${STYLES}
 	${historyNote(input.history, days)}
 
 	<section class="verdict" style="--hue:${severityVar(p)}">
+		<div class="verdict-cols">
+		<div class="verdict-main">
 		<div class="verdict-top">
 			${heroFigure(p, totalCredits)}
 			<!-- The note defines the unit, so it belongs before the first figure
@@ -1006,6 +1005,9 @@ ${STYLES}
 		</div>
 		${allowanceMeter(p)}
 		${paceTiles(p)}
+		</div>
+		${weekBars(rollups, creditsPerNanoAiu)}
+		</div>
 	</section>
 
 	${warnings}
@@ -1050,7 +1052,6 @@ ${STYLES}
 
 		${depthTable(input.depth, creditsPerNanoAiu, totalCredits)}
 
-		${trend}
 		${coverageNote(input.costCoverage, byModel, totals)}
 		</div>
 	</details>
@@ -1214,18 +1215,71 @@ function heroFigure(p: Projection, totalCredits: number): string {
 	}
 }
 
-function sparkColumns(days: [string, Totals][], creditsPerNanoAiu: number): string {
-	const peak = Math.max(1, ...days.map(([, t]) => t.nanoAiu));
-	return days
-		.map(([day, t]) => {
-			const height = Math.max(2, (t.nanoAiu / peak) * 100);
-			const credits = fmtCredits(creditsOf(t.nanoAiu, creditsPerNanoAiu));
-			return `<div class="col" title="${day}: ${credits} credits">
-				<div class="stem" style="height:${height.toFixed(0)}%"></div>
-				<div class="tick">${day.slice(5)}</div>
-			</div>`;
-		})
-		.join('');
+/**
+ * This week, Monday to Sunday, as horizontal bars.
+ *
+ * It replaces a column chart of the last fourteen days, which was a shape
+ * without a question: nobody asks "what did the 14th cost" and the labels were
+ * unreadable at that width anyway. A calendar week answers something the rest
+ * of the card is already about -- am I on pace -- because the week is the unit
+ * people actually plan work in.
+ *
+ * Days that have not happened yet are drawn, empty. Dropping them would make a
+ * Monday look like a finished week with one busy day, and the point of showing
+ * seven rows is that you can see how much of the week is still to come.
+ */
+function weekBars(rollups: Rollup[], creditsPerNanoAiu: number, now = new Date()): string {
+	// Monday of the current week, in local time: the day strings are local days.
+	const monday = new Date(now);
+	monday.setHours(0, 0, 0, 0);
+	monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+
+	const spend = new Map<string, number>();
+	for (const r of rollups) {
+		spend.set(r.day, (spend.get(r.day) ?? 0) + creditsOf(r.nanoAiu, creditsPerNanoAiu));
+	}
+
+	const today = dayKeyLocal(now);
+	const rows = Array.from({ length: 7 }, (_, i) => {
+		const d = new Date(monday);
+		d.setDate(monday.getDate() + i);
+		const key = dayKeyLocal(d);
+		return {
+			key,
+			name: d.toLocaleDateString(undefined, { weekday: 'short' }),
+			credits: spend.get(key) ?? 0,
+			future: key > today,
+			today: key === today
+		};
+	});
+
+	const peak = Math.max(...rows.map(r => r.credits));
+	const total = rows.reduce((n, r) => n + r.credits, 0);
+	if (peak <= 0) {
+		return '';
+	}
+
+	const bars = rows.map(r => `
+		<div class="wk-row${r.today ? ' wk-today' : ''}${r.future ? ' wk-future' : ''}"
+		     title="${escapeHtml(r.key)}: ${fmtCredits(r.credits)} credits">
+			<span class="wk-day">${escapeHtml(r.name)}</span>
+			<span class="wk-track"><span class="wk-fill"
+				style="width:${((r.credits / peak) * 100).toFixed(1)}%"></span></span>
+			<span class="wk-val">${r.credits > 0 ? fmtCredits(r.credits) : ''}</span>
+		</div>`).join('');
+
+	return `
+	<div class="week">
+		<div class="wk-head">This week
+			<span class="wk-total">${fmtCreditsWith(total)}</span></div>
+		${bars}
+	</div>`;
+}
+
+/** Local calendar day, matching the keys the store writes. */
+function dayKeyLocal(d: Date): string {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 const STYLES = `
@@ -1271,6 +1325,39 @@ const STYLES = `
 	.sub { color: var(--vscode-descriptionForeground); font-size: 0.82rem; }
 	.dim { color: var(--vscode-descriptionForeground); }
 
+
+	/* The week sits beside the verdict, not under it: it answers the same
+	   question the card is already asking -- am I on pace -- and a chart under
+	   the tiles reads as a separate section nobody scrolls to. 30% is enough
+	   for seven short rows and leaves the sentence its measure. */
+	.verdict-cols { display: flex; gap: 26px; align-items: flex-start; }
+	.verdict-main { flex: 1 1 auto; min-width: 0; }
+	.week {
+		flex: 0 0 30%; min-width: 0;
+		border-left: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
+		padding-left: 18px;
+	}
+	.wk-head {
+		display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+		font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em;
+		color: var(--vscode-descriptionForeground); margin-bottom: 9px;
+	}
+	.wk-total { font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none;
+	            font-size: 0.8rem; color: var(--vscode-foreground); font-weight: 600; }
+	.wk-row { display: flex; align-items: center; gap: 8px; padding: 2px 0;
+	          font-size: 0.76rem; }
+	.wk-day { flex: 0 0 2.4em; color: var(--vscode-descriptionForeground); }
+	.wk-track { flex: 1 1 auto; height: 8px; border-radius: 4px; min-width: 0;
+	            background: var(--vscode-editorWidget-border, rgba(128,128,128,0.22)); }
+	.wk-fill { display: block; height: 100%; border-radius: 4px; background: var(--hue); }
+	.wk-val { flex: 0 0 auto; min-width: 2.6em; text-align: right;
+	          font-variant-numeric: tabular-nums;
+	          color: var(--vscode-descriptionForeground); }
+	/* Today is the row the reader is standing on, so it is the one named. */
+	.wk-today .wk-day, .wk-today .wk-val { color: var(--vscode-foreground); font-weight: 600; }
+	/* Days that have not happened yet are drawn so the week keeps its shape,
+	   but faintly: an empty Friday is not a quiet Friday. */
+	.wk-future { opacity: 0.45; }
 
 	.verdict { padding: 14px 16px; border-radius: 8px;
 	           background: var(--vscode-editorWidget-background);
@@ -1360,6 +1447,11 @@ const STYLES = `
 		.say { flex: 1 1 100%; min-width: 0; }
 		.sentence { flex: 1 1 100%; min-width: 0; }
 		.verdict { padding: 12px 13px; }
+		/* Beside becomes below: 30% of a narrow split is not a chart. */
+		.verdict-cols { flex-wrap: wrap; gap: 18px; }
+		.week { flex: 1 1 100%; border-left: none; padding-left: 0;
+		        border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
+		        padding-top: 14px; }
 		.verdict-top { gap: 10px 16px; }
 		.hero { font-size: 2rem; }
 		.tiles { gap: 14px; }
@@ -1460,13 +1552,6 @@ const STYLES = `
 	                 var(--vscode-descriptionForeground) 0 2px, transparent 2px 5px); opacity: 0.6; }
 	.pct { font-size: 0.73rem; color: var(--vscode-descriptionForeground); margin-left: 7px; }
 
-	.chart { display: flex; align-items: flex-end; gap: 6px; height: 74px; margin-top: 6px; }
-	.col { flex: 1 1 0; max-width: 42px; display: flex; flex-direction: column;
-	       justify-content: flex-end; align-items: center; height: 100%; }
-	.stem { width: 100%; background: var(--vscode-charts-blue, #4a9eff);
-	        border-radius: 4px 4px 0 0; opacity: 0.8; }
-	.tick { font-size: 0.62rem; color: var(--vscode-descriptionForeground);
-	        margin-top: 4px; white-space: nowrap; }
 
 	section + section { margin-top: 38px; }
 	details.detail { margin-top: 0; }

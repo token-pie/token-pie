@@ -521,6 +521,38 @@ check('no script tags in webview', /<script/i.test(html), false);
   check('the panel says where the console is',
     /Token Specs/.test(html) && /title bar/.test(html), true);
 
+  // A column chart of the last fourteen days was a shape without a question:
+  // nobody asks what the 14th cost. A calendar week answers what the card is
+  // already asking -- am I on pace -- because the week is the unit work is
+  // planned in.
+  const weekly = renderReport({
+    rollups: [{ ...priced, day: new Date().toISOString().slice(0, 10) }],
+    creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+    warnings: [], projection: { verdict: 'ok', entitlement: 1500, remaining: 1450,
+      percentRemaining: 96.7 }, prices: {}, depth: {}
+  });
+  check('the card carries a week, not a run of days', /class="week"/.test(weekly), true);
+  check('seven rows, whatever happened in them',
+    (weekly.match(/class="wk-row/g) || []).length, 7);
+  check('named Monday to Sunday',
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+      .every(d => new RegExp(`<span class="wk-day">${d}<`).test(weekly)), true);
+  check('the total is spelled in credits, not left bare',
+    /class="wk-total">[\d.,]+ credits?</.test(weekly), true);
+  // Dropping the days still to come would make a Monday look like a finished
+  // week with one busy day.
+  check('days that have not happened are drawn, faintly',
+    /wk-future/.test(weekly) || new Date().getDay() === 0, true);
+  check('the old daily column chart is gone',
+    /Daily spend|class="chart"/.test(weekly), false);
+  // An empty week has no shape to show, and seven empty tracks read as broken.
+  check('a week with no spend is withheld',
+    /class="week"/.test(renderReport({
+      rollups: [{ ...priced, day: '2020-01-02', nanoAiu: 0 }],
+      creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+      warnings: [], projection: undefined, prices: {}, depth: {}
+    })), false);
+
   check('labels avoid internal jargon',
     /input tokens|output tokens|not yet priced|\bturns?\b/.test(costHtml), false);
   check('what you send and what comes back are both named',

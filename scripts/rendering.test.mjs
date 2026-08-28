@@ -75,8 +75,18 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.meter-head->div.meter', 'the caption labels the bar directly beneath it'],
   ['div.meter->div.meter-foot', 'and the footnote labels the same bar'],
   ['div.v->div.k', "a tile's figure and its unit are one reading"],
-  ['div.stem->div.tick', 'a chart column and its own axis label']
 ]);
+
+/**
+ * The same allowance, where the pair is a repeat rather than a named couple.
+ *
+ * Seven rows of one chart are one figure, not seven blocks, and their classes
+ * vary by state -- today, still to come -- so an exact-pair list cannot name
+ * them without naming every combination.
+ */
+const TIGHT_REPEATS = [
+  [/^div\.wk-row/, /^div\.wk-row/, 'the rows of one week chart are one figure']
+];
 
 let failures = 0;
 const check = (label, got, want) => {
@@ -291,7 +301,8 @@ for (const [name, html] of Object.entries(pages)) {
 
     check('something was measured', rows.length > 20, true);
     const cramped = rows.filter(r => r.gap < MIN_GAP
-      && !DELIBERATELY_TIGHT.has(`${r.from}->${r.to}`));
+      && !DELIBERATELY_TIGHT.has(`${r.from}->${r.to}`)
+      && !TIGHT_REPEATS.some(([a, b]) => a.test(r.from) && b.test(r.to)));
     check(`no two blocks sit closer than ${MIN_GAP}px`,
       cramped.map(r => `${r.from}->${r.to}@${r.gap}px`).join(', '), '');
     console.log(`        ${rows.length} adjacent pairs, tightest ${
