@@ -190,6 +190,8 @@ src/
   pricing.ts     solves the per-token rate card from sufficient statistics
   advice.ts      rollups -> ranked findings, each with its evidence.
   confidence.ts  measured | bounded | estimated, and how doubt propagates
+  tuning.ts      every gate in one place, with its provenance. Settings are
+                 GENERATED from it -- run `npm run sync:settings` after editing
   report.ts      the webview. No scripts; <details> for progressive disclosure.
   purge.ts       the only writer to a database we do not own
   sessions.ts    session-file turns; used for reconciliation, NOT for spend

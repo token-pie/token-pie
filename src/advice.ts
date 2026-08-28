@@ -2,6 +2,7 @@ import { Rollup, Totals, groupBy, sum } from './store';
 import { Selection } from './selection';
 import { PriceStats, Price, solve, costOf } from './pricing';
 import { Confidence, rank } from './confidence';
+import { Tuning, defaults } from './tuning';
 
 /**
  * Turns the rollup into things a developer can do differently.
@@ -55,11 +56,11 @@ export interface Advice {
  * So share of *observed spend* is not a fallback for when the allowance is
  * unknown. It is the second, independent question: throttle date aside, is this
  * a real slice of how this person works?
+ *
+ * The floors themselves live in `tuning.ts` with the rest of the ladder, so the
+ * debug console can show what each one is currently withholding.
  */
-export const MIN_SHARE_OF_ALLOWANCE = 0.01;
 
-export const MIN_CREDITS_AT_STAKE = 0.5;
-export const MIN_SHARE_AT_STAKE = 0.05;
 
 /**
  * Below this there is no habit to have an opinion about.
@@ -74,13 +75,8 @@ export const MIN_SHARE_AT_STAKE = 0.05;
  * `1st`, `2nd-3rd` and `4th-7th`, so "how you work" is visible rather than
  * inferred from a single conversation.
  */
-export const MIN_HISTORY_REQUESTS = 10;
 
-/** A rate needs more than one observation to be a rate. */
-const MIN_BASELINE_REQUESTS = 2;
 
-/** A cost multiple below this is ordinary variance, not a finding. */
-const MIN_CACHE_FACTOR = 1.5;
 
 /**
  * How a model's spend was reached, by credits.
@@ -111,14 +107,13 @@ export function selectionMix(
 	};
 }
 
-/** Above this share of a model's spend, Auto is meaningfully the one choosing. */
-const AUTO_DOMINANT_SHARE = 0.5;
 
 export function advise(
 	rollups: Rollup[],
 	creditsPerNanoAiu: number,
 	priceStats: Record<string, PriceStats> = {},
-	remainingAllowance?: number
+	remainingAllowance?: number,
+	tuning: Tuning = defaults()
 ): Advice[] {
 	const totals = sum(rollups);
 	const totalCredits = totals.nanoAiu * creditsPerNanoAiu;
@@ -129,7 +124,7 @@ export function advise(
 	const byModel = groupBy(rollups, 'model');
 	const prices = new Map<string, Price>();
 	for (const model of byModel.keys()) {
-		const solved = priceStats[model] ? solve(priceStats[model], creditsPerNanoAiu) : undefined;
+		const solved = priceStats[model] ? solve(priceStats[model], creditsPerNanoAiu, tuning) : undefined;
 		if (solved) {
 			prices.set(model, solved);
 		}
@@ -137,26 +132,26 @@ export function advise(
 
 	// Not enough history to call anything a habit. Withheld outright rather than
 	// shown with a caveat -- see ARCHITECTURE.md, "absent beats badged".
-	if (rollups.reduce((n, r) => n + r.requests, 0) < MIN_HISTORY_REQUESTS) {
+	if (rollups.reduce((n, r) => n + r.requests, 0) < tuning.advice.minHistoryRequests) {
 		return [];
 	}
 
 	const found = [
-		cacheMissAdvice(rollups, byModel, creditsPerNanoAiu, prices),
-		modelMixAdvice(rollups, byModel, creditsPerNanoAiu, totalCredits, prices),
-		auxiliaryAdvice(rollups, creditsPerNanoAiu, totalCredits)
+		cacheMissAdvice(rollups, byModel, creditsPerNanoAiu, prices, tuning),
+		modelMixAdvice(rollups, byModel, creditsPerNanoAiu, totalCredits, prices, tuning),
+		auxiliaryAdvice(rollups, creditsPerNanoAiu, totalCredits, tuning)
 	].filter((a): a is Advice => a !== undefined);
 
 	// Would fixing this move the throttle date?
 	const urgent = (a: Advice) =>
 		remainingAllowance !== undefined &&
 		remainingAllowance > 0 &&
-		a.creditsAtStake / remainingAllowance >= MIN_SHARE_OF_ALLOWANCE;
+		a.creditsAtStake / remainingAllowance >= tuning.advice.minShareOfAllowance;
 
 	// Is it a real slice of how this developer works, throttle date aside?
 	const pattern = (a: Advice) =>
-		a.creditsAtStake >= MIN_CREDITS_AT_STAKE &&
-		a.creditsAtStake / totalCredits >= MIN_SHARE_AT_STAKE;
+		a.creditsAtStake >= tuning.advice.minCreditsAtStake &&
+		a.creditsAtStake / totalCredits >= tuning.advice.minShareAtStake;
 
 	const material = (a: Advice) => urgent(a) || pattern(a);
 
@@ -203,12 +198,13 @@ export function cacheSplit(
 	model: string,
 	t: Totals,
 	creditsPerNanoAiu: number,
-	price?: Price
+	price?: Price,
+	tuning: Tuning = defaults()
 ): CacheSplit | undefined {
 	const hitInput = t.inputTokens - t.missInputTokens;
 	const hitRequests = t.requests - t.missRequests;
 
-	if (t.missInputTokens <= 0 || hitInput <= 0 || hitRequests < MIN_BASELINE_REQUESTS) {
+	if (t.missInputTokens <= 0 || hitInput <= 0 || hitRequests < tuning.advice.minBaselineRequests) {
 		return undefined;
 	}
 
@@ -253,11 +249,12 @@ function cacheMissAdvice(
 	rollups: Rollup[],
 	byModel: Map<string, Totals>,
 	creditsPerNanoAiu: number,
-	prices: Map<string, Price>
+	prices: Map<string, Price>,
+	tuning: Tuning
 ): Advice | undefined {
 	const splits = [...byModel.entries()]
-		.map(([model, t]) => cacheSplit(model, t, creditsPerNanoAiu, prices.get(model)))
-		.filter((s): s is CacheSplit => s !== undefined && s.factor >= MIN_CACHE_FACTOR && s.excessCredits > 0)
+		.map(([model, t]) => cacheSplit(model, t, creditsPerNanoAiu, prices.get(model), tuning))
+		.filter((s): s is CacheSplit => s !== undefined && s.factor >= tuning.advice.minCacheFactor && s.excessCredits > 0)
 		.sort((a, b) => b.excessCredits - a.excessCredits);
 
 	const worst = splits[0];
@@ -268,7 +265,7 @@ function cacheMissAdvice(
 	const excess = splits.reduce((n, s) => n + s.excessCredits, 0);
 	const misses = splits.reduce((n, s) => n + s.missRequests, 0);
 	const mix = selectionMix(rollups, worst.model, creditsPerNanoAiu);
-	const byAuto = mix.dominant === 'auto' && mix.autoShare >= AUTO_DOMINANT_SHARE;
+	const byAuto = mix.dominant === 'auto' && mix.autoShare >= tuning.advice.autoDominantShare;
 
 	return {
 		id: 'cache-miss',
@@ -374,7 +371,8 @@ function modelMixAdvice(
 	byModel: Map<string, Totals>,
 	creditsPerNanoAiu: number,
 	totalCredits: number,
-	prices: Map<string, Price>
+	prices: Map<string, Price>,
+	tuning: Tuning
 ): Advice | undefined {
 	const rated = [...byModel.entries()]
 		.map(([model, t]) => ({
@@ -434,7 +432,7 @@ function modelMixAdvice(
 	const mix = selectionMix(rollups, dearest.model, creditsPerNanoAiu);
 	// Advising someone to route away from a model is advice about a choice.
 	// When Auto made that choice, the actionable lever is Auto itself.
-	const byAuto = mix.dominant === 'auto' && mix.autoShare >= AUTO_DOMINANT_SHARE;
+	const byAuto = mix.dominant === 'auto' && mix.autoShare >= tuning.advice.autoDominantShare;
 
 	const costPhrase = exact
 		? `the same tokens would have cost ${fmt(exact.cost)} on ${cheapest.model}`
@@ -492,7 +490,8 @@ const USER_FACING = /agent|editor|panel|inline|edits|ask|chat$/i;
 function auxiliaryAdvice(
 	rollups: Rollup[],
 	creditsPerNanoAiu: number,
-	totalCredits: number
+	totalCredits: number,
+	tuning: Tuning
 ): Advice | undefined {
 	const byOperation = groupBy(rollups, 'operation');
 	const auxiliary = [...byOperation.entries()]

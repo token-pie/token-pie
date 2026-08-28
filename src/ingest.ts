@@ -51,7 +51,9 @@ export async function ingestAll(
 	 * the default reads the real user directories, which silently mixed live
 	 * transcripts into fixture-based runs.
 	 */
-	sessionDirs?: string[]
+	sessionDirs?: string[],
+	/** Same ladder and conversion the panel reads; see `tuning.ts`. */
+	options: { creditsPerNanoAiu?: number; historyDays?: number } = {}
 ): Promise<IngestResult> {
 	const result: IngestResult = {
 		dbCount: dbs.length,
@@ -84,7 +86,8 @@ export async function ingestAll(
 	try {
 		onProgress?.({ phase: 'reading-history' });
 		result.backfill = await backfill(
-			store, result.traceStartMs, sessionDirs, Date.now(), onProgress
+			store, result.traceStartMs, sessionDirs, Date.now(), onProgress,
+			options.creditsPerNanoAiu, options.historyDays
 		);
 	} catch (err) {
 		result.errors.push(`backfill: ${err instanceof Error ? err.message : String(err)}`);

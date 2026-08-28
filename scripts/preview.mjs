@@ -21,9 +21,13 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { renderReport } from '../out/report.js';
 import { project } from '../out/projection.js';
+import { defaults } from '../out/tuning.js';
+
+// The preview reads the same ladder the panel does, so raising a floor in
+// settings shows up here rather than only in the shipped extension.
+const T = defaults();
 import {
-  advise, MIN_SHARE_OF_ALLOWANCE, MIN_CREDITS_AT_STAKE,
-  MIN_SHARE_AT_STAKE, MIN_HISTORY_REQUESTS
+  advise
 } from '../out/advice.js';
 
 const argv = process.argv.slice(2);
@@ -97,12 +101,12 @@ if (flag('why')) {
   console.log(`allowance   ${remaining === undefined ? 'unknown' : `${fmt(remaining)} remaining`}`);
 
   console.log(`\nhistory floor`);
-  const enough = requests >= MIN_HISTORY_REQUESTS;
-  console.log(`  ${enough ? 'pass' : 'BLOCKS ALL ADVICE'}  ${requests} requests vs ${MIN_HISTORY_REQUESTS} required`);
+  const enough = requests >= T.advice.minHistoryRequests;
+  console.log(`  ${enough ? 'pass' : 'BLOCKS ALL ADVICE'}  ${requests} requests vs ${T.advice.minHistoryRequests} required`);
 
   const urgentFloor = remaining !== undefined && remaining > 0
-    ? remaining * MIN_SHARE_OF_ALLOWANCE : undefined;
-  const patternFloor = Math.max(MIN_CREDITS_AT_STAKE, totalCredits * MIN_SHARE_AT_STAKE);
+    ? remaining * T.advice.minShareOfAllowance : undefined;
+  const patternFloor = Math.max(T.advice.minCreditsAtStake, totalCredits * T.advice.minShareAtStake);
   console.log(`\nmateriality — a finding needs to clear EITHER`);
   console.log(`  urgent   >= ${urgentFloor === undefined ? 'n/a (no allowance)' : `${fmt(urgentFloor)} cr`}`);
   console.log(`  pattern  >= ${fmt(patternFloor)} cr`);

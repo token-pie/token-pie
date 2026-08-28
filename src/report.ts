@@ -1,6 +1,7 @@
 import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum } from './store';
 import { Projection } from './projection';
 import { PeriodCoverage, periodCoverage } from './reconcile';
+import { Tuning, defaults } from './tuning';
 import { Advice, advise, selectionMix } from './advice';
 import { prefix } from './confidence';
 import { PriceStats, Price, solve } from './pricing';
@@ -288,17 +289,15 @@ function adviceCards(items: Advice[], somethingElseSaid: boolean): string {
  * Providers that do not charge for cache writes report none, and on those the
  * old wording was right, so the label follows the data rather than picking one.
  */
-const MOSTLY = 0.9;
-
-function freshLabel(fresh: number, cacheWrite: number): string {
+function freshLabel(fresh: number, cacheWrite: number, dominant: number): string {
 	if (fresh <= 0) {
 		return 'new to this request';
 	}
 	const written = cacheWrite / fresh;
-	if (written >= MOSTLY) {
+	if (written >= dominant) {
 		return 'new, and cached for next time';
 	}
-	if (written <= 1 - MOSTLY) {
+	if (written <= 1 - dominant) {
 		return 'new, charged in full';
 	}
 	return 'new to this request';
@@ -311,8 +310,8 @@ function freshLabel(fresh: number, cacheWrite: number): string {
  * higher number reasonably concludes caching is a bad deal. It is the opposite:
  * the 25% surcharge once is what buys the 90% discount on every repeat.
  */
-function cacheWriteNote(fresh: number, cacheWrite: number): string {
-	if (fresh <= 0 || cacheWrite / fresh < MOSTLY) {
+function cacheWriteNote(fresh: number, cacheWrite: number, dominant: number): string {
+	if (fresh <= 0 || cacheWrite / fresh < dominant) {
 		return '';
 	}
 	return `What you send new is also written into the cache &mdash; a surcharge
@@ -339,7 +338,8 @@ function rateContrast(lead: { model: string; price: Price } | undefined): string
 function compositionBar(
 	rollups: Rollup[],
 	prices: Record<string, PriceStats>,
-	creditsPerNanoAiu: number
+	creditsPerNanoAiu: number,
+	tuning: Tuning
 ): string {
 	let fresh = 0, cached = 0, output = 0, reasoning = 0, cacheWrite = 0;
 	let costFresh = 0, costCached = 0, costOutput = 0, costReasoning = 0;
@@ -366,7 +366,7 @@ function compositionBar(
 		totalCredits += credits;
 
 		const stats = prices?.[model];
-		const price = stats ? solve(stats, creditsPerNanoAiu) : undefined;
+		const price = stats ? solve(stats, creditsPerNanoAiu, tuning) : undefined;
 		if (!price || credits <= 0) {
 			continue;
 		}
@@ -392,17 +392,14 @@ function compositionBar(
 		return '';
 	}
 
-	// Below this share of spend, a cost split would describe a minority of the
-	// bill while looking like the whole of it.
-	const MIN_PRICED_SHARE = 0.5;
 	const coverage = totalCredits > 0 ? pricedCredits / totalCredits : 0;
-	const byCost = priced.length > 0 && coverage >= MIN_PRICED_SHARE
+	const byCost = priced.length > 0 && coverage >= tuning.report.minPricedShare
 		&& costFresh + costCached + costOutput > 0;
 
 	if (!byCost) {
 		const rows: CompRow[] = [
 			{ label: 'what you send', tokens: fresh + cached },
-			{ label: freshLabel(fresh, cacheWrite), cls: 'c-fresh', tokens: fresh, child: true },
+			{ label: freshLabel(fresh, cacheWrite, tuning.report.cacheWriteDominant), cls: 'c-fresh', tokens: fresh, child: true },
 			{ label: 'repeated, from cache', cls: 'c-cached', tokens: cached, child: true },
 			{ label: "Copilot's replies", cls: 'c-output', tokens: output },
 			{ label: 'thinking, never shown', tokens: reasoning, child: true }
@@ -448,7 +445,7 @@ function compositionBar(
 
 	const rows: CompRow[] = [
 		{ label: 'what you send', credits: costInput, tokens: tokensInput },
-		{ label: freshLabel(pricedFresh, pricedCacheWrite), cls: 'c-fresh',
+		{ label: freshLabel(pricedFresh, pricedCacheWrite, tuning.report.cacheWriteDominant), cls: 'c-fresh',
 		  credits: costFresh, tokens: pricedFresh,
 		  child: true, multiple: relative(costFresh, pricedFresh) },
 		{ label: 'repeated, from cache', cls: 'c-cached', credits: costCached, tokens: pricedCached,
@@ -480,7 +477,7 @@ function compositionBar(
 				unpricedCost > 0
 					? `. The ${fmtCredits(unpricedCost)} credits not measured yet need six billed
 					   messages on one model before they can be split`
-					: ''}. ${rateContrast(lead)} ${cacheWriteNote(pricedFresh, pricedCacheWrite)}</p>
+					: ''}. ${rateContrast(lead)} ${cacheWriteNote(pricedFresh, pricedCacheWrite, tuning.report.cacheWriteDominant)}</p>
 	</div>`;
 }
 
@@ -599,20 +596,19 @@ function hueBar(fraction: number, cls: string): string {
  * observations against two. Same distinction as the advice floors -- this asks
  * whether there is enough to compute a rate, not whether the rate matters.
  */
-const MIN_BUCKET_REQUESTS = 3;
-
 function habits(
 	depth: Record<string, DepthStats>,
 	rollups: Rollup[],
 	creditsPerNanoAiu: number,
-	p: Projection
+	p: Projection,
+	minBucketRequests: number
 ): string {
 	// Cold starts are excluded: a first request to a model pays for the whole
 	// context at full price, which would swamp the trend being compared.
 	const bars = DEPTH_BUCKETS
 		.map(b => ({ label: b.label, stats: depth?.[b.label] }))
 		.filter((b): b is { label: string; stats: DepthStats } =>
-			b.stats !== undefined && b.stats.warmRequests >= MIN_BUCKET_REQUESTS)
+			b.stats !== undefined && b.stats.warmRequests >= minBucketRequests)
 		.map(b => ({
 			label: b.label,
 			requests: b.stats.warmRequests,
@@ -852,6 +848,11 @@ export interface ReportInput {
 	depth: Record<string, DepthStats>;
 	conversations?: Record<string, ConversationStats>;
 	history?: HistoryFacts;
+	/**
+	 * The gate ladder. Defaults when absent, so a caller that does not care --
+	 * a test, a fixture -- reads the same thresholds the extension ships with.
+	 */
+	tuning?: Tuning;
 }
 
 export interface HistoryFacts {
@@ -897,6 +898,7 @@ const LEDE = `<p class="lede">Note: An <strong>AI Credit</strong> is GitHub's bi
 
 export function renderReport(input: ReportInput): string {
 	const { rollups, creditsPerNanoAiu } = input;
+	const tuning = input.tuning ?? defaults();
 	// Most models never emit a reasoning count; a column of dashes would be
 	// noise on an account that does not use one.
 	const anyThinking = rollups.some(r => r.reasoningTokens > 0);
@@ -912,7 +914,8 @@ export function renderReport(input: ReportInput): string {
 		githubCredits: p.creditsUsed ?? (p.entitlement !== undefined && p.remaining !== undefined
 			? Math.max(0, p.entitlement - p.remaining)
 			: undefined),
-		creditsByDay: creditsByDay(rollups, creditsPerNanoAiu)
+		creditsByDay: creditsByDay(rollups, creditsPerNanoAiu),
+		tuning
 	});
 
 	const byModel = groupBy(rollups, 'model');
@@ -926,7 +929,7 @@ export function renderReport(input: ReportInput): string {
 		? `<h2>Daily spend</h2><div class="chart">${sparkColumns(days, creditsPerNanoAiu)}</div>`
 		: '';
 
-	const recommendations = advise(rollups, creditsPerNanoAiu, input.prices, p.remaining);
+	const recommendations = advise(rollups, creditsPerNanoAiu, input.prices, p.remaining, tuning);
 
 	const warnings = input.warnings.length
 		? `<div class="warn">${input.warnings.map(w => `<div>${escapeHtml(w)}</div>`).join('')}</div>`
@@ -990,7 +993,7 @@ ${STYLES}
 
 		${coverageLine(periodFit)}
 
-		${compositionBar(rollups, input.prices, creditsPerNanoAiu) || '<p class="dim">no data</p>'}
+		${compositionBar(rollups, input.prices, creditsPerNanoAiu, tuning) || '<p class="dim">no data</p>'}
 
 		<table>
 			<tr><th>By model</th><th>Chosen by</th><th class="num">Messages</th>
@@ -1019,7 +1022,7 @@ ${STYLES}
 
 	<section>
 		<h2>What to change</h2>
-		${habits(input.depth, rollups, creditsPerNanoAiu, p)}
+		${habits(input.depth, rollups, creditsPerNanoAiu, p, tuning.report.minBucketRequests)}
 		${adviceCards(recommendations, habitsFound(input.depth))}
 	</section>
 

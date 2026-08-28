@@ -34,6 +34,8 @@
  * everything else in the rollup.
  */
 
+import { Tuning, defaults } from './tuning';
+
 /** Predictors are in thousands of tokens; the response is nano-AIU x 1e-9. */
 export interface PriceStats {
 	n: number;
@@ -100,27 +102,29 @@ export function mergeStats(a: PriceStats, b: PriceStats): PriceStats {
 }
 
 /**
- * Three coefficients need more than three observations to mean anything.
+ * A negative price is not a price. Small negatives are solver noise.
  *
- * Six gives three degrees of freedom, which is enough for the residual check
- * below to be able to fail.
+ * Not a knob: this is float noise around zero, not a judgement anyone should be
+ * making. The two thresholds that *are* judgements moved to `tuning.ts`.
  */
-const MIN_OBSERVATIONS = 6;
-
-/**
- * The relationship is an exact rate card, not a noisy trend.
- *
- * A real fit lands on R2 = 1.00000. Anything materially below that means the
- * model is wrong -- a tier change mid-window, a token class we do not know
- * about -- and reporting a rate card from it would be inventing numbers.
- */
-const MIN_R2 = 0.999;
-
-/** A negative price is not a price. Small negatives are solver noise. */
 const NEGATIVE_TOLERANCE = -1e-6;
 
-export function solve(s: PriceStats, creditsPerNanoAiu: number): Price | undefined {
-	if (s.n < MIN_OBSERVATIONS) {
+/**
+ * Singularity threshold for the pivot, scaled to the matrix.
+ *
+ * Also not a knob, for the same reason: below this the token classes moved
+ * together across every request and cannot be separated, which is a fact about
+ * the data rather than a bar anyone chose.
+ */
+const PIVOT_EPSILON = 1e-12;
+
+export function solve(
+	s: PriceStats,
+	creditsPerNanoAiu: number,
+	tuning: Tuning = defaults()
+): Price | undefined {
+	const { minObservations, minR2 } = tuning.pricing;
+	if (s.n < minObservations) {
 		return undefined;
 	}
 
@@ -145,7 +149,7 @@ export function solve(s: PriceStats, creditsPerNanoAiu: number): Price | undefin
 			}
 		}
 		[m[i], m[pivot]] = [m[pivot], m[i]];
-		if (Math.abs(m[i][i]) < scale * 1e-12) {
+		if (Math.abs(m[i][i]) < scale * PIVOT_EPSILON) {
 			return undefined;
 		}
 		for (let r = 0; r < 3; r++) {
@@ -171,7 +175,7 @@ export function solve(s: PriceStats, creditsPerNanoAiu: number): Price | undefin
 	const ssr = Math.max(0, s.syy - 2 * bXy + bXXb);
 	const sst = Math.max(0, s.syy - (s.sy * s.sy) / s.n);
 	const r2 = sst > 0 ? 1 - ssr / sst : 1;
-	if (r2 < MIN_R2) {
+	if (r2 < minR2) {
 		return undefined;
 	}
 

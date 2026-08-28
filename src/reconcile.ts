@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Entitlement, QuotaSnapshot, governingSnapshot } from './entitlement';
 import { Turn } from './sessions';
+import { Tuning, defaults } from './tuning';
 
 /**
  * Checks that the two halves of the projection speak the same units.
@@ -46,12 +47,7 @@ export interface Reconciliation {
 	note: string;
 }
 
-/**
- * `quota_remaining` arrives rounded to one decimal, so a delta can be off by
- * up to 0.1 through rounding alone. Anything within that plus 5% is agreement.
- */
-const ROUNDING_SLACK = 0.1;
-const RELATIVE_TOLERANCE = 0.05;
+
 
 export class ReadingStore {
 	private readings: QuotaReading[] = [];
@@ -102,7 +98,8 @@ export function toReading(e: Entitlement, at = Date.now()): QuotaReading | undef
 export function reconcile(
 	previous: QuotaReading,
 	current: QuotaReading,
-	turns: Turn[]
+	turns: Turn[],
+	tuning: Tuning = defaults()
 ): Reconciliation {
 	const quotaDelta = previous.remaining - current.remaining;
 
@@ -141,7 +138,8 @@ export function reconcile(
 	}
 
 	result.ratio = sessionCredits / quotaDelta;
-	const tolerance = ROUNDING_SLACK + quotaDelta * RELATIVE_TOLERANCE;
+	const tolerance = tuning.reconcile.roundingSlack +
+		quotaDelta * tuning.reconcile.relativeTolerance;
 	if (Math.abs(sessionCredits - quotaDelta) <= tolerance) {
 		result.verdict = 'agree';
 		result.note = 'Same units. Burn rate from chat sessions can be projected against remaining quota.';
@@ -219,8 +217,10 @@ export function periodCoverage(input: {
 	/** Our per-day credit figures, keyed by YYYY-MM-DD. */
 	creditsByDay: Map<string, { credits: number; requests: number }>;
 	now?: number;
+	tuning?: Tuning;
 }): PeriodCoverage | undefined {
 	const { resetDate, githubCredits, creditsByDay } = input;
+	const tuning = input.tuning ?? defaults();
 	const now = input.now ?? Date.now();
 	if (resetDate === undefined || githubCredits === undefined) {
 		return undefined;
@@ -273,7 +273,8 @@ export function periodCoverage(input: {
 		return result;
 	}
 
-	const tolerance = ROUNDING_SLACK + githubCredits * RELATIVE_TOLERANCE;
+	const tolerance = tuning.reconcile.roundingSlack +
+		githubCredits * tuning.reconcile.relativeTolerance;
 	if (Math.abs(unaccounted) <= tolerance) {
 		result.verdict = 'complete';
 		result.note = 'This machine accounts for essentially all of it.';

@@ -15,6 +15,7 @@ import { Entitlement } from './entitlement';
 import { RollupStore } from './store';
 import { KNOWN_SCHEMA_VERSION, num } from './schema';
 import { renderReport } from './report';
+import { Tuning, KnobReading, read } from './tuning';
 
 const DB_EXPORTER_SETTING = 'github.copilot.chat.otel.dbSpanExporter.enabled';
 const OTEL_ENABLED_SETTING = 'github.copilot.chat.otel.enabled';
@@ -142,6 +143,20 @@ function config() {
 	return vscode.workspace.getConfiguration('tokenPie');
 }
 
+/**
+ * The gate ladder, read fresh each time.
+ *
+ * Not cached: a developer who raises a floor in settings to see what it was
+ * withholding should see the answer on the next refresh, not after a reload.
+ */
+function tuning(): { tuning: Tuning; readings: KnobReading[] } {
+	return read(id => config().get(id));
+}
+
+function creditsPerNanoAiu(): number {
+	return config().get<number>('creditsPerNanoAiu', 1e-9);
+}
+
 /** Nudge once if collection was never switched on; there is nothing to show until it is. */
 async function firstRun(): Promise<void> {
 	if (findTraceDbs().length > 0) {
@@ -261,7 +276,14 @@ async function runRefresh(interactive: boolean): Promise<void> {
 		// Local first. The allowance needs the network and only supplies a
 		// denominator, so waiting for it here would hold up everything the
 		// machine can already answer on its own.
-		const result = await ingestAll(store, undefined, setProgress);
+		const t = tuning().tuning;
+		// Backfill converts transcript credits back to nano-AIU, so it needs the
+		// same conversion the panel reads or the two sources land on different
+		// scales the moment anyone recalibrates it.
+		const result = await ingestAll(store, undefined, setProgress, undefined, {
+			creditsPerNanoAiu: creditsPerNanoAiu(),
+			historyDays: t.history.days
+		});
 		lastResult = result;
 		lastRefresh = new Date();
 
@@ -543,10 +565,13 @@ async function refreshEntitlement(): Promise<void> {
 }
 
 function recomputeProjection(): void {
+	const t = tuning().tuning;
 	projection = project(
 		entitlement,
-		store.since(30),
-		config().get<number>('creditsPerNanoAiu', 1e-9)
+		store.since(t.history.days),
+		creditsPerNanoAiu(),
+		Date.now(),
+		t
 	);
 }
 
@@ -582,9 +607,11 @@ function buildHtml(): string {
 			? lastResult.costSpans / lastResult.spansCounted
 			: 1;
 
+	const t = tuning().tuning;
 	return renderReport({
-		rollups: store.since(30),
-		creditsPerNanoAiu: config().get<number>('creditsPerNanoAiu', 1e-9),
+		rollups: store.since(t.history.days),
+		creditsPerNanoAiu: creditsPerNanoAiu(),
+		tuning: t,
 		dbCount: lastResult?.dbCount ?? 0,
 		lastRefresh,
 		costCoverage: coverage,

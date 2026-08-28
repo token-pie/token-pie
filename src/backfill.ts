@@ -47,7 +47,17 @@ export async function backfill(
 	traceStartMs: number | undefined,
 	dirs: string[] = userDirs(),
 	now = Date.now(),
-	onProgress?: OnProgress
+	onProgress?: OnProgress,
+	/**
+	 * The same conversion the rest of the pipeline uses.
+	 *
+	 * This was hardcoded as `* 1e9` -- the inverse of the *default* -- so a
+	 * developer who followed the setting's own instruction to calibrate against
+	 * their billing dashboard silently double-converted every backfilled row
+	 * while measured rows rescaled correctly.
+	 */
+	creditsPerNanoAiu = 1e-9,
+	historyDays = BACKFILL_DAYS
 ): Promise<BackfillResult> {
 	const result: BackfillResult = {
 		daysAdded: 0, turnsCounted: 0, turnsWithoutCost: 0,
@@ -57,12 +67,12 @@ export async function backfill(
 	// Anything on or after the day the trace database begins is already counted
 	// properly. Overlapping the two sources on one day would double it.
 	const cutoff = traceStartMs !== undefined ? dayKey(traceStartMs) : undefined;
-	const horizon = dayKey(now - BACKFILL_DAYS * 86_400_000);
+	const horizon = dayKey(now - historyDays * 86_400_000);
 
 	const seen = store.backfilledTurns();
 	const days = new Set<string>();
 
-	const notBefore = now - BACKFILL_DAYS * 86_400_000;
+	const notBefore = now - historyDays * 86_400_000;
 	const files = dirs.flatMap(dir => findSessionFiles(dir));
 	result.sessionFiles = files.length;
 
@@ -124,7 +134,7 @@ export async function backfill(
 			if (turn.credits === undefined) {
 				result.turnsWithoutCost++;
 			}
-			store.add(toRollup(turn, day));
+			store.add(toRollup(turn, day, creditsPerNanoAiu));
 		}
 
 		// Recorded only after the turns are in, so an interrupted run re-reads
@@ -159,7 +169,7 @@ function fileStat(file: string): { mtimeMs: number; size: number; day: string } 
 	}
 }
 
-function toRollup(turn: Turn, day: string): Rollup {
+function toRollup(turn: Turn, day: string, creditsPerNanoAiu: number): Rollup {
 	return {
 		day,
 		model: turn.model || 'unknown',
@@ -176,7 +186,9 @@ function toRollup(turn: Turn, day: string): Rollup {
 		// cache finding that has no evidence behind it.
 		cacheReadTokens: 0,
 		cacheWriteTokens: 0,
-		nanoAiu: (turn.credits ?? 0) * 1e9,
+		// The transcript reports credits; the store holds nano-AIU. Inverting the
+		// live conversion keeps the two sources on one scale when it is recalibrated.
+		nanoAiu: creditsPerNanoAiu > 0 ? (turn.credits ?? 0) / creditsPerNanoAiu : 0,
 		missRequests: 0,
 		missInputTokens: 0,
 		missNanoAiu: 0

@@ -1,5 +1,6 @@
 import { Entitlement, governingSnapshot, daysUntilReset } from './entitlement';
 import { Rollup } from './store';
+import { Tuning, defaults } from './tuning';
 
 /**
  * Joins remaining allowance to observed burn rate.
@@ -59,24 +60,12 @@ export interface Projection {
 	resetDate?: string;
 }
 
-/** Below this many days of headroom, warn. */
-const TIGHT_DAYS_MARGIN = 2;
-
-/**
- * A rate needs enough history to mean anything.
- *
- * This was 0.5, which is exactly the "one heavy afternoon" case it was meant to
- * exclude -- a test projecting a throttle from a single day's burst caught it.
- * A full day minimum means new users see "no-rate" until there is something
- * real to extrapolate from, which is the honest answer.
- */
-const MIN_DAYS_FOR_RATE = 1;
-
 export function project(
 	entitlement: Entitlement | undefined,
 	rollups: Rollup[],
 	creditsPerNanoAiu: number,
-	now = Date.now()
+	now = Date.now(),
+	tuning: Tuning = defaults()
 ): Projection {
 	if (!entitlement) {
 		return { verdict: 'unknown', unknownReason: 'not-signed-in' };
@@ -122,7 +111,7 @@ export function project(
 			daysToReset && daysToReset > 0 ? remaining / daysToReset : undefined
 	};
 
-	const rate = burnPerDay(rollups, creditsPerNanoAiu, now);
+	const rate = burnPerDay(rollups, creditsPerNanoAiu, now, tuning.projection.minDaysForRate);
 	if (!rate) {
 		return base;
 	}
@@ -139,12 +128,12 @@ export function project(
 	base.exhaustDate = new Date(now + daysToExhaust * 86_400_000);
 
 	if (daysToReset === undefined) {
-		base.verdict = daysToExhaust < TIGHT_DAYS_MARGIN ? 'will-exhaust' : 'ok';
+		base.verdict = daysToExhaust < tuning.projection.tightDaysMargin ? 'will-exhaust' : 'ok';
 		return base;
 	}
 	if (daysToExhaust < daysToReset) {
 		base.verdict = 'will-exhaust';
-	} else if (daysToExhaust < daysToReset + TIGHT_DAYS_MARGIN) {
+	} else if (daysToExhaust < daysToReset + tuning.projection.tightDaysMargin) {
 		base.verdict = 'tight';
 	} else {
 		base.verdict = 'ok';
@@ -162,7 +151,8 @@ export function project(
 function burnPerDay(
 	all: Rollup[],
 	creditsPerNanoAiu: number,
-	now: number
+	now: number,
+	minDays: number
 ): { perDay: number; days: number } | undefined {
 	// Backfilled history is a floor, not a total -- it omits the retries and
 	// cancellations you were charged for. Averaging it into the burn rate would
@@ -179,7 +169,7 @@ function burnPerDay(
 	}
 
 	const elapsedDays = (now - first) / 86_400_000;
-	if (elapsedDays < MIN_DAYS_FOR_RATE) {
+	if (elapsedDays < minDays) {
 		return undefined;
 	}
 
