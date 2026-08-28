@@ -87,15 +87,7 @@ check('no fourth mark', new Set(marks).size, 3);
 console.log('\nthe click follows the state');
 check('broken opens the log', source.includes("'tokenPie.showLogs'"), true);
 check('working is not clickable', /statusBar\.command = undefined/.test(source), true);
-// It opened a full editor tab, which made sense when that was the only surface
-// and is redundant beside a view already one click away in the activity bar.
-check('otherwise it reveals the sidebar', /statusBar\.command = 'tokenPie\.reveal'/.test(source), true);
-check('and no longer opens an editor tab',
-  /statusBar\.command = (degraded \? 'tokenPie\.showLogs' : )?'tokenPie\.showReport'/.test(source), false);
-check('the reveal focuses the contributed view',
-  source.includes("executeCommand('tokenPie.sidebar.focus')"), true);
-// A generated command that ever stops existing must not leave a dead click.
-check('with the panel as a fallback', /catch \{[\s\S]{0,120}showReport\(/.test(source), true);
+check('otherwise it opens the report', source.includes("'tokenPie.showReport'"), true);
 
 const manifest = JSON.parse(
   fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));

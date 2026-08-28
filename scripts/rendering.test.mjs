@@ -293,9 +293,10 @@ for (const [name, html] of Object.entries(pages)) {
   }
 }
 
-// The panel is the one that has to survive a sidebar; the console opens as an
-// editor tab and is never that narrow.
-console.log('\npanel in a sidebar (320px)');
+// A sidebar was tried and reverted -- the tables are too dense for a column
+// that narrow -- but an editor group can still be split thin, and a page that
+// scrolls sideways is unusable at any width.
+console.log('\npanel in a narrow editor split (320px)');
 {
   const { rows, overflow, body } = await measure(
     pages.panel, path.join(dir, 'panel-narrow.html'), 'dark', 320);

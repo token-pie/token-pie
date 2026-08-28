@@ -80,8 +80,7 @@ const allowed = [
   /^out\/[a-z]+\.js$/, new RegExp(`^${icon.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
   // The published price table. Shipped so the comparison against measured
   // rates works offline and on first run, before any weekly fetch.
-  /^rate-card\.json$/,
-  /^images\/activity-bar\.svg$/
+  /^rate-card\.json$/
 ];
 const unexpected = files
   .map(f => path.relative(ext, f))

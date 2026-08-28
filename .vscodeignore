@@ -21,11 +21,8 @@ docs/**
 CLAUDE.md
 .gitignore
 
-# The icon source, kept in the repo for regeneration but not shipped. The
-# activity-bar icon is different: the manifest points at it, so it must ship or
-# the container renders with no icon at all.
+# The icon source, kept in the repo for regeneration but not shipped.
 images/*.svg
-!images/activity-bar.svg
 
 # Screenshots are referenced from the repository by absolute URL (vsce rewrites
 # them), so shipping copies inside the package is dead weight. The icon stays:
