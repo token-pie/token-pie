@@ -267,7 +267,11 @@ if (flag('shot')) {
   const done = (message) => {
     clearInterval(poll);
     child.kill('SIGKILL');
-    fs.rmSync(profile, { recursive: true, force: true });
+    // Chrome lingers with its own profile directory, so this races with it
+    // still writing. A leftover temp directory is not worth an error.
+    try {
+      fs.rmSync(profile, { recursive: true, force: true, maxRetries: 8, retryDelay: 120 });
+    } catch { /* the OS clears its own temp directory */ }
     console.log(message);
   };
   const poll = setInterval(() => {

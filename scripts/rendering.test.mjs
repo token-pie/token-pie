@@ -44,6 +44,22 @@ if (!fs.existsSync(CHROME)) {
   process.exit(0);
 }
 
+/**
+ * Cleanup that cannot fail the thing it is cleaning up after.
+ *
+ * Chrome does not exit promptly when it is given its own --user-data-dir: the
+ * callback fires while it is still writing the profile, so deleting it races
+ * and throws ENOTEMPTY. A leftover temp directory is worth nothing; a test run
+ * lost to one is worth less. Retries first, and swallows what is left.
+ */
+function discard(dir) {
+  try {
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 120 });
+  } catch {
+    // The OS clears its own temp directory. Nothing here is worth a failure.
+  }
+}
+
 /** Below this, two blocks read as one. */
 const MIN_GAP = 8;
 
@@ -218,7 +234,7 @@ function measure(html, file, theme = 'dark', width) {
       settled = true;
       clearTimeout(timer);
       child.kill('SIGKILL');
-      fs.rmSync(profile, { recursive: true, force: true });
+      discard(profile);
       err ? reject(err) : resolve(value);
     };
     const timer = setTimeout(() => finish(new Error('browser produced no measurements in 30s')), 30000);
@@ -307,6 +323,6 @@ console.log('\npanel in a narrow editor split (320px)');
   console.log(`        ${rows.length} adjacent pairs at ${body.client}px`);
 }
 
-fs.rmSync(dir, { recursive: true, force: true });
+discard(dir);
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
