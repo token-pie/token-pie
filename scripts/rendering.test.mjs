@@ -28,7 +28,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { execFile } from 'child_process';
+import { spawn } from 'child_process';
 import { renderReport } from '../out/report.js';
 import { renderConsole } from '../out/console.js';
 import { parse } from '../out/ratecard.js';
@@ -168,15 +168,42 @@ function measure(html, file, theme = 'dark') {
     .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/g, '')
     .replace(/<details([^>]*?)(?<! open)>/g, '<details$1 open>') + PROBE;
   fs.writeFileSync(file, prepared);
+  // Its own profile directory: without one, headless Chrome opens the default
+  // profile that a running Chrome already holds, and the two fight over its
+  // locks. The visible browser is what loses -- tabs come back as crashed
+  // renderers, which is a rendering check breaking the thing it renders in.
+  //
+  // Given a fresh profile Chrome dumps the DOM in about two seconds and then
+  // never exits, so the dump is read as it streams and the process is killed
+  // the moment it is complete rather than waited on.
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-chrome-'));
   return new Promise((resolve, reject) => {
-    execFile(CHROME, ['--headless', '--disable-gpu', '--virtual-time-budget=2000',
-      '--window-size=1400,6000', '--dump-dom', `file://${file}`],
-      { maxBuffer: 64 * 1024 * 1024 }, (err, stdout) => {
-        const m = /<pre id="measurements">([\s\S]*?)<\/pre>/.exec(stdout ?? '');
-        if (!m) return reject(new Error('probe produced no measurements'));
-        resolve(JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<').replace(/&gt;/g, '>')));
-      });
+    const child = spawn(CHROME, ['--headless', '--disable-gpu', '--virtual-time-budget=2000',
+      `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
+      '--disable-extensions', '--disable-background-networking',
+      '--window-size=1400,6000', '--dump-dom', `file://${file}`]);
+
+    let out = '';
+    let settled = false;
+    const finish = (err, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.kill('SIGKILL');
+      fs.rmSync(profile, { recursive: true, force: true });
+      err ? reject(err) : resolve(value);
+    };
+    const timer = setTimeout(() => finish(new Error('browser produced no measurements in 30s')), 30000);
+
+    child.stdout.on('data', chunk => {
+      out += chunk;
+      const m = /<pre id="measurements">([\s\S]*?)<\/pre>/.exec(out);
+      if (!m) return;
+      finish(null, JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')));
+    });
+    child.on('error', e => finish(e));
+    child.on('close', () => finish(new Error('browser exited before the probe reported')));
   });
 }
 

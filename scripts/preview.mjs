@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { renderReport } from '../out/report.js';
 import { project } from '../out/projection.js';
 import { defaults, read } from '../out/tuning.js';
@@ -211,7 +211,11 @@ ${body}`;
 
 const out = path.join(os.tmpdir(),
   `token-pie-${flag('console') ? 'console' : 'preview'}-${flag('light') ? 'light' : 'dark'}.html`);
-fs.writeFileSync(out, html);
+// Written aside and renamed, so a browser reloading the same path never reads
+// a half-written document.
+const tmp = `${out}.${process.pid}.tmp`;
+fs.writeFileSync(tmp, html);
+fs.renameSync(tmp, out);
 console.log(`${flag('light') ? 'light' : 'dark'}  ${out}`);
 console.log(`${rollups.length} rollups, ${used.length} theme variables, all defined`);
 
@@ -228,11 +232,39 @@ if (flag('shot')) {
   const opened = out.replace(/\.html$/, '-open.html');
   fs.writeFileSync(opened, html.replace(/<details([^>]*?)(?<! open)>/g, '<details$1 open>'));
   const png = out.replace(/\.html$/, '.png');
-  execFile(chrome, ['--headless', '--disable-gpu', '--hide-scrollbars',
+  // Its own profile directory, always. Without one, headless Chrome opens the
+  // default profile -- the same one a running Chrome already holds -- and the
+  // two fight over its locks. The visible browser is what loses: tabs come
+  // back as crashed renderers.
+  //
+  // Given a fresh profile Chrome writes the screenshot and then never exits,
+  // so the file is watched for and the process killed once it stops growing.
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'token-pie-chrome-'));
+  fs.rmSync(png, { force: true });
+  const child = spawn(chrome, ['--headless', '--disable-gpu', '--hide-scrollbars',
+    `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
+    '--disable-extensions', '--disable-background-networking',
     '--virtual-time-budget=1500', `--window-size=${value('width') ?? 1500},${value('height') ?? 4200}`,
-    `--screenshot=${png}`, `file://${opened}`], () => {
-      console.log(`shot  ${png}`);
-    });
+    `--screenshot=${png}`, `file://${opened}`]);
+
+  let last = -1;
+  let waited = 0;
+  const done = (message) => {
+    clearInterval(poll);
+    child.kill('SIGKILL');
+    fs.rmSync(profile, { recursive: true, force: true });
+    console.log(message);
+  };
+  const poll = setInterval(() => {
+    waited += 250;
+    const size = fs.existsSync(png) ? fs.statSync(png).size : -1;
+    if (size > 0 && size === last) {
+      done(`shot  ${png}`);
+    } else if (waited > 30000) {
+      done(`no screenshot written after 30s`);
+    }
+    last = size;
+  }, 250);
 } else if (!flag('no-open')) {
   const cmd = process.platform === 'darwin' ? 'open'
     : process.platform === 'win32' ? 'explorer' : 'xdg-open';
