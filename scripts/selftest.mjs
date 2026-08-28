@@ -442,10 +442,28 @@ check('no script tags in webview', /<script/i.test(html), false);
   // leaves without the finding. Stated as a multiple, measured from this
   // machine's own card -- a per-1k rate column was tried and removed.
   check('the cost gap between input and output is stated',
-    /a token Copilot writes costs 4x one you send new/.test(costHtml), true);
+    /Copilot's replies cost 4&times; what you send/.test(costHtml), true);
   check('and against cached input too',
-    /50x one it reads back from cache/.test(costHtml), true);
+    /50&times; what it reads back from cache/.test(costHtml), true);
+  check('the cause is given before the consequence',
+    costHtml.indexOf('cost 4&times;') < costHtml.indexOf('share columns disagree'), true);
+  // It used to open "That is the gap between the two share columns:", and the
+  // "That" resolved to whichever sentence happened to precede it -- the
+  // unpriced backlog, or the goodness of fit. Neither is the gap.
+  check('and no pronoun is left to pick up the wrong sentence',
+    /That is the gap/.test(costHtml), false);
   check('still no per-1k rate column', /<th>Per 1k<\/th>/.test(costHtml), false);
+
+  // Provenance and explanation are read differently, so they are not one
+  // paragraph. `.card-evidence` is monospace -- the house signal for a
+  // measurement rather than an argument -- and four sentences of prose set in
+  // it looked like debug output, which is what the eye then treated it as.
+  check('provenance stays in the monospace evidence line',
+    /<p class="card-evidence rate-card">Prices measured/.test(costHtml), true);
+  check('and the explanation is body prose, in its own paragraph',
+    /<p class="note comp-why">On /.test(costHtml), true);
+  check('so the rates are not inside the evidence line',
+    /card-evidence[^>]*>[^<]*Copilot's replies cost/.test(costHtml), false);
 
   // Volume and cost were both shown and the price never was, so the reader had
   // to divide one column by the other to find out why 1% of the tokens is 21%

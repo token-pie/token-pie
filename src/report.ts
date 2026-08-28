@@ -340,10 +340,24 @@ function cacheWriteNote(fresh: number, cacheWrite: number, dominant: number): st
 	if (fresh <= 0 || cacheWrite / fresh < dominant) {
 		return '';
 	}
-	return `What you send new is also written into the cache &mdash; a surcharge
-		paid once that buys the cheaper rate on every message reusing it.`;
+	return `Anything you send new is also written into the cache: a surcharge
+		paid once that buys the cheaper rate on every message that reuses it.`;
 }
 
+/**
+ * Why the two share columns disagree.
+ *
+ * The Per token column already prints 4x and 0.08x, so this does not exist to
+ * report the rates. It exists to say what they cause: 1% of the text being 21%
+ * of the bill is the whole reason the two shares are side by side, and a reader
+ * who has not done the division does not see it.
+ *
+ * It used to open "That is the gap between the two share columns:", whose
+ * "That" pointed at whichever sentence happened to precede it -- the unpriced
+ * backlog when there was one, the goodness of fit when there was not. Neither
+ * is the gap. The cause comes first now and the consequence after it, so there
+ * is nothing for the pronoun to pick up wrongly.
+ */
 function rateContrast(lead: { model: string; price: Price } | undefined): string {
 	if (!lead || lead.price.fresh <= 0) {
 		return '';
@@ -353,12 +367,14 @@ function rateContrast(lead: { model: string; price: Price } | undefined): string
 		return '';
 	}
 	const vsCached = lead.price.cached > 0 ? lead.price.output / lead.price.cached : undefined;
-	return `That is the gap between the two share columns: on ` +
-		`${escapeHtml(lead.model)} a token Copilot writes costs ` +
-		`${vsFresh.toFixed(0)}x one you send new` +
+	// &times; rather than "x", so the figure reads as the same quantity the Per
+	// token column above it prints.
+	return `On ${escapeHtml(lead.model)}, Copilot's replies cost ` +
+		`${vsFresh.toFixed(0)}&times; what you send` +
 		(vsCached && Number.isFinite(vsCached)
-			? ` and ${vsCached.toFixed(0)}x one it reads back from cache`
-			: '') + `.`;
+			? ` and ${vsCached.toFixed(0)}&times; what it reads back from cache`
+			: '') +
+		` &mdash; which is why the two share columns disagree.`;
 }
 
 function compositionBar(
@@ -490,6 +506,17 @@ function compositionBar(
 	const observations = models.reduce((n, m) => n + m.price.n, 0);
 	const worstFit = Math.min(...models.map(m => m.price.r2));
 
+	// Two paragraphs, because they answer different questions -- where these
+	// prices came from, and why 1% of the text is 21% of the bill -- and they
+	// are not read the same way. Provenance keeps `.card-evidence`, whose
+	// monospace is the house signal for a measurement rather than an argument;
+	// the same styling on four sentences of explanation made the explanation
+	// look like debug output and the eye skipped it.
+	const why = [
+		rateContrast(lead),
+		cacheWriteNote(pricedFresh, pricedCacheWrite, tuning.report.cacheWriteDominant)
+	].filter(Boolean).join(' ');
+
 	return `
 	<div class="composition">
 		${compositionTable(rows, true, 'By kind of text')}
@@ -503,7 +530,8 @@ function compositionBar(
 				unpricedCost > 0
 					? `. The ${fmtCredits(unpricedCost)} credits not measured yet need six billed
 					   messages on one model before they can be split`
-					: ''}. ${rateContrast(lead)} ${cacheWriteNote(pricedFresh, pricedCacheWrite, tuning.report.cacheWriteDominant)}</p>
+					: ''}.</p>
+		${why ? `<p class="note comp-why">${why}</p>` : ''}
 	</div>`;
 }
 
