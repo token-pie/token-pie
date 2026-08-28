@@ -1328,12 +1328,12 @@ const STYLES = `
 
 	/* The week sits beside the verdict, not under it: it answers the same
 	   question the card is already asking -- am I on pace -- and a chart under
-	   the tiles reads as a separate section nobody scrolls to. 30% is enough
+	   the tiles reads as a separate section nobody scrolls to. 20% is enough
 	   for seven short rows and leaves the sentence its measure. */
 	.verdict-cols { display: flex; gap: 26px; align-items: flex-start; }
 	.verdict-main { flex: 1 1 auto; min-width: 0; }
 	.week {
-		flex: 0 0 30%; min-width: 0;
+		flex: 0 0 20%; min-width: 0;
 		border-left: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
 		padding-left: 18px;
 	}
