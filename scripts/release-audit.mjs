@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { commits, userFacing } from './conventional.mjs';
+import { section, bullets as countBullets } from './changelog.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -55,10 +56,7 @@ const facing = userFacing(parsed);
 
 // The current version's section, up to the next top-level heading.
 const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
-const section = changelog
-	.split(/^## /m)
-	.find(part => part.startsWith(`${pkg.version} `) || part.startsWith(`${pkg.version}\n`));
-const bullets = section ? (section.match(/^- /gm) || []).length : 0;
+const bullets = countBullets(section(changelog, pkg.version));
 
 if (!since) {
 	// Every release before tagging began is in this range, so the count is not

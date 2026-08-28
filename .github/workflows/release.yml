@@ -1,0 +1,87 @@
+# Turns a tag into a GitHub Release.
+#
+# The tag is already the release trigger locally — `npm run release` bumps,
+# writes the notes and tags, and pushing that tag is the last manual step. This
+# picks up there, so a Release cannot exist without the build that proves it:
+# every stage `npm run build` runs locally runs here first, and a failing tag
+# produces no Release at all rather than one nobody verified.
+#
+# Notes come out of CHANGELOG.md, where the version hook already wrote them, so
+# the Release body and the Marketplace listing cannot say different things.
+#
+# Publishing to the Marketplace is deliberately not here. That step needs a PAT
+# and cannot be taken back; this one needs no secret beyond the token Actions
+# issues itself, and a Release can be deleted.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Backfills a tag that was pushed before this workflow existed.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build a Release for (e.g. v0.3.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick the tag
+        id: tag
+        run: echo "name=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.name }}
+          # The release audit runs `git describe` against the previous tag, and
+          # a shallow clone has neither the tags nor the commits it counts.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # A tag whose name disagrees with the manifest would publish a Release
+      # pointing at a .vsix with a different version in its filename.
+      - name: The tag and the manifest agree
+        run: |
+          manifest="v$(node -p 'require("./package.json").version')"
+          tag='${{ steps.tag.outputs.name }}'
+          if [ "$manifest" != "$tag" ]; then
+            echo "tag $tag but package.json says $manifest" >&2
+            exit 1
+          fi
+
+      # clean, compile, settings, test, package, preflight, release audit.
+      - run: npm run build
+
+      - name: Read the notes
+        run: |
+          {
+            echo 'NOTES<<CHANGELOG_EOF'
+            node scripts/release-notes.mjs '${{ steps.tag.outputs.name }}'
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_ENV"
+
+      # `gh` is on the runner, so this needs no third-party action. --clobber
+      # lets a backfill re-run replace its own asset instead of failing.
+      - name: Publish the Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ steps.tag.outputs.name }}'
+          vsix="token-pie-${tag#v}.vsix"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --notes "$NOTES"
+            gh release upload "$tag" "$vsix" --clobber
+          else
+            gh release create "$tag" "$vsix" --title "$tag" --notes "$NOTES"
+          fi

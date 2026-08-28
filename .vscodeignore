@@ -4,6 +4,9 @@ scripts/**
 
 # Commit hooks, pointed at by core.hooksPath. Repo machinery, not runtime.
 .githooks/**
+
+# The release workflow. Same reasoning, and the allow-list caught it shipping.
+.github/**
 node_modules/**
 tsconfig.json
 

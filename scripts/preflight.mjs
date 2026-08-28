@@ -15,6 +15,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { section, hasProse } from './changelog.mjs';
 
 let failures = 0;
 const check = (label, ok, detail = '') => {
@@ -120,21 +121,13 @@ for (const url of images) {
 console.log('\nmetadata agrees with itself');
 const packed = JSON.parse(read('package.json'));
 check('manifest version matches the filename', vsix.includes(packed.version));
-// A heading alone used to pass, so `npm run bump` could leave an empty stub and
-// a version would ship with nothing said about it. The entry has to have prose
-// under it, up to the next heading.
-// Split on top-level headings rather than matching to a lookahead: with the `m`
-// flag `$` ends a LINE, so `(?=^## |$)` terminates immediately and captures
-// nothing — the check passed for the wrong reason on a perfectly good entry.
-const changelog = read('changelog.md');
-const section = changelog
-  .split(/^## /m)
-  .find(part => part.startsWith(`${packed.version} `) || part.startsWith(`${packed.version}\n`));
-check('changelog documents this version', section !== undefined, 'no heading for it');
-check('and the entry is not an empty stub',
-  // Subheadings are structure, not content; the prose has to survive removing them.
-  (section ?? '').split('\n').slice(1).filter(l => !/^#+\s/.test(l)).join('').trim().length > 0,
-  'heading with nothing under it');
+// A heading alone used to pass, so a version could ship with nothing said about
+// it. The entry has to have prose under it, up to the next heading — and the
+// same entry becomes the GitHub Release body, so this is the check standing
+// between a bad parse and a published Release nobody can un-send.
+const entry = section(read('changelog.md'), packed.version);
+check('changelog documents this version', entry !== undefined, 'no heading for it');
+check('and the entry is not an empty stub', hasProse(entry), 'heading with nothing under it');
 check('icon is present', fs.existsSync(path.join(ext, packed.icon ?? '')));
 
 // The allow-list only proves nothing unexpected shipped. Anything the manifest

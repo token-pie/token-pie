@@ -9,6 +9,7 @@
  * a release with nothing user-facing in it at all.
  */
 import { parse, commits, level, next, userFacing, render } from './conventional.mjs';
+import { section, hasProse, bullets } from './changelog.mjs';
 
 let failures = 0;
 const check = (label, got, want) => {
@@ -93,6 +94,55 @@ check('the same subject twice is one line',
 check('empty sections are left out', notes.includes('### Faster'), false);
 check('every bullet is a bullet the audit counts',
   (notes.match(/^- /gm) || []).length, 3);
+
+console.log('\nan entry can be found in the changelog');
+const LOG = [
+  '# Changelog',
+  '',
+  '## 0.4.0 - 2026-08-28',
+  '',
+  '### Added',
+  '',
+  '- the newest thing',
+  '',
+  '## 0.3.01 - 2026-08-01',
+  '',
+  '- a version that merely starts the same way',
+  '',
+  '## 0.3.0',
+  '',
+  '- an undated heading, as the older entries are',
+  ''
+].join('\n');
+check('found by a dated heading', section(LOG, '0.4.0')?.heading, '## 0.4.0 - 2026-08-28');
+check('and by an undated one', section(LOG, '0.3.0')?.heading, '## 0.3.0');
+// `0.3.0` must not match `0.3.01`: publishing one version's notes under
+// another's tag is silent, and only visible on the published Release.
+check('a longer version is not a match', section(LOG, '0.3')?.heading, undefined);
+check('a version that is not there', section(LOG, '9.9.9'), undefined);
+// The body used to come back empty: matching to `(?=^## |$)` with the `m` flag
+// ends at the first line break, so the check passed on a good entry by luck.
+check('the body is everything under the heading',
+  section(LOG, '0.4.0')?.body.includes('- the newest thing'), true);
+check('and stops at the next version',
+  section(LOG, '0.4.0')?.body.includes('starts the same way'), false);
+check('trailing blank lines are trimmed',
+  section(LOG, '0.4.0')?.body.endsWith('- the newest thing'), true);
+
+console.log('\nan empty entry is not release notes');
+// This is what stands between a bad parse and a published Release: a Release
+// is the artefact people subscribe to, and a blank one cannot be un-sent.
+check('a heading alone has no prose', hasProse(section('# Changelog\n\n## 1.0.0\n\n', '1.0.0')), false);
+check('subheadings are structure, not prose',
+  hasProse(section('# Changelog\n\n## 1.0.0\n\n### Added\n\n', '1.0.0')), false);
+check('a bullet is prose', hasProse(section(LOG, '0.4.0')), true);
+check('a missing entry has no prose', hasProse(undefined), false);
+
+console.log('\nbullets are counted the way the audit counts them');
+check('one per line', bullets(section(LOG, '0.4.0')), 1);
+check('a dash mid-sentence is not a bullet',
+  bullets(section('# Changelog\n\n## 1.0.0\n\n- one - two\nnot - a bullet\n', '1.0.0')), 1);
+check('a missing entry counts zero', bullets(undefined), 0);
 
 console.log(failures ? `\n${failures} failed\n` : '\nall good\n');
 process.exit(failures ? 1 : 0);

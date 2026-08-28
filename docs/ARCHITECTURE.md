@@ -533,6 +533,37 @@ merge churn that cancelled out, promote the one entry that matters, write the
 bold lead. 0.3.0 had a sidebar added and reverted inside the same release; both
 lines generated, and neither belongs in notes a user reads.
 
+### GitHub Releases
+
+`.github/workflows/release.yml`, on any `v*` tag. Pushing the tag is the last
+manual step of a release, so the workflow starts there: it runs `npm run build`
+in full — the same seven stages — and only then creates the Release. A tag whose
+tests, preflight or audit fail produces **no Release at all** rather than one
+nobody verified.
+
+The body is `scripts/release-notes.mjs`, which reads the section the version
+hook already wrote, so the Release and the Marketplace listing cannot say
+different things. It exits non-zero on an entry with no prose: a Release is the
+artefact people subscribe to, and a blank one cannot be un-sent.
+
+`scripts/changelog.mjs` holds that lookup, because three things ask it —
+preflight for the empty-stub check, the audit for its bullet count, the
+workflow for the body — and each had its own copy of a split that had already
+been wrong once. Matching to a lookahead, `(?=^## |$)` with the `m` flag ends at
+the first line break, so the capture came back empty and preflight passed a good
+entry for the wrong reason.
+
+The workflow checks out with `fetch-depth: 0`; the audit runs `git describe`
+against the previous tag and a shallow clone has neither the tags nor the
+commits it counts. It also verifies the tag name against `package.json` before
+building, since a mismatch would attach a `.vsix` whose filename disagrees with
+the Release. `workflow_dispatch` takes a tag name, which is how a tag pushed
+before the workflow existed gets its Release.
+
+**Not published from CI.** `vsce publish` needs a PAT and cannot be taken back.
+This workflow needs no secret beyond the token Actions issues itself, and a
+Release can be deleted.
+
 ### The release audit
 
 `scripts/release-audit.mjs`, a build stage. Preflight proves a changelog section
