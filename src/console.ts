@@ -20,7 +20,7 @@
 import { Rollup, Totals, sum, groupBy } from './store';
 import { PriceStats, solve, Price } from './pricing';
 import { KnobReading } from './tuning';
-import { LoadedCard, compare, lookup, RateComparison } from './ratecard';
+import { LoadedCard, compare, lookup, RateComparison, effectiveAt } from './ratecard';
 import { PeriodCoverage } from './reconcile';
 import { escapeHtml, fmtInt, creditsOf } from './report';
 
@@ -103,8 +103,18 @@ function conversionSection(input: ConsoleInput): string {
  * label, which is exactly what "fresh input" turned out to be.
  */
 function rateCardSection(input: ConsoleInput): string {
-	const { card, origin, fetchedAt, note } = input.card;
+	const { card, cards, origin, fetchedAt, note } = input.card;
 	const byModel = groupBy(input.rollups, 'model');
+
+	// The days the solved rates were actually fitted over. A card published
+	// after they end has no bearing on what those requests were billed.
+	const days = input.rollups.map(r => Date.parse(`${r.day}T00:00:00.000Z`))
+		.filter(Number.isFinite)
+		.sort((a, b) => a - b);
+	const window = days.length > 0
+		? { from: days[0], to: days[days.length - 1] + 86_400_000 }
+		: undefined;
+	const dating = window ? { cards, window } : undefined;
 
 	const rows: string[] = [];
 	for (const model of byModel.keys()) {
@@ -119,7 +129,17 @@ function rateCardSection(input: ConsoleInput): string {
 						: 'and not in the published table'}</td></tr>`);
 			continue;
 		}
-		const cmp: RateComparison = compare(card, model, price);
+		const cmp: RateComparison = compare(card, model, price, dating);
+		if (cmp.spansPriceChange) {
+			// Comparing here would report a price change as a measurement error.
+			rows.push(`<tr class="dim"><td>${escapeHtml(model)}
+				<span class="dim">n=${price.n}</span></td>
+				<td colspan="4">comparison withheld &mdash; published prices changed on
+					${cmp.spansPriceChange.map(d => escapeHtml(d)).join(', ')}, inside the days
+					these rates were fitted over, so they blend two price regimes and match
+					neither by construction</td></tr>`);
+			continue;
+		}
 		rows.push(`<tr><td rowspan="${cmp.classes.length}">${escapeHtml(model)}
 			<span class="dim">n=${price.n}, R&sup2;=${price.r2.toFixed(6)}</span></td>
 			${classCells(cmp.classes[0])}</tr>` +
@@ -130,19 +150,47 @@ function rateCardSection(input: ConsoleInput): string {
 		? `fetched ${new Date(fetchedAt).toLocaleDateString()}`
 		: `bundled with the extension`;
 
+	const applied = window ? effectiveAt(cards, window.from) : undefined;
+	const oldest = [...cards].sort((a, b) => Date.parse(a.effective) - Date.parse(b.effective))[0];
+	const windowStart = window
+		? new Date(window.from).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+		: '';
+
+	// Three states worth distinguishing, and the panel used to show none of
+	// them: an older card governs, no card governs, or the current one does.
+	const dated = !window
+		? ''
+		: applied && applied.effective !== card.effective
+		? `<p class="note">These rates were measured over days governed by the card effective
+			<strong>${escapeHtml(applied.effective)}</strong>, so that is what they are compared
+			against &mdash; not the current one, effective ${escapeHtml(card.effective)}.
+			A price change does not apply backwards.</p>`
+		: !applied && oldest
+		? `<p class="note">Your history starts ${escapeHtml(windowStart)}, before any price
+			list on record &mdash; the oldest is effective
+			<strong>${escapeHtml(oldest.effective)}</strong>. Those days are compared against it
+			because it is the best statement available about them, but that is an assumption
+			rather than a record.</p>`
+		: '';
+
 	return `
 	<section>
 		<h2>The rate card</h2>
 		<p class="lede">What the solver recovered from your own spend, beside what GitHub
 			publishes. A figure that matches a <em>different</em> class than its own name is a
-			correct measurement under a wrong label &mdash; not an error in the fit.</p>
+			correct measurement under a wrong label &mdash; not an error in the fit.
+			Rates are compared against the card that was in force over the days they were
+			measured, never against a later one.</p>
 		<table>
 			<tr><th>Model</th><th>Class</th><th class="num">Measured</th>
 			    <th class="num">Published</th><th>Agreement</th></tr>
 			${rows.join('') || '<tr><td colspan="5" class="dim">no models yet</td></tr>'}
 		</table>
-		<p class="note dim">Card in use: <strong>${origin}</strong>, ${age}, published
-			${escapeHtml(card.retrieved)}, ${card.models.length} models${note ? ` &mdash; ${escapeHtml(note)}` : ''}.
+		${dated}
+		<p class="note dim">Card in use: <strong>${origin}</strong>, ${age}, effective
+			${escapeHtml(card.effective)}, ${card.models.length} models${
+				cards.length > 1 ? `, ${cards.length} on record` : ''
+			}${note ? ` &mdash; ${escapeHtml(note)}` : ''}.
 			Source: <code>${escapeHtml(card.source)}</code></p>
 	</section>`;
 }
@@ -219,7 +267,10 @@ function gatesSection(input: ConsoleInput): string {
 	];
 
 	const groups = kinds.map(([kind, heading]) => {
-		const rows = input.readings.filter(r => r.knob.kind === kind).map(r => {
+		const mine = input.readings.filter(r => r.knob.kind === kind);
+		const withholding = mine.filter(r => binding.has(r.knob.id)).length;
+		const changed = mine.filter(r => r.overridden).length;
+		const rows = mine.map(r => {
 			const b = binding.get(r.knob.id);
 			return `<tr class="${b ? 'binding' : ''}">
 				<td><code>tokenPie.${escapeHtml(r.knob.id)}</code>
@@ -231,13 +282,24 @@ function gatesSection(input: ConsoleInput): string {
 				<td><span class="basis ${r.knob.basis}">${r.knob.basis}</span>
 					<div class="dim why">${escapeHtml(r.knob.why)}</div></td></tr>`;
 		});
+		// Open only when there is something to answer for. Seventeen gates
+		// expanded is the wall of text this page exists to replace; a group
+		// that is withholding, or that someone has changed, is the exception.
+		const open = withholding > 0 || changed > 0;
+		const tally = [
+			withholding > 0 ? `<span class="chip">${withholding} withholding</span>` : '',
+			changed > 0 ? `<span class="chip changed">${changed} changed</span>` : ''
+		].join('');
 		return rows.length === 0 ? '' : `
-			<h3>${heading}</h3>
+		<details class="group"${open ? ' open' : ''}>
+			<summary><span class="chev"></span>${heading}
+				<span class="dim count">${mine.length}</span>${tally}</summary>
 			<table>
 				<tr><th>Gate</th><th class="num">In effect</th><th class="num">Default</th>
 				    <th>Why this number</th></tr>
 				${rows.join('')}
-			</table>`;
+			</table>
+		</details>`;
 	});
 
 	const count = binding.size;
@@ -344,7 +406,35 @@ const CONSOLE_STYLES = `
 		padding-bottom: 6px;
 		border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
 	}
-	h3 { font-size: 0.82rem; margin: 18px 0 6px; font-weight: 600; color: var(--vscode-descriptionForeground); }
+	/* Seventeen gates expanded is the wall this page exists to replace. Each
+	   group collapses; the ones with something to answer for open themselves.
+	   Same chevron geometry as the report, so the two pages behave alike. */
+	details.group {
+		border-radius: 7px; margin-bottom: 8px;
+		background: var(--vscode-editorWidget-background);
+		border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
+	}
+	details.group > summary {
+		list-style: none; cursor: pointer; padding: 10px 14px;
+		display: flex; gap: 9px; align-items: center;
+		font-size: 0.86rem; font-weight: 600;
+	}
+	details.group > summary::-webkit-details-marker { display: none; }
+	details.group > summary:hover { background: var(--vscode-list-hoverBackground, transparent); }
+	.chev {
+		display: inline-block; width: 6px; height: 6px; flex: none;
+		margin-right: 1px;
+		border-right: 1.7px solid currentColor;
+		border-bottom: 1.7px solid currentColor;
+		transform: rotate(45deg); transform-origin: 55% 55%;
+		transition: transform 130ms ease; opacity: 0.85;
+	}
+	details.group[open] > summary .chev { transform: rotate(-135deg); }
+	.count { font-weight: 400; margin-left: auto; }
+	details.group table { margin: 0; }
+	details.group table tr:last-child td { border-bottom: none; }
+	details.group th:first-child, details.group td:first-child { padding-left: 14px; }
+	details.group th:last-child, details.group td:last-child { padding-right: 14px; }
 	section { margin-top: 26px; }
 	.sub, .dim { color: var(--vscode-descriptionForeground); }
 	.lede { color: var(--vscode-descriptionForeground); margin: 6px 0 14px; text-wrap: pretty; }
@@ -372,10 +462,14 @@ const CONSOLE_STYLES = `
 	tr.binding td { background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.10)); }
 	.chip {
 		display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 9px;
-		font-size: 0.74rem; white-space: nowrap;
+		font-size: 0.74rem; font-weight: 400; white-space: nowrap; flex: none;
 		color: var(--vscode-charts-yellow, #CCA700);
 		border: 1px solid currentColor;
 	}
+	/* A gate someone has set is not a problem, so it does not borrow the
+	   warning colour -- but it is worth finding without opening every group. */
+	.chip.changed { color: var(--vscode-charts-blue, #3794FF); }
+	summary .count + .chip { margin-left: 8px; }
 	.basis {
 		display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 0.72rem;
 		text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid currentColor;

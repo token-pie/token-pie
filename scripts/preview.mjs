@@ -178,7 +178,10 @@ const body = flag('console')
       rollups, creditsPerNanoAiu: CR, creditsPerNanoAiuIsDefault: CR === 1e-9,
       prices: data.prices ?? {},
       readings: read(() => undefined).readings,
-      card: loadCard({ bundledPath: new URL('../rate-card.json', import.meta.url).pathname }),
+      card: loadCard({
+        bundledPath: new URL('../rate-card.json', import.meta.url).pathname,
+        cachePath: path.join(storageDir(), 'rate-card.json')
+      }),
       coverage: periodCoverage({
         resetDate: projection?.resetDate,
         githubCredits: projection?.creditsUsed ?? (projection?.entitlement !== undefined

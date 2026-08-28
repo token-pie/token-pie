@@ -11,8 +11,8 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { parse, lookup, compare, slug, load, isDue, REFRESH_INTERVAL_MS }
-  from '../out/ratecard.js';
+import { parse, lookup, compare, slug, load, isDue, REFRESH_INTERVAL_MS,
+  effectiveAt, changedDuring, refresh } from '../out/ratecard.js';
 
 let failures = 0;
 const check = (label, got, want) => {
@@ -122,6 +122,81 @@ fs.writeFileSync(cachePath, 'not json');
 check('a corrupt cache falls back silently', load({ bundledPath: BUNDLED, cachePath, now }).origin, 'bundled');
 check('and a corrupt cache is due for refresh', isDue(cachePath, now), true);
 fs.rmSync(dir, { recursive: true, force: true });
+
+
+// A price published on the 20th says nothing about what was billed on the 5th.
+// Judging old spend by a new card is the retrospective error this dating exists
+// to prevent, and it is silent unless something tests for it.
+console.log('\ndates, and what they may not reach backwards to');
+const at = d => Date.parse(`${d}T00:00:00.000Z`);
+const dated = (effective, output) => ({
+  ...card, effective, retrieved: effective,
+  models: card.models.map(m => m.name === 'Claude Sonnet 5' ? { ...m, output } : m)
+});
+const july = dated('2026-07-01', 10.00);
+const august = dated('2026-08-15', 20.00);
+const history = [july, august];
+
+check('the card in force on a date is the latest one not after it',
+  effectiveAt(history, at('2026-08-01')).effective, '2026-07-01');
+check('and flips on the day the next one takes effect',
+  effectiveAt(history, at('2026-08-15')).effective, '2026-08-15');
+check('nothing governs a date before the first card',
+  effectiveAt(history, at('2026-06-01')), undefined);
+check('a change inside a window is found',
+  changedDuring(history, at('2026-08-01'), at('2026-08-31')).length, 1);
+check('a change exactly at the window start is not inside it',
+  changedDuring(history, at('2026-08-15'), at('2026-08-31')).length, 0);
+check('no change in a quiet window', changedDuring(history, at('2026-07-02'), at('2026-08-01')).length, 0);
+
+// July spend measured 1.00 credits per 1k output. August republished it at
+// 2.00. The July measurement is still correct and must not be called wrong.
+const julyWindow = { cards: history, window: { from: at('2026-07-05'), to: at('2026-07-20') } };
+const j = compare(august, 'claude-sonnet-5', { fresh: 0.25, cached: 0.02, output: 1.00 }, julyWindow);
+check('old spend is compared against the card that governed it', j.appliedFrom, '2026-07-01');
+check('so it still matches', j.classes.find(c => c.label === 'output').matchedAs, 'output');
+check('and is not judged by the newer price',
+  j.classes.find(c => c.label === 'output').published, 1);
+
+const augWindow = { cards: history, window: { from: at('2026-08-20'), to: at('2026-08-31') } };
+const a = compare(august, 'claude-sonnet-5', { fresh: 0.25, cached: 0.02, output: 2.00 }, augWindow);
+check('and new spend is compared against the new card', a.appliedFrom, '2026-08-15');
+check('matching the new price', a.classes.find(c => c.label === 'output').published, 2);
+
+// Rates fitted across a change are a blend of two regimes and match neither.
+// Reporting that as a discrepancy would blame the measurement for the change.
+const straddle = { cards: history, window: { from: at('2026-08-01'), to: at('2026-08-31') } };
+const st = compare(august, 'claude-sonnet-5', { fresh: 0.25, cached: 0.02, output: 1.5 }, straddle);
+check('a window spanning a change withholds the comparison',
+  JSON.stringify(st.spansPriceChange), JSON.stringify(['2026-08-15']));
+check('and claims no class rather than reporting a mismatch',
+  st.classes.every(c => c.matchedAs === undefined), true);
+
+const early = { cards: history, window: { from: at('2026-05-01'), to: at('2026-05-31') } };
+const e = compare(august, 'claude-sonnet-5', { fresh: 0.25, cached: 0.02, output: 1.00 }, early);
+check('days before every card fall back to the oldest, not the newest',
+  e.appliedFrom, '2026-07-01');
+check('and are marked as an assumption', e.predatesKnownPrices, true);
+check('a window inside a single regime is not marked',
+  compare(august, 'claude-sonnet-5', { fresh: 0.25, cached: 0.02, output: 1 }, julyWindow)
+    .predatesKnownPrices, undefined);
+
+console.log('\nhistory accumulates rather than being replaced');
+const hdir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-hist-'));
+const hcache = path.join(hdir, 'cache.json');
+fs.writeFileSync(hcache, JSON.stringify({ fetchedAt: Date.now(), url: 'u', cards: [july] }));
+const loadedTwo = load({ bundledPath: BUNDLED, cachePath: hcache, now: at('2026-09-01') });
+check('a stored card is kept alongside the bundled one',
+  loadedTwo.cards.length >= 2, true);
+check('and the one in force is the latest that has taken effect',
+  loadedTwo.card.effective, card.effective);
+
+// The pre-history single-card cache shape must not blank the history.
+fs.writeFileSync(hcache, JSON.stringify({ fetchedAt: Date.now(), url: 'u', card: july }));
+check('the superseded single-card cache is still read',
+  load({ bundledPath: BUNDLED, cachePath: hcache, now: at('2026-09-01') })
+    .cards.some(c => c.effective === '2026-07-01'), true);
+fs.rmSync(hdir, { recursive: true, force: true });
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

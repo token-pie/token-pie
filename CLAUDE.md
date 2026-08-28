@@ -166,6 +166,7 @@ Each of these reversed an earlier assumption. Full evidence in `DECISIONS.md`.
 | Cost is linear in fresh/cached/output tokens, so the rate card is solvable | `pricing.ts` recovers it exactly; output is 4× fresh input and 12.5× cached |
 | GPT-5.6 Luna and Terra publish a cache-write price too, but emit no `cache_creation` attribute on this account | Only Anthropic's path populates it here. Do not infer "no cache write" from a missing attribute alone |
 | The solved "fresh" rate 0.25 is the published **cache-write** price ($2.50/M), not input ($2.00/M) | On sonnet, `cache_creation` covers all but 64 of the tokens that missed the cache, so the two classes are one population. Output is 5× plain input |
+| A fetched rate card never reprices earlier spend | Cards carry `effective` and accumulate; a comparison uses the card in force when the window opened, and is withheld outright when the window straddles a change |
 | Cache-write counts have **no column** on `spans` — only `gen_ai.usage.cache_creation.input_tokens` | Pulled as an attribute like `nano_aiu`. Absent on providers that do not bill it, which is a fact, not a gap |
 | GitHub's period spend and ours are different windows and different scopes | `reconcile.ts` `periodCoverage` compares them over the same days and names the remainder as spend this install cannot see |
 | Token composition ≠ cost composition | Output was 2% of tokens but 16% of spend. Never report a cost claim by token count |
@@ -194,7 +195,9 @@ src/
   tuning.ts      every gate in one place, with its provenance. Settings are
                  GENERATED from it -- run `npm run sync:settings` after editing
   ratecard.ts    GitHub's published prices as data; the second opinion on the
-                 solved card. Bundled snapshot, user override, weekly fetch
+                 solved card. Bundled snapshot, user override, weekly fetch.
+                 Cards are APPENDED with an effective date, never replaced -- a
+                 new price must not judge spend that predates it
   console.ts     the debug console: the conversion, the rate card, the gates
                  (marked when withholding), the pipeline. `npm run console`
   report.ts      the webview. No scripts; <details> for progressive disclosure.

@@ -28,6 +28,17 @@ export interface RateCard {
 	source: string;
 	/** ISO date the figures were read from the source. */
 	retrieved: string;
+	/**
+	 * ISO date these prices took effect.
+	 *
+	 * Distinct from `retrieved`, and the distinction is the whole point: we
+	 * usually learn about a price on some later Tuesday than the one it started
+	 * applying on. Spend before this date was billed at whatever preceded it, so
+	 * a newly fetched card must never be used to judge it. Absent in a source
+	 * file, it falls back to `retrieved` -- the most conservative reading, since
+	 * it claims the prices are no older than our knowledge of them.
+	 */
+	effective: string;
 	creditsPerDollar: number;
 	models: PublishedPrice[];
 }
@@ -36,7 +47,10 @@ export interface RateCard {
 export type CardOrigin = 'bundled' | 'fetched' | 'user';
 
 export interface LoadedCard {
+	/** The card in force now. */
 	card: RateCard;
+	/** Every card known, oldest first, for dating a comparison. */
+	cards: RateCard[];
 	origin: CardOrigin;
 	/** When the fetched copy was retrieved, for the staleness note. */
 	fetchedAt?: number;
@@ -169,9 +183,16 @@ export function parse(raw: unknown): RateCard | undefined {
 			output: r.output as number
 		});
 	}
+	const effective = typeof o.effective === 'string' && !Number.isNaN(Date.parse(o.effective))
+		? o.effective
+		: o.retrieved;
+	if (Number.isNaN(Date.parse(effective))) {
+		return undefined;
+	}
 	return {
 		source: o.source,
 		retrieved: o.retrieved,
+		effective,
 		creditsPerDollar: o.creditsPerDollar,
 		models: out
 	};
@@ -188,6 +209,24 @@ export function parse(raw: unknown): RateCard | undefined {
 export interface RateComparison {
 	model: string;
 	published?: PublishedRate;
+	/** Which card the comparison used, and when it took effect. */
+	appliedFrom?: string;
+	/**
+	 * Prices changed inside the window these rates were fitted over.
+	 *
+	 * Set means the comparison was withheld rather than made: the measurement
+	 * spans two price regimes and matches neither by construction.
+	 */
+	spansPriceChange?: string[];
+	/**
+	 * The window opens before any card we hold.
+	 *
+	 * The comparison is still made -- the oldest card is the best statement
+	 * available about those days, and withholding would leave the panel silent
+	 * about most of its own history. But it is an assumption, not a record, and
+	 * the page says so rather than presenting it as dated fact.
+	 */
+	predatesKnownPrices?: boolean;
 	classes: {
 		label: string;
 		solved: number;
@@ -201,12 +240,86 @@ export interface RateComparison {
 /** Within a tenth of a percent is the same price stated two ways. */
 const PRICE_TOLERANCE = 0.001;
 
+/* --------------------------------------------------------- history --- */
+
+/**
+ * Which card was in force at a moment.
+ *
+ * A fetched card replaces nothing: it is appended, and the older ones stay
+ * because they are still the correct prices for the days they covered. Spend
+ * from three weeks ago is judged against the card that was effective three
+ * weeks ago, not against the one that arrived on Tuesday.
+ */
+export function effectiveAt(cards: RateCard[], at: number): RateCard | undefined {
+	return cards
+		.filter(c => Date.parse(c.effective) <= at)
+		.sort((a, b) => Date.parse(b.effective) - Date.parse(a.effective))[0];
+}
+
+/**
+ * Cards that took effect strictly inside a window.
+ *
+ * A non-empty answer means the solved rates are a blend of two price regimes
+ * and no single published card is the right thing to compare them against.
+ * Reporting a mismatch there would be blaming the measurement for a price
+ * change, which is exactly the retrospective judgement to avoid.
+ */
+export function changedDuring(cards: RateCard[], from: number, to: number): RateCard[] {
+	return cards
+		.filter(c => {
+			const at = Date.parse(c.effective);
+			return at > from && at <= to;
+		})
+		.sort((a, b) => Date.parse(a.effective) - Date.parse(b.effective));
+}
+
+/** The window a set of solved rates was fitted over. */
+export interface Window {
+	from: number;
+	to: number;
+}
+
 export function compare(
 	card: RateCard,
 	model: string,
-	solved: { fresh: number; cached: number; output: number }
+	solved: { fresh: number; cached: number; output: number },
+	/**
+	 * The days the solved rates were fitted over, and every card known.
+	 *
+	 * Omitted, the comparison is made against `card` as given -- which is right
+	 * for a caller that has already chosen the card. Supplied, the card is
+	 * chosen by date and a mid-window price change withholds the comparison
+	 * instead of reporting the change as a measurement error.
+	 */
+	history?: { cards: RateCard[]; window: Window }
 ): RateComparison {
-	const published = lookup(card, model);
+	let applied = card;
+	let spans: string[] | undefined;
+	let predates = false;
+	if (history) {
+		const changes = changedDuring(history.cards, history.window.from, history.window.to);
+		if (changes.length > 0) {
+			spans = changes.map(c => c.effective);
+		}
+		// The card in force when the window opened. Rates fitted over those days
+		// were paid at those prices, whatever has been published since -- a newer
+		// card never reaches backwards.
+		const governing = effectiveAt(history.cards, history.window.from);
+		if (governing) {
+			applied = governing;
+		} else {
+			// Nothing we hold covers days that early. The oldest card is the best
+			// statement available about them; using the newest instead would be
+			// exactly the retrospective judgement this dating exists to prevent.
+			const oldest = [...history.cards]
+				.sort((a, b) => Date.parse(a.effective) - Date.parse(b.effective))[0];
+			if (oldest) {
+				applied = oldest;
+				predates = true;
+			}
+		}
+	}
+	const published = lookup(applied, model);
 	const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(a, b) * PRICE_TOLERANCE;
 
 	/**
@@ -216,7 +329,7 @@ export function compare(
 	 * measured 0.25" as a discrepancy would be reporting a correct measurement
 	 * as an error.
 	 */
-	const options: [string, number | undefined][] = published
+	const options: [string, number | undefined][] = published && !spans
 		? [['input', published.input], ['cache write', published.cacheWrite],
 		   ['cached input', published.cached], ['output', published.output]]
 		: [];
@@ -235,6 +348,9 @@ export function compare(
 	return {
 		model,
 		published,
+		appliedFrom: applied.effective,
+		...(spans ? { spansPriceChange: spans } : {}),
+		...(predates ? { predatesKnownPrices: true } : {}),
 		classes: [
 			row('fresh input', solved.fresh, published?.input),
 			row('cached input', solved.cached, published?.cached),
@@ -258,7 +374,17 @@ const FETCH_TIMEOUT_MS = 10_000;
 export interface CacheFile {
 	fetchedAt: number;
 	url: string;
-	card: RateCard;
+	/**
+	 * Every card we have seen, oldest first.
+	 *
+	 * A fetch appends rather than replaces. The card from six weeks ago is not
+	 * stale data -- it is the correct price list for the days it covered, and
+	 * discarding it would leave old spend to be judged against prices that did
+	 * not exist yet.
+	 */
+	cards: RateCard[];
+	/** Superseded single-card shape, still read so an existing cache survives. */
+	card?: RateCard;
 }
 
 /**
@@ -280,7 +406,10 @@ export function load(options: {
 	if (options.override !== undefined && options.override !== null) {
 		const card = parse(options.override);
 		if (card) {
-			return { card, origin: 'user' };
+			// An override is a deliberate statement about prices, so it stands
+			// alone -- but only from its own effective date. Days before it are
+			// still judged by whatever the history holds.
+			return { card, cards: [card], origin: 'user' };
 		}
 	}
 
@@ -289,18 +418,26 @@ export function load(options: {
 	if (options.cachePath) {
 		try {
 			const raw = JSON.parse(fs.readFileSync(options.cachePath, 'utf8')) as CacheFile;
-			const card = parse(raw?.card);
-			if (card && typeof raw.fetchedAt === 'number') {
-				// A fetched copy older than the bundled one is a downgrade: it
-				// means the extension was updated more recently than the fetch.
-				const newer = Date.parse(card.retrieved) >= Date.parse(bundled?.retrieved ?? '1970-01-01');
-				if (newer) {
-					return {
-						card, origin: 'fetched', fetchedAt: raw.fetchedAt,
-						...(now - raw.fetchedAt > REFRESH_INTERVAL_MS
-							? { note: 'due for refresh' } : {})
-					};
-				}
+			const stored = (Array.isArray(raw?.cards) ? raw.cards : [raw?.card])
+				.map(parse)
+				.filter((c): c is RateCard => c !== undefined);
+			if (stored.length > 0 && typeof raw.fetchedAt === 'number') {
+				const cards = merge(bundled ? [bundled, ...stored] : stored);
+				const current = effectiveAt(cards, now) ?? cards[cards.length - 1];
+				// Origin describes the card in force, not the set it came from.
+				// With history kept, a fetch can leave the bundled snapshot still
+				// governing today -- an older fetched card cannot displace it,
+				// because the latest effective date wins -- and calling that
+				// "fetched" would misreport where today's prices came from.
+				const fromBundle = bundled !== undefined && current.effective === bundled.effective
+					&& current.retrieved === bundled.retrieved;
+				return {
+					card: current, cards,
+					origin: fromBundle ? 'bundled' : 'fetched',
+					...(fromBundle ? {} : { fetchedAt: raw.fetchedAt }),
+					...(!fromBundle && now - raw.fetchedAt > REFRESH_INTERVAL_MS
+						? { note: 'due for refresh' } : {})
+				};
 			}
 		} catch {
 			// A corrupt cache is not worth reporting; the bundled copy is correct.
@@ -310,7 +447,25 @@ export function load(options: {
 	if (!bundled) {
 		throw new Error(`rate card missing or malformed: ${options.bundledPath}`);
 	}
-	return { card: bundled, origin: 'bundled' };
+	return { card: bundled, cards: [bundled], origin: 'bundled' };
+}
+
+/**
+ * One card per effective date, oldest first.
+ *
+ * Two cards claiming the same effective date is the ordinary case -- a refetch
+ * of unchanged prices -- and the later-retrieved one wins, since it is the same
+ * statement made more recently.
+ */
+function merge(cards: RateCard[]): RateCard[] {
+	const byDate = new Map<string, RateCard>();
+	for (const c of cards) {
+		const seen = byDate.get(c.effective);
+		if (!seen || c.retrieved >= seen.retrieved) {
+			byDate.set(c.effective, c);
+		}
+	}
+	return [...byDate.values()].sort((a, b) => Date.parse(a.effective) - Date.parse(b.effective));
 }
 
 function readCard(file: string): RateCard | undefined {
@@ -363,9 +518,26 @@ export async function refresh(
 			// silently skip others while looking complete.
 			return { ok: false, note: 'response was not a valid rate card; kept the previous one' };
 		}
+		// Appended, never substituted. Prices that have been superseded are still
+		// the right prices for the days they covered.
+		let existing: RateCard[] = [];
+		try {
+			const raw = JSON.parse(fs.readFileSync(cachePath, 'utf8')) as CacheFile;
+			existing = (Array.isArray(raw?.cards) ? raw.cards : [raw?.card])
+				.map(parse)
+				.filter((c): c is RateCard => c !== undefined);
+		} catch {
+			// No usable history yet; this card starts it.
+		}
+		const cards = merge([...existing, card]);
 		fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-		fs.writeFileSync(cachePath, JSON.stringify({ fetchedAt: now, url, card }), 'utf8');
-		return { ok: true, note: `${card.models.length} models, published ${card.retrieved}` };
+		fs.writeFileSync(cachePath, JSON.stringify({ fetchedAt: now, url, cards }), 'utf8');
+		const added = cards.length > existing.length;
+		return {
+			ok: true,
+			note: `${card.models.length} models, effective ${card.effective}` +
+				(added ? `; ${cards.length} card(s) on record` : '; prices unchanged')
+		};
 	} catch (err) {
 		return { ok: false, note: err instanceof Error ? err.message : String(err) };
 	} finally {

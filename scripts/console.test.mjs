@@ -20,7 +20,8 @@ const check = (label, got, want) => {
 };
 
 const BUNDLED = new URL('../rate-card.json', import.meta.url).pathname;
-const card = { card: parse(JSON.parse(fs.readFileSync(BUNDLED, 'utf8'))), origin: 'bundled' };
+const bundled = parse(JSON.parse(fs.readFileSync(BUNDLED, 'utf8')));
+const card = { card: bundled, cards: [bundled], origin: 'bundled' };
 
 const rollup = (over = {}) => ({
   day: '2026-08-26', model: 'claude-sonnet-5', workspace: 'w', operation: 'chat',
@@ -113,6 +114,50 @@ check('errors surface when there are any',
 console.log('\nthe page is a safe webview');
 check('no scripts', /<script/i.test(html), false);
 check('a locked-down CSP', /default-src 'none'/.test(html), true);
+
+// Seventeen gates expanded is the wall of text this page exists to replace.
+console.log('\nthe gates collapse, and open themselves when they matter');
+check('each kind is its own collapsible group',
+  (html.match(/<details class="group"/g) || []).length, 5);
+check('none is open when nothing is withholding or changed',
+  /<details class="group" open>/.test(html), false);
+check('each summary carries its own count',
+  (html.match(/class="dim count"/g) || []).length, 5);
+
+const thinHtml = render({ rollups: [rollup({ requests: 5 })] });
+check('a group holding a withholding gate opens itself',
+  (thinHtml.match(/<details class="group" open>/g) || []).length, 1);
+check('and says so on the closed summary line',
+  /1 withholding<\/span>/.test(thinHtml), true);
+check('while the other groups stay shut',
+  (thinHtml.match(/<details class="group">/g) || []).length, 4);
+
+const edited = render({ readings: read(id => (id === 'history.days' ? 14 : undefined)).readings });
+check('a group holding a changed gate opens itself too',
+  (edited.match(/<details class="group" open>/g) || []).length, 1);
+check('marked as changed rather than as a problem',
+  /1 changed<\/span>/.test(edited), true);
+
+// A price published this month says nothing about what was billed last month.
+console.log('\nprices are not applied backwards');
+const older = { ...bundled, effective: '2020-01-01', retrieved: '2020-01-01' };
+const twoCards = { card: bundled, cards: [older, bundled], origin: 'bundled' };
+// The window has to actually contain the change date, or there is nothing to
+// straddle: the fixture day alone sits two days before it.
+const spanning = render({
+  card: twoCards,
+  rollups: [rollup(), rollup({ day: '2026-09-02' })]
+});
+check('a window spanning a price change withholds the comparison',
+  /comparison withheld/.test(spanning.replace(/\s+/g, ' ')), true);
+check('and names the date the prices changed',
+  /2026-08-28/.test(spanning), true);
+
+const settled = render({ card: { card: older, cards: [older], origin: 'bundled' } });
+check('a window inside one regime compares normally',
+  /comparison withheld/.test(settled), false);
+check('history predating every card says the comparison is an assumption',
+  /assumption rather than a record/.test(render().replace(/\s+/g, ' ')), true);
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
