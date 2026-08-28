@@ -84,12 +84,41 @@ export function slug(name: string): string {
 }
 
 /**
+ * The model, without the route that reached it.
+ *
+ * The same model arrives under several spellings depending on which field
+ * carried it: `copilot/claude-opus-4.6` from the request, `claude-opus-4-6`
+ * from the response, and `aitk-foundry/Microsoft Foundry/(AK-AIF)gpt-5.6-luna`
+ * where a gateway prefixed its own routing twice over. Everything up to the
+ * last slash is a route; the leading parenthetical is a deployment label. Both
+ * say where the call went, not what answered it.
+ *
+ * Grouping on the raw string made one model two rows and split its share of
+ * spend between them, and the price lookup missed a prefixed name entirely.
+ */
+export function bareModel(name: string): string {
+	const afterRoute = name.slice(name.lastIndexOf('/') + 1);
+	const bare = afterRoute.replace(/^\([^)]*\)\s*/, '').trim();
+	return bare || name;
+}
+
+/** The identity two spellings of one model share. */
+export function modelKey(name: string): string {
+	return slug(bareModel(name));
+}
+
+/**
  * Response models carry a training date the price table does not, so
  * `gpt-4o-mini-2024-07-18` has to fall back to `gpt-4o-mini` before giving up.
  */
 function candidates(modelId: string): string[] {
 	const base = slug(modelId);
 	const out = [base];
+	// A routed name reaches the table under the model it routed to.
+	const bare = modelKey(modelId);
+	if (bare !== base) {
+		out.push(bare);
+	}
 	const undated = base.replace(/-\d{4}-\d{2}-\d{2}$/, '');
 	if (undated !== base) {
 		out.push(undated);

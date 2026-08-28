@@ -3,6 +3,7 @@ import { Selection } from './selection';
 import { PriceStats, Price, solve, costOf } from './pricing';
 import { Confidence, rank, weakest } from './confidence';
 import { Tuning, defaults } from './tuning';
+import { modelKey } from './ratecard';
 
 /**
  * Turns the rollup into things a developer can do differently.
@@ -91,8 +92,12 @@ export function selectionMix(
 ): { dominant: Selection; autoShare: number; credits: number } {
 	const byMode = new Map<Selection, number>();
 	let credits = 0;
+	// Matched on identity rather than spelling: the same model arrives as
+	// `copilot/claude-opus-4.6` and `claude-opus-4-6`, and an exact comparison
+	// saw half of its requests.
+	const wanted = modelKey(model);
 	for (const r of rollups) {
-		if (r.model !== model) {
+		if (modelKey(r.model) !== wanted) {
 			continue;
 		}
 		const c = r.nanoAiu * creditsPerNanoAiu;

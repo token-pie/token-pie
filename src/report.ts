@@ -1,6 +1,7 @@
 import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum } from './store';
 import { Projection } from './projection';
 import { PeriodCoverage, periodCoverage, conversionConfidence } from './reconcile';
+import { bareModel, modelKey } from './ratecard';
 import { Tuning, defaults } from './tuning';
 import { Advice, advise, selectionMix } from './advice';
 import { prefix, Confidence } from './confidence';
@@ -797,6 +798,73 @@ function depthTable(
 /* ---------------------------------------------------------------- table --- */
 
 /** How a model's spend was reached, in the width of a table cell. */
+/**
+ * Models grouped by what they are, labelled by what they are called.
+ *
+ * `groupBy(rollups, 'model')` keys on the raw string, so one model reported
+ * under two spellings was two rows whose shares each looked like half the
+ * truth: 305 credits under `copilot/claude-sonnet-4.6` and 54 under
+ * `claude-sonnet-4-6`, neither of them that model's spend.
+ *
+ * The label is the bare name with the most requests behind it rather than the
+ * first one seen, so the table shows the spelling the account actually uses.
+ */
+/**
+ * Which of these figures were measured, and which are floors.
+ *
+ * `Rollup.source` says the two must never be added into one burn rate. The
+ * projection honours that -- it filters `reported` out before computing a rate
+ * -- but the panel's own totals add them and said nothing, so a card reading
+ * "862 credits over 31 messages" looked like a measurement when every credit
+ * in it came from a transcript. Transcripts omit the messages you retried or
+ * cancelled and were still charged for, which is exactly the spend someone
+ * reading this page is trying to find.
+ *
+ * Stated rather than corrected: the recovered history is worth showing, and a
+ * floor labelled as one is more use than no history at all.
+ */
+function sourceNote(rollups: Rollup[], creditsPerNanoAiu: number): string {
+	let measured = 0, reported = 0;
+	for (const r of rollups) {
+		const c = creditsOf(r.nanoAiu, creditsPerNanoAiu);
+		if (r.source === 'reported') { reported += c; } else { measured += c; }
+	}
+	if (reported <= 0) {
+		return '';
+	}
+	const floor = 'Transcripts omit the messages you retried or cancelled and were ' +
+		'still charged for, so that is a floor rather than a total.';
+	if (measured <= 0) {
+		return `<div class="warn"><div>Nothing on this page was measured. Every figure
+			comes from VS Code's own chat transcripts, not from Copilot's cost record.
+			${floor}</div></div>`;
+	}
+	return `<p class="note"><strong>${fmtCredits(reported)}</strong> of these
+		${fmtCredits(measured + reported)} credits come from chat transcripts rather
+		than Copilot's own cost record. ${floor}</p>`;
+}
+
+function groupModels(rollups: Rollup[]): Map<string, Totals> {
+	const buckets = new Map<string, { rollups: Rollup[]; labels: Map<string, number> }>();
+	for (const r of rollups) {
+		const key = modelKey(r.model);
+		const bucket = buckets.get(key)
+			?? { rollups: [] as Rollup[], labels: new Map<string, number>() };
+		bucket.rollups.push(r);
+		const label = bareModel(r.model);
+		bucket.labels.set(label, (bucket.labels.get(label) ?? 0) + r.requests);
+		buckets.set(key, bucket);
+	}
+	const out = new Map<string, Totals>();
+	for (const { rollups: bucket, labels } of buckets.values()) {
+		// Ties broken by name so the table does not reorder between refreshes.
+		const label = [...labels.entries()]
+			.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+		out.set(label, sum(bucket));
+	}
+	return out;
+}
+
 function selectionCell(
 	rollups: Rollup[] | undefined,
 	model: string,
@@ -961,6 +1029,10 @@ export function renderReport(input: ReportInput): string {
 	// Most models never emit a reasoning count; a column of dashes would be
 	// noise on an account that does not use one.
 	const anyThinking = rollups.some(r => r.reasoningTokens > 0);
+	// Same reasoning as the Thinking column beside it: a machine whose spans
+	// never record who picked the model got a column of em-dashes, which reads
+	// as missing data rather than as a dimension that does not apply here.
+	const anySelection = rollups.some(r => r.selection !== 'unknown');
 	const totals = sum(rollups);
 	const totalCredits = creditsOf(totals.nanoAiu, creditsPerNanoAiu);
 	const p: Projection = input.projection ?? { verdict: 'unknown' };
@@ -983,7 +1055,7 @@ export function renderReport(input: ReportInput): string {
 		tuning
 	});
 
-	const byModel = groupBy(rollups, 'model');
+	const byModel = groupModels(rollups);
 	const byWorkspace = groupBy(rollups, 'workspace');
 	const byDay = groupBy(rollups, 'day');
 	const days = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-14);
@@ -1065,14 +1137,18 @@ ${STYLES}
 
 		${coverageLine(periodFit)}
 
+		${sourceNote(rollups, creditsPerNanoAiu)}
+
 		${compositionBar(rollups, input.prices, creditsPerNanoAiu, tuning) || '<p class="dim">no data</p>'}
 
 		<div class="tw"><table>
-			<tr><th>By model</th><th>Chosen by</th><th class="num">Messages</th>
+			<tr><th>By model</th>${anySelection ? '<th>Chosen by</th>' : ''}
+			    <th class="num">Messages</th>
 			    <th class="num">Tokens</th>
 			    ${anyThinking ? '<th class="num">Thinking</th>' : ''}
 			    <th class="num">Credits</th><th>Share</th></tr>
-			${breakdownRows(byModel, creditsPerNanoAiu, totalCredits, rollups, anyThinking)}
+			${breakdownRows(byModel, creditsPerNanoAiu, totalCredits,
+				anySelection ? rollups : undefined, anyThinking)}
 		</table></div>
 
 		<div class="tw"><table class="spaced">
@@ -1099,10 +1175,17 @@ ${STYLES}
 	</section>
 
 	<footer>
-		Credits come from <code>copilot_chat.copilot_usage_nano_aiu</code>, the cost Copilot
-		reports per request &mdash; not list pricing, and not the transcript's own
-		<code>copilotCredits</code>, which omits messages you retried or cancelled and were
-		still charged for. Every price, threshold and conversion behind this page &mdash; and
+		${rollups.some(r => r.source !== 'reported')
+			? `Credits come from <code>copilot_chat.copilot_usage_nano_aiu</code>, the cost
+			   Copilot reports per request &mdash; not list pricing, and not the
+			   transcript's own <code>copilotCredits</code>, which omits messages you
+			   retried or cancelled and were still charged for.`
+			// Saying it anyway on a page with no measurement behind it names a source
+			// that was never read.
+			: `Credits here come from the transcript's own <code>copilotCredits</code>,
+			   which omits messages you retried or cancelled and were still charged for.
+			   <code>copilot_chat.copilot_usage_nano_aiu</code>, the cost Copilot reports
+			   per request, is what this reads once tracing is on.`} Every price, threshold and conversion behind this page &mdash; and
 		which of them is currently withholding something &mdash; is in the
 		<strong>Token Specs</strong>, on the gear in this editor's title bar.
 	</footer>
