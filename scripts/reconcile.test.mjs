@@ -7,7 +7,8 @@
  * different: unseen spend on another machine, a miscalibrated conversion, and
  * the one that looks like unseen spend but is only a short history.
  */
-import { periodCoverage, periodStartFrom } from '../out/reconcile.js';
+import { periodCoverage, periodStartFrom, conversionConfidence } from '../out/reconcile.js';
+import { advise } from '../out/advice.js';
 
 let failures = 0;
 const check = (label, got, want) => {
@@ -90,6 +91,46 @@ check('and says why', short.note.includes('into the'), true);
 console.log('\nnothing spent yet');
 const idle = periodCoverage({ resetDate: RESET, githubCredits: 0, creditsByDay: history(RESET, 0) });
 check('zero billed is inconclusive, not agreement', idle.verdict, 'inconclusive');
+
+// The confidence vocabulary existed, was tested, and nothing ever emitted
+// `estimated` -- so every credit figure claimed to be a measurement while
+// resting on a multiplier nothing had checked. This is what emits it.
+console.log('\nwhat the check makes of the conversion');
+const cov = v => ({ periodStart: 0, githubCredits: 20, localCredits: 20, localRequests: 5,
+  unaccounted: 0, share: 1, verdict: v, note: '' });
+check('unchecked is an estimate', conversionConfidence(undefined).confidence, 'estimated');
+check('and says how to check it',
+  conversionConfidence(undefined).why.includes('Check Quota'), true);
+check('agreement makes it a measurement', conversionConfidence(cov('complete')).confidence, 'measured');
+check('with nothing to caveat', conversionConfidence(cov('complete')).why, undefined);
+check('measuring more than billed impugns it', conversionConfidence(cov('over')).confidence, 'estimated');
+check('and names the setting', conversionConfidence(cov('over')).why.includes('creditsPerNanoAiu'), true);
+
+// A shortfall is spend elsewhere. That says nothing about the multiplier
+// either way, so it leaves it unconfirmed rather than blaming it.
+check('a partial match leaves it unconfirmed', conversionConfidence(cov('partial')).confidence, 'estimated');
+check('without claiming it is wrong',
+  conversionConfidence(cov('partial')).why.includes('probably wrong'), false);
+check('a hand-set conversion is still unverified',
+  conversionConfidence(undefined, true).confidence, 'estimated');
+check('and the wording says so', conversionConfidence(undefined, true).why.includes('you set'), true);
+
+console.log('\nand what findings make of that');
+const rollup = {
+  day: '2026-08-26', model: 'm', workspace: 'w', operation: 'chat', selection: 'manual',
+  source: 'measured', requests: 20, inputTokens: 100000, outputTokens: 5000,
+  reasoningTokens: 0, cacheReadTokens: 90000, cacheWriteTokens: 0, nanoAiu: 20e9,
+  missRequests: 4, missInputTokens: 40000, missNanoAiu: 12e9
+};
+const withConv = c => advise([rollup], 1e-9, {}, undefined, undefined, c);
+check('a confirmed conversion leaves findings measured',
+  withConv({ confidence: 'measured' })[0].confidence, 'measured');
+check('an unconfirmed one weakens them',
+  withConv(conversionConfidence(undefined))[0].confidence, 'estimated');
+check('and carries the reason to the reader',
+  withConv(conversionConfidence(undefined))[0].why.includes('Check Quota'), true);
+check('the default is not to weaken, so existing callers are unaffected',
+  advise([rollup], 1e-9, {}, undefined)[0].confidence, 'measured');
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

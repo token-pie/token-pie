@@ -1,7 +1,7 @@
 import { Rollup, Totals, groupBy, sum } from './store';
 import { Selection } from './selection';
 import { PriceStats, Price, solve, costOf } from './pricing';
-import { Confidence, rank } from './confidence';
+import { Confidence, rank, weakest } from './confidence';
 import { Tuning, defaults } from './tuning';
 
 /**
@@ -113,7 +113,17 @@ export function advise(
 	creditsPerNanoAiu: number,
 	priceStats: Record<string, PriceStats> = {},
 	remainingAllowance?: number,
-	tuning: Tuning = defaults()
+	tuning: Tuning = defaults(),
+	/**
+	 * How far the nano-AIU -> credits conversion can be trusted.
+	 *
+	 * Every `creditsAtStake` below is a token count -- exact -- multiplied by
+	 * that conversion. Claiming the product is a measurement when the multiplier
+	 * is an unverified default was the panel overstating what it knows, so the
+	 * doubt is combined in here rather than dropped. See
+	 * `conversionConfidence` in `reconcile.ts`.
+	 */
+	conversion: { confidence: Confidence; why?: string } = { confidence: 'measured' }
 ): Advice[] {
 	const totals = sum(rollups);
 	const totalCredits = totals.nanoAiu * creditsPerNanoAiu;
@@ -157,11 +167,28 @@ export function advise(
 
 	return found
 		.filter(material)
+		// Sorted before the conversion's doubt is folded in, deliberately.
+		// A shared weakness collapses every finding to the same badge, and
+		// ordering on that would rank a solid finding below a bounded one purely
+		// on magnitude -- losing a distinction that is still true underneath.
 		.sort((a, b) =>
 			a.confidence === b.confidence
 				? b.creditsAtStake - a.creditsAtStake
 				: rank(a.confidence) - rank(b.confidence)
-		);
+		)
+		// Doubt only accumulates: a finding of its own is no more trustworthy
+		// than the conversion its headline figure is denominated in.
+		.map(a => {
+			const confidence = weakest(a.confidence, conversion.confidence);
+			if (confidence === a.confidence) {
+				return a;
+			}
+			return {
+				...a,
+				confidence,
+				why: [a.why, conversion.why].filter(Boolean).join(' ')
+			};
+		});
 }
 
 /** Cost per input token, split by whether the request read from the cache. */

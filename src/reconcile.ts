@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Entitlement, QuotaSnapshot, governingSnapshot } from './entitlement';
 import { Turn } from './sessions';
 import { Tuning, defaults } from './tuning';
+import { Confidence } from './confidence';
 
 /**
  * Checks that the two halves of the projection speak the same units.
@@ -290,4 +291,58 @@ export function periodCoverage(input: {
 			'miscalibrated; check tokenPie.creditsPerNanoAiu.';
 	}
 	return result;
+}
+
+/* ------------------------------------------- conversion confidence --- */
+
+/**
+ * How far the credit conversion can be trusted, from whether it has been checked.
+ *
+ * Every credit figure in the panel is an exact token count multiplied by
+ * `creditsPerNanoAiu`. The token counts are measured; the multiplier is a
+ * default that nothing proves. `confidence.ts` was built to carry exactly this
+ * doubt downstream, and until now nothing emitted `estimated`, so the rule had
+ * no way to fire and every derived figure claimed to be a measurement.
+ *
+ * `periodCoverage` is the only evidence available: when what this machine
+ * measured matches what GitHub billed over the same days, the conversion is
+ * confirmed against a real quota delta, and the figures built on it are
+ * measurements. Short of that they are estimates, whatever the token counts.
+ */
+export function conversionConfidence(
+	coverage: PeriodCoverage | undefined,
+	/** True when the developer has set the conversion themselves. */
+	overridden = false
+): { confidence: Confidence; why?: string } {
+	if (coverage?.verdict === 'complete') {
+		return { confidence: 'measured' };
+	}
+	if (coverage?.verdict === 'over') {
+		return {
+			confidence: 'estimated',
+			why: 'We measured more credits than GitHub billed over the same days, so the ' +
+				'conversion from nano-AIU to credits is probably wrong. Check ' +
+				'tokenPie.creditsPerNanoAiu against your billing dashboard.'
+		};
+	}
+
+	// A partial match is not a failed check. The shortfall is spend this install
+	// cannot see, which says nothing about the multiplier either way -- so it
+	// leaves the conversion unconfirmed rather than impugned.
+	const because = coverage?.verdict === 'partial'
+		? 'Some of your spend happened outside this install, so the check could not ' +
+			'confirm the conversion.'
+		: coverage === undefined
+		? 'Run Token Pie: Check Quota to compare it against what GitHub billed.'
+		: 'There is not yet enough overlapping history to check it.';
+
+	return {
+		confidence: 'estimated',
+		why: overridden
+			? `Token counts are exact, but the credits they are converted into rest on the ` +
+				`value you set for tokenPie.creditsPerNanoAiu, which has not been verified ` +
+				`against GitHub's own figure. ${because}`
+			: `Token counts are exact, but the credits they are converted into rest on a ` +
+				`default conversion nothing has verified. ${because}`
+	};
 }

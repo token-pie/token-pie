@@ -30,8 +30,9 @@ check('an estimate dominates a bound', weakest('bounded', 'estimated'), 'estimat
 check('order of inputs is irrelevant', weakest('estimated', 'measured'), weakest('measured', 'estimated'));
 
 // The case this rule exists for: every credit figure in the panel is built on
-// the nano-AIU conversion. If that is ever solved rather than assumed, the
-// totals inherit the doubt even though the token counts are exact.
+// the nano-AIU conversion, which is a default nothing verifies until the quota
+// reconciliation confirms it. `conversionConfidence` is what emits that doubt,
+// and `advise` is what combines it -- see reconcile.test.mjs and advice.test.mjs.
 check('an estimated conversion taints an exact count',
   weakest('measured', 'measured', 'estimated'), 'estimated');
 

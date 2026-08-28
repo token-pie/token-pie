@@ -501,6 +501,20 @@ check('no script tags in webview', /<script/i.test(html), false);
   });
   check('a mixed row claims neither', /new to this request/.test(mixed), true);
 
+  // A mark nobody can decode reads as a rendering fault, and a permanent
+  // disclaimer trains the reader to stop looking at badges that matter. So the
+  // sentence appears only when something on the page is actually marked.
+  const unverified = renderReport({
+    rollups: [{ ...priced, requests: 30, missRequests: 6, missInputTokens: 40000,
+      missNanoAiu: 8e9, model: 'priced-model' }],
+    creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+    warnings: [], projection: undefined, prices: { 'priced-model': stats }, depth: {}
+  });
+  const marked = /<span class="stake estimated"/.test(unverified);
+  check('an unverified conversion marks the findings it produced', marked, true);
+  check('and the page says what the mark is',
+    /The <strong>~<\/strong> on each figure is the credit/.test(unverified), true);
+
   check('labels avoid internal jargon',
     /input tokens|output tokens|not yet priced|\bturns?\b/.test(costHtml), false);
   check('what you send and what comes back are both named',

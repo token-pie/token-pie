@@ -159,5 +159,20 @@ check('a window inside one regime compares normally',
 check('history predating every card says the comparison is an assumption',
   /assumption rather than a record/.test(render().replace(/\s+/g, ' ')), true);
 
+// The console and the panel must not disagree about whether the figures on
+// them are measurements; both call conversionConfidence.
+console.log('\nthe conversion states what it makes everything else');
+check('an unchecked conversion makes derived figures estimated',
+  /therefore <strong class="warn">estimated<\/strong>/.test(html.replace(/\s+/g, ' ')), true);
+check('and says the panel marks them',
+  /marked <strong>~<\/strong>/.test(html.replace(/\s+/g, ' ')), true);
+const confirmed = render({ coverage: {
+  periodStart: 0, githubCredits: 20, localCredits: 20, localRequests: 20,
+  unaccounted: 0, share: 1, verdict: 'complete', note: '' } });
+check('a reconciled conversion makes them measurements',
+  /therefore <strong class="ok">measured<\/strong>/.test(confirmed.replace(/\s+/g, ' ')), true);
+check('and says nothing is marked',
+  /carry no doubt mark/.test(confirmed), true);
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

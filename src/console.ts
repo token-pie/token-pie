@@ -21,7 +21,7 @@ import { Rollup, Totals, sum, groupBy } from './store';
 import { PriceStats, solve, Price } from './pricing';
 import { KnobReading } from './tuning';
 import { LoadedCard, compare, lookup, RateComparison, effectiveAt } from './ratecard';
-import { PeriodCoverage } from './reconcile';
+import { PeriodCoverage, conversionConfidence } from './reconcile';
 import { escapeHtml, fmtInt, creditsOf } from './report';
 
 export interface ConsoleInput {
@@ -76,6 +76,10 @@ function conversionSection(input: ConsoleInput): string {
 			'it does not by itself impugn the conversion.' }
 		: { cls: 'unknown', text: escapeHtml(c.note) };
 
+	// The same call the panel makes, so the two pages cannot disagree about
+	// whether the figures on them are measurements.
+	const conf = conversionConfidence(c, !input.creditsPerNanoAiuIsDefault);
+
 	return `
 	<section>
 		<h2>The conversion</h2>
@@ -90,6 +94,11 @@ function conversionSection(input: ConsoleInput): string {
 					: '<strong>set by you</strong>'}</td></tr>
 		</table>
 		<p class="verdict-line ${verdict.cls}">${verdict.text}</p>
+		<p class="note">Everything derived from it is therefore
+			<strong class="${conf.confidence === 'measured' ? 'ok' : 'warn'}">${conf.confidence}</strong>.
+			${conf.confidence === 'measured'
+				? 'Findings on the panel carry no doubt mark from this.'
+				: 'Findings on the panel are marked <strong>~</strong> and carry this reason.'}</p>
 	</section>`;
 }
 

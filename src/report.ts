@@ -1,9 +1,9 @@
 import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum } from './store';
 import { Projection } from './projection';
-import { PeriodCoverage, periodCoverage } from './reconcile';
+import { PeriodCoverage, periodCoverage, conversionConfidence } from './reconcile';
 import { Tuning, defaults } from './tuning';
 import { Advice, advise, selectionMix } from './advice';
-import { prefix } from './confidence';
+import { prefix, Confidence } from './confidence';
 import { PriceStats, Price, solve } from './pricing';
 
 /**
@@ -239,6 +239,32 @@ function paceTiles(p: Projection): string {
 /** Whether the habits block already said something, so silence here is fine. */
 export function habitsFound(depth: Record<string, DepthStats> | undefined): boolean {
 	return Object.values(depth ?? {}).filter(d => d.warmRequests > 0).length >= 2;
+}
+
+/**
+ * What the mark on every chip means, said once.
+ *
+ * The chips carry `~` and a dashed border when a finding inherits doubt from
+ * the credit conversion, and a mark nobody can decode is worse than no mark:
+ * it reads as a rendering fault. One sentence, and only when something is
+ * actually marked -- a permanent disclaimer would train the reader to stop
+ * looking at the badges that matter.
+ */
+function conversionNote(
+	conversion: { confidence: Confidence; why?: string },
+	shown: Advice[]
+): string {
+	if (conversion.confidence === 'measured' || shown.length === 0) {
+		return '';
+	}
+	if (!shown.some(a => a.confidence === 'estimated')) {
+		return '';
+	}
+	return `<p class="note dim">The <strong>~</strong> on each figure is the credit
+		conversion, not the count behind it: token counts are exact, but turning them into
+		credits uses a multiplier nothing has checked yet. Run
+		<strong>Token Pie: Check Quota</strong> twice, a few messages apart, and these become
+		measurements.</p>`;
 }
 
 function adviceCards(items: Advice[], somethingElseSaid: boolean): string {
@@ -848,6 +874,8 @@ export interface ReportInput {
 	depth: Record<string, DepthStats>;
 	conversations?: Record<string, ConversationStats>;
 	history?: HistoryFacts;
+	/** True when the developer has set `creditsPerNanoAiu` themselves. */
+	conversionOverridden?: boolean;
 	/**
 	 * The gate ladder. Defaults when absent, so a caller that does not care --
 	 * a test, a fixture -- reads the same thresholds the extension ships with.
@@ -929,7 +957,12 @@ export function renderReport(input: ReportInput): string {
 		? `<h2>Daily spend</h2><div class="chart">${sparkColumns(days, creditsPerNanoAiu)}</div>`
 		: '';
 
-	const recommendations = advise(rollups, creditsPerNanoAiu, input.prices, p.remaining, tuning);
+	// The one assumption every credit figure rests on, resolved once and passed
+	// down rather than re-derived per finding.
+	const conversion = conversionConfidence(periodFit, input.conversionOverridden);
+	const recommendations = advise(
+		rollups, creditsPerNanoAiu, input.prices, p.remaining, tuning, conversion
+	);
 
 	const warnings = input.warnings.length
 		? `<div class="warn">${input.warnings.map(w => `<div>${escapeHtml(w)}</div>`).join('')}</div>`
@@ -1024,6 +1057,7 @@ ${STYLES}
 		<h2>What to change</h2>
 		${habits(input.depth, rollups, creditsPerNanoAiu, p, tuning.report.minBucketRequests)}
 		${adviceCards(recommendations, habitsFound(input.depth))}
+		${conversionNote(conversion, recommendations)}
 	</section>
 
 	<footer>

@@ -166,6 +166,7 @@ Each of these reversed an earlier assumption. Full evidence in `DECISIONS.md`.
 | Cost is linear in fresh/cached/output tokens, so the rate card is solvable | `pricing.ts` recovers it exactly; output is 4× fresh input and 12.5× cached |
 | GPT-5.6 Luna and Terra publish a cache-write price too, but emit no `cache_creation` attribute on this account | Only Anthropic's path populates it here. Do not infer "no cache write" from a missing attribute alone |
 | The solved "fresh" rate 0.25 is the published **cache-write** price ($2.50/M), not input ($2.00/M) | On sonnet, `cache_creation` covers all but 64 of the tokens that missed the cache, so the two classes are one population. Output is 5× plain input |
+| Every credit figure is an exact token count x an **assumed** multiplier | `creditsPerNanoAiu` is `estimated` until `periodCoverage` returns `complete`; findings inherit that through `weakest()` and render with `~` |
 | A fetched rate card never reprices earlier spend | Cards carry `effective` and accumulate; a comparison uses the card in force when the window opened, and is withheld outright when the window straddles a change |
 | Cache-write counts have **no column** on `spans` — only `gen_ai.usage.cache_creation.input_tokens` | Pulled as an attribute like `nano_aiu`. Absent on providers that do not bill it, which is a fact, not a gap |
 | GitHub's period spend and ours are different windows and different scopes | `reconcile.ts` `periodCoverage` compares them over the same days and names the remainder as spend this install cannot see |
@@ -191,7 +192,9 @@ src/
   projection.ts  burn rate x remaining quota -> verdict
   pricing.ts     solves the per-token rate card from sufficient statistics
   advice.ts      rollups -> ranked findings, each with its evidence.
-  confidence.ts  measured | bounded | estimated, and how doubt propagates
+  confidence.ts  measured | bounded | estimated, and how doubt propagates.
+                 `estimated` is emitted by conversionConfidence() and combined
+                 in advise(); nothing else may claim a credit figure is measured
   tuning.ts      every gate in one place, with its provenance. Settings are
                  GENERATED from it -- run `npm run sync:settings` after editing
   ratecard.ts    GitHub's published prices as data; the second opinion on the

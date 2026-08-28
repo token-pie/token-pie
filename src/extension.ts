@@ -627,9 +627,14 @@ function buildHtml(): string {
 			: 1;
 
 	const t = tuning().tuning;
+	const inspected = config().inspect<number>('creditsPerNanoAiu');
 	return renderReport({
 		rollups: store.since(t.history.days),
 		creditsPerNanoAiu: creditsPerNanoAiu(),
+		// Whether the developer set this changes only how the doubt is worded,
+		// not whether there is any: a hand-set conversion is still unverified.
+		conversionOverridden: inspected?.globalValue !== undefined
+			|| inspected?.workspaceValue !== undefined,
 		tuning: t,
 		dbCount: lastResult?.dbCount ?? 0,
 		lastRefresh,
