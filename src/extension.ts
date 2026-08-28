@@ -29,6 +29,7 @@ let statusBar: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
 let panel: vscode.WebviewPanel | undefined;
 let consolePanel: vscode.WebviewPanel | undefined;
+let sidebar: vscode.WebviewView | undefined;
 let timer: NodeJS.Timeout | undefined;
 let lastRefresh: Date | undefined;
 let lastResult: IngestResult | undefined;
@@ -77,7 +78,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('tokenPie.refreshRateCard', () => refreshRateCard(true)),
 		vscode.commands.registerCommand('tokenPie.purgeContent', () => purgeContent()),
 		vscode.commands.registerCommand('tokenPie.checkQuota', () => checkQuota()),
-		vscode.commands.registerCommand('tokenPie.showLogs', () => output.show(true))
+		vscode.commands.registerCommand('tokenPie.showLogs', () => output.show(true)),
+		// The sidebar is the surface that does not need summoning; the panel and
+		// the console remain, reachable from its title bar.
+		vscode.window.registerWebviewViewProvider('tokenPie.sidebar', new SidebarProvider())
 	);
 
 	context.subscriptions.push(
@@ -86,15 +90,10 @@ export function activate(context: vscode.ExtensionContext): void {
 				return;
 			}
 			scheduleRefresh();
-			// Both pages read the gate ladder live. Someone raising a floor to
-			// see what it was withholding should see the answer immediately,
+			// Every surface reads the gate ladder live. Someone raising a floor
+			// to see what it was withholding should see the answer immediately,
 			// which is the only way the console is worth opening twice.
-			if (panel) {
-				panel.webview.html = buildHtml();
-			}
-			if (consolePanel) {
-				consolePanel.webview.html = buildConsoleHtml();
-			}
+			repaint();
 		})
 	);
 
@@ -330,9 +329,7 @@ async function runRefresh(interactive: boolean): Promise<void> {
 		setProgress({ phase: 'ready' });
 		recomputeProjection();
 		updateStatusBar();
-		if (panel) {
-			panel.webview.html = buildHtml();
-		}
+		repaint();
 
 		if (interactive) {
 			void vscode.window.showInformationMessage(
@@ -777,6 +774,45 @@ function showConsole(context: vscode.ExtensionContext): void {
 	consolePanel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'images', 'icon.png');
 	consolePanel.webview.html = buildConsoleHtml();
 	consolePanel.onDidDispose(() => { consolePanel = undefined; }, undefined, context.subscriptions);
+}
+
+/* ------------------------------------------------------- sidebar --- */
+
+/**
+ * The panel, in the activity bar.
+ *
+ * A view you have to summon is a view you check when you already suspect
+ * something, which is exactly when the number is least useful. The same render
+ * as the panel -- one source of truth for what the figures say -- laid out for
+ * a narrow column by the stylesheet's own breakpoint.
+ */
+class SidebarProvider implements vscode.WebviewViewProvider {
+	resolveWebviewView(view: vscode.WebviewView): void {
+		sidebar = view;
+		view.webview.options = { enableScripts: false };
+		view.webview.html = buildHtml();
+		view.onDidDispose(() => { sidebar = undefined; });
+		// Repainted on reveal because it is cheap and because a view restored
+		// with the window can otherwise show figures from the previous session.
+		view.onDidChangeVisibility(() => {
+			if (view.visible) {
+				view.webview.html = buildHtml();
+			}
+		});
+	}
+}
+
+/** Every surface that draws the rollup, repainted from one place. */
+function repaint(): void {
+	if (sidebar) {
+		sidebar.webview.html = buildHtml();
+	}
+	if (panel) {
+		panel.webview.html = buildHtml();
+	}
+	if (consolePanel) {
+		consolePanel.webview.html = buildConsoleHtml();
+	}
 }
 
 function showReport(context: vscode.ExtensionContext): void {

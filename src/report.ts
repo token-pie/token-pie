@@ -587,7 +587,7 @@ function compositionTable(rows: CompRow[], withCost: boolean, caption: string): 
 		})
 		.join('');
 
-	return `<table class="comp">
+	return `<div class="tw"><table class="comp">
 		<!-- Two columns both called "Share" left position as the only clue to
 		     which measure each belonged to. Each now names its own denominator,
 		     and the token one borrows the caption's word so the pair reads as
@@ -597,7 +597,7 @@ function compositionTable(rows: CompRow[], withCost: boolean, caption: string): 
 			withCost ? '<th class="num">Credits</th><th class="num">% of spend</th>' : ''}
 		    <th class="num">Tokens</th><th class="num">% of text</th></tr>
 		${body}
-	</table>`;
+	</table></div>`;
 }
 
 function hueBar(fraction: number, cls: string): string {
@@ -720,7 +720,7 @@ function conversationTable(
 		new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
 	return `
-	<table class="spaced">
+	<div class="tw"><table class="spaced">
 		<tr><th>By conversation</th><th class="num">Messages</th>
 		    <th class="num">Each</th>
 		    <th class="num">Credits</th><th>% of spend</th></tr>
@@ -732,7 +732,7 @@ function conversationTable(
 			<td class="share">${bar(totalCredits > 0 ? c.credits / totalCredits : 0)}<span
 				class="pct">${totalCredits > 0 ? ((c.credits / totalCredits) * 100).toFixed(0) : 0}%</span></td>
 		</tr>`).join('')}
-	</table>`;
+	</table></div>`;
 }
 
 /** Where the money sits by position in the chat -- a breakdown, not a claim. */
@@ -750,7 +750,7 @@ function depthTable(
 	}
 
 	return `
-	<table class="spaced">
+	<div class="tw"><table class="spaced">
 		<tr><th>By position in the chat</th><th class="num">Messages</th>
 		    <th class="num">Credits</th><th>Share</th></tr>
 		${rows.map(r => {
@@ -763,7 +763,7 @@ function depthTable(
 			<td>${hueBar(share, 'c-fresh')} ${(share * 100).toFixed(0)}%</td>
 		</tr>`;
 		}).join('')}
-	</table>`;
+	</table></div>`;
 }
 
 /* ---------------------------------------------------------------- table --- */
@@ -1031,20 +1031,20 @@ ${STYLES}
 
 		${compositionBar(rollups, input.prices, creditsPerNanoAiu, tuning) || '<p class="dim">no data</p>'}
 
-		<table>
+		<div class="tw"><table>
 			<tr><th>By model</th><th>Chosen by</th><th class="num">Messages</th>
 			    <th class="num">Tokens</th>
 			    ${anyThinking ? '<th class="num">Thinking</th>' : ''}
 			    <th class="num">Credits</th><th>Share</th></tr>
 			${breakdownRows(byModel, creditsPerNanoAiu, totalCredits, rollups, anyThinking)}
-		</table>
+		</table></div>
 
-		<table class="spaced">
+		<div class="tw"><table class="spaced">
 			<tr><th>By project</th><th class="num">Messages</th>
 			    <th class="num">Tokens</th>
 			    <th class="num">Credits</th><th>Share</th></tr>
 			${breakdownRows(byWorkspace, creditsPerNanoAiu, totalCredits)}
-		</table>
+		</table></div>
 
 		${conversationTable(input.conversations, creditsPerNanoAiu, totalCredits)}
 
@@ -1229,6 +1229,10 @@ function sparkColumns(days: [string, Totals][], creditsPerNanoAiu: number): stri
 }
 
 const STYLES = `
+	/* Nothing may push the page sideways. A table with six columns is wider than
+	   a sidebar and always will be, so it scrolls inside its own box; the page
+	   itself never does. */
+	.tw { overflow-x: auto; }
 	body {
 		font-family: var(--vscode-font-family);
 		font-size: var(--vscode-font-size);
@@ -1341,6 +1345,34 @@ const STYLES = `
 	/* Anything that is not a measurement drops out of the accent colour, so a
 	   solid finding is distinguishable at a glance and not by reading the mark
 	   alone. Colour is never the only carrier: the chip also gains a prefix. */
+	/*
+	 * The sidebar.
+	 *
+	 * The panel was laid out for an editor group and the sidebar is a third of
+	 * that, so the flex rows that wrap on a narrow split do not wrap here --
+	 * their min-widths add up to more than the column is wide, and the page
+	 * overflows instead. Below the breakpoint those minimums go, the two-column
+	 * rows stack, and the padding comes in.
+	 */
+	@media (max-width: 560px) {
+		body { padding: 12px 14px 20px; }
+		header { gap: 6px 10px; }
+		.say { flex: 1 1 100%; min-width: 0; }
+		.sentence { flex: 1 1 100%; min-width: 0; }
+		.verdict { padding: 12px 13px; }
+		.verdict-top { gap: 10px 16px; }
+		.hero { font-size: 2rem; }
+		.tiles { gap: 14px; }
+		.tile { flex: 1 1 100%; }
+		.meter-head, .meter-foot { flex-wrap: wrap; gap: 2px 10px; }
+		.card > summary { padding: 11px 12px; gap: 8px; flex-wrap: wrap; }
+		.card-body, .detail-body { padding-left: 12px; padding-right: 12px; }
+		.card-evidence { margin-left: 12px; margin-right: 12px; }
+		/* Monospace evidence at panel size is far wider than a sidebar; it wraps
+		   rather than reaching for a horizontal scrollbar the page must not have. */
+		.card-evidence, .rate-card { overflow-wrap: anywhere; }
+	}
+
 	.stake.bounded, .stake.estimated {
 	                 color: var(--vscode-descriptionForeground);
 	                 border-color: var(--vscode-widget-border, rgba(128,128,128,0.4)); }
@@ -1358,7 +1390,10 @@ const STYLES = `
 	.composition { margin-bottom: 28px; }
 
 	.comp td, .comp th { padding: 4px 12px 4px 0; }
-	table.spaced { margin-top: 26px; }
+	/* The gap belongs to the scroll box, not to the table inside it: a margin
+	   on the table is inside the wrapper and leaves two wrappers flush. */
+	.tw:has(> table.spaced) { margin-top: 26px; }
+	table.spaced { margin-top: 0; }
 	.depth { border-collapse: collapse; width: 100%; margin-bottom: 12px;
 	         font-variant-numeric: tabular-nums; }
 	.depth td { padding: 3px 10px 3px 0; border: none; font-size: 0.83rem; }

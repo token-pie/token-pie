@@ -105,6 +105,27 @@ const PROBE = `<script>(() => {
   };
   walk(document.body);
 
+  // Horizontal overflow. The sidebar is a third the width the panel was laid
+  // out for, and a page that scrolls sideways in a column that narrow is
+  // unusable -- so anything genuinely wider than the column, a six-column
+  // table, must scroll inside its own box instead of pushing the page.
+  const overflow = [];
+  const limit = document.body.getBoundingClientRect().right;
+  for (const e of document.querySelectorAll('*')) {
+    // The root element is the viewport, which headless will not shrink below
+    // ~485px, and body is the ruler everything else is measured against.
+    if (e === document.documentElement || e === document.body) continue;
+    if (e.closest('.tw')) continue;
+    const r = e.getBoundingClientRect();
+    if (r.width > 0 && r.right > limit + 1) {
+      overflow.push({
+        what: e.tagName.toLowerCase() +
+          (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/).join('.') : ''),
+        over: Math.round(r.right - limit)
+      });
+    }
+  }
+
   // Contrast, against whatever actually paints behind the text rather than
   // against what the rule nearest it declares.
   const rgb = v => (v.match(/[\\d.]+/g) || []).map(Number);
@@ -144,7 +165,8 @@ const PROBE = `<script>(() => {
 
   const pre = document.createElement('pre');
   pre.id = 'measurements';
-  pre.textContent = JSON.stringify({ rows, contrast });
+  pre.textContent = JSON.stringify({ rows, contrast, overflow,
+    body: { client: document.body.clientWidth, scroll: document.body.scrollWidth } });
   document.body.appendChild(pre);
 })();</script>`;
 
@@ -154,17 +176,23 @@ const PROBE = `<script>(() => {
  * Without this the probe measures against browser defaults -- black on white --
  * and every contrast reading is a fiction.
  */
-function themed(html, theme) {
+function themed(html, theme, width) {
   const palette = theme === 'light' ? LIGHT : DARK;
+  // Width is forced on `body` rather than through --window-size: headless
+  // clamps the viewport to about 485px, so a sidebar measured that way is not
+  // a sidebar at all.
+  const clamp = width
+    ? `body { width: ${width}px !important; max-width: ${width}px !important; margin: 0 !important; }\n`
+    : '';
   return html.replace('<style>',
     `<style>:root {\n${vars(palette)}\n}\n` +
-    `html, body { background: var(--vscode-editor-background); }\n`);
+    `html, body { background: var(--vscode-editor-background); }\n${clamp}`);
 }
 
-function measure(html, file, theme = 'dark') {
+function measure(html, file, theme = 'dark', width) {
   // The pages ship `default-src 'none'`, which is right for a webview and
   // blocks the probe, and every <details> is opened so nothing hides.
-  const prepared = themed(html, theme)
+  const prepared = themed(html, theme, width)
     .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/g, '')
     .replace(/<details([^>]*?)(?<! open)>/g, '<details$1 open>') + PROBE;
   fs.writeFileSync(file, prepared);
@@ -242,7 +270,8 @@ const pages = {
 for (const [name, html] of Object.entries(pages)) {
   for (const theme of ['dark', 'light']) {
     console.log(`\n${name} (${theme})`);
-    const { rows, contrast } = await measure(html, path.join(dir, `${name}-${theme}.html`), theme);
+    const { rows, contrast, overflow } = await measure(
+      html, path.join(dir, `${name}-${theme}.html`), theme);
 
     check('something was measured', rows.length > 20, true);
     const cramped = rows.filter(r => r.gap < MIN_GAP
@@ -252,6 +281,9 @@ for (const [name, html] of Object.entries(pages)) {
     console.log(`        ${rows.length} adjacent pairs, tightest ${
       Math.min(...rows.map(r => r.gap))}px`);
 
+    check('nothing pushes the page sideways',
+      overflow.map(o => `${o.what} +${o.over}px`).join(', '), '');
+
     const dim = contrast.filter(c => c.ratio < (c.large ? MIN_CONTRAST_LARGE : MIN_CONTRAST));
     check(`every run of text clears its WCAG bar`,
       dim.map(c => `${c.what} "${c.text}" ${c.px}px @${c.ratio}:1`).join(', '), '');
@@ -259,6 +291,19 @@ for (const [name, html] of Object.entries(pages)) {
     console.log(`        ${contrast.length} text runs, faintest body ${
       Math.min(...body.map(c => c.ratio))}:1`);
   }
+}
+
+// The panel is the one that has to survive a sidebar; the console opens as an
+// editor tab and is never that narrow.
+console.log('\npanel in a sidebar (320px)');
+{
+  const { rows, overflow, body } = await measure(
+    pages.panel, path.join(dir, 'panel-narrow.html'), 'dark', 320);
+  check('nothing pushes the page sideways',
+    overflow.map(o => `${o.what} +${o.over}px`).join(', '), '');
+  check('so the page itself does not scroll horizontally', body.scroll, body.client);
+  check('and it still lays out', rows.length > 15, true);
+  console.log(`        ${rows.length} adjacent pairs at ${body.client}px`);
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

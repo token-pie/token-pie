@@ -32,7 +32,8 @@
       },
       {
         "command": "tokenPie.refresh",
-        "title": "Token Pie: Refresh Now"
+        "title": "Token Pie: Refresh Now",
+        "icon": "$(refresh)"
       },
       {
         "command": "tokenPie.doctor",
@@ -134,6 +135,41 @@
           "command": "tokenPie.showReport",
           "when": "activeWebviewPanelId == 'tokenPie.console'",
           "group": "navigation@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "tokenPie.showReport",
+          "when": "view == tokenPie.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tokenPie.debugConsole",
+          "when": "view == tokenPie.sidebar",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tokenPie.refresh",
+          "when": "view == tokenPie.sidebar",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tokenPie",
+          "title": "Token Pie",
+          "icon": "images/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "tokenPie": [
+        {
+          "id": "tokenPie.sidebar",
+          "name": "Usage",
+          "type": "webview"
         }
       ]
     }

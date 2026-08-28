@@ -56,13 +56,20 @@ for (const [label, re] of [
 
 // This was `/Screen-\d\.png$/`, which only ever caught two files by name. Two
 // debug screenshots written into the repo root by a headless-Chrome run
-// packaged cleanly and passed. The rule is now the reverse: the icon named in
-// the manifest is the only image allowed to ship, whatever it is called.
-const icon = (JSON.parse(read('package.json')).icon ?? '').replace(/^\.\//, '');
+// packaged cleanly and passed. The rule is now the reverse: an image may ship
+// only if the manifest names it, whatever it is called -- the marketplace icon
+// or a view-container icon, and nothing else.
+// The packed manifest, read as `packed`, is not bound until later; the source
+// one is already here and vsce does not rewrite `contributes`.
+const icon = (manifest.icon ?? '').replace(/^\.\//, '');
+const declaredImages = new Set([icon,
+  ...(manifest.contributes?.viewsContainers?.activitybar ?? [])
+    .map(c => (c.icon ?? '').replace(/^\.\//, ''))
+].filter(Boolean));
 const strayImages = files
   .map(f => path.relative(ext, f))
-  .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f) && f !== icon);
-check('no images beyond the manifest icon', strayImages.length === 0, strayImages.join(', '));
+  .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f) && !declaredImages.has(f));
+check('no images the manifest does not name', strayImages.length === 0, strayImages.join(', '));
 
 // A block-list keeps losing this race: it was two filenames, then any image,
 // and a stray probe .html still walked through. `.vscodeignore` excludes known
@@ -73,7 +80,8 @@ const allowed = [
   /^out\/[a-z]+\.js$/, new RegExp(`^${icon.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
   // The published price table. Shipped so the comparison against measured
   // rates works offline and on first run, before any weekly fetch.
-  /^rate-card\.json$/
+  /^rate-card\.json$/,
+  /^images\/activity-bar\.svg$/
 ];
 const unexpected = files
   .map(f => path.relative(ext, f))
@@ -129,6 +137,15 @@ check('and the entry is not an empty stub',
   (section ?? '').split('\n').slice(1).filter(l => !/^#+\s/.test(l)).join('').trim().length > 0,
   'heading with nothing under it');
 check('icon is present', fs.existsSync(path.join(ext, packed.icon ?? '')));
+
+// The allow-list only proves nothing unexpected shipped. Anything the manifest
+// points at has to be proved present separately: `images/*.svg` was excluded,
+// so the activity-bar icon was left out and the container would have rendered
+// with no icon at all, which the package check could not see.
+for (const c of packed.contributes?.viewsContainers?.activitybar ?? []) {
+  check(`view container icon ships: ${c.icon}`,
+    Boolean(c.icon) && fs.existsSync(path.join(ext, c.icon)));
+}
 check('publisher is set', Boolean(packed.publisher));
 check('repository is set', Boolean(packed.repository));
 

@@ -216,6 +216,8 @@ src/
   console.ts     the debug console: the conversion, the rate card, the gates
                  (marked when withholding), the pipeline. `npm run console`
   report.ts      the webview. No scripts; <details> for progressive disclosure.
+                 One render, three hosts: sidebar view, editor panel, preview.
+                 Narrow layout is a @media breakpoint, not a second renderer
   purge.ts       the only writer to a database we do not own
   sessions.ts    session-file turns; used for reconciliation, NOT for spend
   reconcile.ts   two cross-checks: units (quota delta vs session
