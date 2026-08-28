@@ -453,33 +453,52 @@ which needs no script.
 ## Releasing
 
 ```bash
-npm version minor     # or patch / major
-# describe the version in CHANGELOG.md
-npm run build         # clean, compile, test, package, preflight
+npm run release       # the commits choose the version; the hooks write the notes
+# read the new section in CHANGELOG.md and improve the prose if it needs it
+npm run build         # clean, compile, test, package, preflight, audit
+git push && git push --tags
 ```
 
-`npm version` is the entry point, not a wrapper around it. It already bumps
+The version is a **function of the log**, not a judgement call. Every commit
+since the last tag carries a type the hook enforced, so the bump follows:
+
+| in the log | bump |
+|---|---|
+| `BREAKING CHANGE:` footer, or `!` after the type | major |
+| `feat` | minor |
+| `fix`, `perf`, `revert` | patch |
+| `chore`, `docs`, `test`, `refactor`, `ci`, `build`, `style` | none — nothing to release |
+
+Choosing it by eye is how 0.2.1 shipped with features in it under a patch bump.
+`scripts/release.mjs` reads the range, prints every user-facing commit with the
+level it demands, and hands the result to `npm version`. `--dry-run` shows the
+decision without taking it.
+
+**Major zero holds breaking at a minor.** SemVer says anything may change while
+the major is 0, so a `feat!` at 0.x is not the milestone that 1.0.0 announces —
+it bumps to 0.4.0, and `npm run release -- --major` is how you declare 1.0.0 on
+purpose. This is the one deliberate departure from `semantic-release`, which
+promotes on the first breaking change.
+
+`npm version` stays the mechanism, not something wrapped away. It already bumps
 `package.json`, both `package-lock.json` fields, and creates the commit and tag.
 A bespoke `npm run bump` was written first and removed: it duplicated all of
 that slightly worse, and — the failure that mattered — it was the thing you had
-to remember to use *instead of* the standard command. Reaching for
-`npm version` then left the changelog behind and preflight refused to package,
-with the version and the changelog silently out of step.
+to remember to use *instead of* the standard command. So `npm version 1.0.0` by
+hand still works, and still gets its notes; `npm run release` only chooses the
+number.
 
 Two lifecycle hooks fill the gaps npm leaves:
 
 | hook | does |
 |---|---|
 | `preversion` | runs the suite, so a failing tree cannot be versioned |
-| `version` | opens a `CHANGELOG.md` heading and `git add`s it into the version commit |
+| `version` | writes the `CHANGELOG.md` section from the commits and `git add`s it |
 
-The heading goes in **empty on purpose**: preflight fails on an entry with no
-prose under it, so a forgotten changelog stops the build rather than shipping a
-version nobody described. Write the notes, then commit them — the version commit
-itself carries only the stub.
-
-The hook also asks the Marketplace what is live and warns if the new version is
-not ahead of it. Advisory only; being offline never blocks a bump.
+The hook runs after the bump and before the commit, so `lastTag..HEAD` is
+exactly the work being released. It also asks the Marketplace what is live and
+warns if the new version is not ahead of it — advisory only; being offline never
+blocks a bump.
 
 ### Conventional commits
 
@@ -490,10 +509,29 @@ committing:
 git config core.hooksPath .githooks   # once per clone; git does not clone hooks
 ```
 
-The type prefix is not tidiness. `feat`, `fix` and `perf` are the commits that
-belong in release notes and `chore`, `docs`, `test`, `refactor`, `ci`, `build`
-and `style` are the ones that do not — which is what makes the release audit
-possible at all.
+The type prefix is not tidiness. It is the input to both the version and the
+notes, which is why the hook rejects a subject without one rather than warning.
+`scripts/conventional.mjs` holds the parse, the level mapping and the renderer
+in one place, so the audit cannot disagree with the bump about which commits
+were user-facing.
+
+### Generated notes, edited afterwards
+
+The section arrives populated and grouped — Breaking, Added, Fixed, Faster,
+Reverted — with the scope as the bold lead where a commit had one.
+
+A generated list of commit subjects is still a worse artefact than prose written
+on purpose, and this changelog is the Marketplace release notes, the first thing
+a prospective user reads. That argued for years against generating it at all,
+and the argument was wrong in one specific way: the empty stub it justified is
+the step that got skipped. 0.3.0 was tagged with a heading and nothing under it.
+A generated draft that someone rewrites is strictly better than a blank one
+someone forgets, because the failure mode is a rough line rather than no line.
+
+So generation is the floor, not the ceiling. Edit the section before building —
+merge churn that cancelled out, promote the one entry that matters, write the
+bold lead. 0.3.0 had a sidebar added and reverted inside the same release; both
+lines generated, and neither belongs in notes a user reads.
 
 ### The release audit
 
@@ -503,17 +541,11 @@ the failure that actually happened — entries kept being appended to a version
 already published, because nothing said that section was closed. The version and
 the changelog drifted in content before they drifted in number.
 
-With conventional types the question has a mechanical form: how many user-facing
-commits since the last tag, against how many bullets under the current heading.
-It fails outright on user-facing commits with nothing written, and notes when
-there are fewer bullets than commits. It cannot verify a word of the prose — it
-can stop a release where four features landed and one line was written.
-
-**Not adopted:** `standard-version`, `semantic-release` and friends *generate*
-the changelog from commit subjects. This changelog is the Marketplace release
-notes — the first thing a prospective user reads — and a list of commit subjects
-is a worse artefact than prose someone wrote on purpose. The convention is
-adopted for what it makes checkable, not for what it can write.
+The question has a mechanical form: how many user-facing commits since the last
+tag, against how many bullets under the current heading. It fails outright on
+user-facing commits with nothing written, and notes when there are fewer bullets
+than commits — which is now a signal that someone edited the generated section,
+and worth a glance rather than an alarm. It cannot verify a word of the prose.
 
 ## Previewing the panel
 

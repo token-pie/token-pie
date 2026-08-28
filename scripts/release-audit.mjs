@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { commits, userFacing } from './conventional.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -28,8 +29,6 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const git = cmd =>
 	execSync(cmd, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
-const USER_FACING = new Set(['feat', 'fix', 'perf']);
-
 let since;
 try {
 	since = git('git describe --tags --abbrev=0');
@@ -37,25 +36,22 @@ try {
 	since = undefined; // no tags yet: the whole history is unreleased
 }
 
-let commits = [];
+const range = since ? `${since}..HEAD` : 'HEAD';
+let total = 0;
+let parsed = [];
 try {
-	const range = since ? `${since}..HEAD` : 'HEAD';
 	const out = git(`git log ${range} --format=%s`);
-	commits = out ? out.split('\n') : [];
+	total = out ? out.split('\n').length : 0;
+	// The same parse the bump uses, so the audit cannot disagree with the
+	// version about which commits were user-facing.
+	parsed = commits(range, git);
 } catch {
 	console.log('  not a git checkout; nothing to audit');
 	process.exit(0);
 }
 
-const parsed = commits
-	.map(s => {
-		const m = s.match(/^([a-z]+)(\([^)]*\))?(!)?: (.*)$/);
-		return m ? { type: m[1], breaking: Boolean(m[3]), subject: m[4] } : undefined;
-	})
-	.filter(c => c !== undefined);
-
-const unconventional = commits.length - parsed.length;
-const facing = parsed.filter(c => USER_FACING.has(c.type) || c.breaking);
+const unconventional = total - parsed.length;
+const facing = userFacing(parsed);
 
 // The current version's section, up to the next top-level heading.
 const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
@@ -70,7 +66,7 @@ if (!since) {
 	console.log('\n  no version tags yet, so this spans already-released work.');
 	console.log('  `npm version` tags from here on and the range becomes exact.');
 }
-console.log(`\n  since ${since ?? 'the first commit'}: ${commits.length} commit(s)` +
+console.log(`\n  since ${since ?? 'the first commit'}: ${total} commit(s)` +
 	`, ${facing.length} user-facing`);
 if (unconventional > 0) {
 	console.log(`  ${unconventional} not conventional (older history; the hook covers new ones)`);

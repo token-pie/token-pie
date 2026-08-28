@@ -250,7 +250,9 @@ npm test            # 244 checks across nine suites
                     #   responsive   the pipeline must not block the editor
                     #   confidence   measured / bounded / estimated, and combining
                     #   selftest     the whole pipeline on a synthetic database
-npm version minor   # patch|minor|major; hooks run tests + open a changelog entry
+npm run release     # the commits pick the bump; --dry-run to see it first
+                    #   feat -> minor, fix/perf/revert -> patch, ! -> major
+                    #   at 0.x a breaking change lands as a minor, not 1.0.0
 npm run audit       # user-facing commits since the last tag vs changelog bullets
 npm run build       # clean, compile, test, package, preflight
 npm run preview     # render THIS machine's rollup as the panel, in a browser

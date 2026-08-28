@@ -1,6 +1,33 @@
 # Changelog
 
-## 0.3.0
+## 0.3.0 - 2026-08-28
+
+### Added
+
+- reconcile github's period spend against ours on the panel
+- make every gate a setting, with its provenance
+- publish the prices and the gates as things you can see and set
+- the console answers before it explains
+- three settings, fourteen rules, and prices that keep checking
+- a week beside the verdict, instead of a run of days below it
+
+### Fixed
+
+- name the cache-write premium the fresh-input row was hiding
+- date the rate card so a price change cannot reach backwards
+- a credit figure is no better than the conversion behind it
+- give the hero figure room, and a way into the console
+- the console's table, its spacing, and a withheld comparison
+- the rate card was two tables pretending to be one
+- one spacing scale, and a test that measures it
+- chart colours are fills, and I kept using them as text
+- headless runs were fighting the browser you had open
+- write previews where the browser can read them
+- select the group blurb through its parent, not by class alone
+- a price list that is not published yet is not a failure
+- the rendering harness leaked a Chrome process on every run
+- drop TP from the status bar, and say which way the percent runs
+- the narrow-layout check was testing the wide layout
 
 
 ## 0.2.1

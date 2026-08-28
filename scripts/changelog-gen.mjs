@@ -1,25 +1,25 @@
 #!/usr/bin/env node
 /**
- * Opens a changelog entry for the version `npm version` has just written.
+ * Writes the changelog entry for the version `npm version` has just written.
  *
  * This is a hook, not a version tool. `npm version` already does the bump
  * properly — `package.json`, both `package-lock.json` fields, the git tag — and
  * a bespoke reimplementation of it was worse in the one way that matters: it
  * was the thing you had to remember to use instead of the standard command.
- * Reaching for `npm version` then left the changelog behind and preflight
- * refused to package.
  *
- * So the standard command stays the entry point and this fills the one gap it
- * has, from the `version` lifecycle script:
+ * It used to open the section empty and leave the prose to whoever remembered.
+ * That is the step that got skipped: 0.3.0 was tagged with a heading and
+ * nothing under it. The commits already say what landed, in a format a hook
+ * enforces, so the section is generated from them and editing it afterwards is
+ * an improvement rather than the only thing standing between a tag and notes.
  *
- *   npm version minor     ->  bump, then this, then commit + tag
- *
- * The heading goes in empty on purpose: preflight fails on an entry with no
- * prose under it, so a forgotten changelog stops the build.
+ * Runs after the bump and before the commit, so `lastTag..HEAD` is exactly the
+ * work being released.
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
+import { commits, render, userFacing } from './conventional.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -37,8 +37,25 @@ if (!log.startsWith(marker)) {
 	console.error('CHANGELOG.md does not start with "# Changelog"');
 	process.exit(1);
 }
-fs.writeFileSync(logPath, log.replace(marker, `${marker}\n## ${pkg.version}\n\n`));
-console.log(`opened a changelog entry for ${pkg.version}`);
+
+// stderr piped: `git describe` with no tags is an expected state here.
+const git = cmd =>
+	execSync(cmd, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+let since;
+try { since = git('git describe --tags --abbrev=0'); } catch { since = undefined; }
+
+const parsed = userFacing(commits(since ? `${since}..HEAD` : 'HEAD', git));
+const date = new Date().toISOString().slice(0, 10);
+// A release with nothing user-facing in it is a real thing — a dependency bump,
+// a rebuilt package. Preflight still refuses an empty heading, so say that
+// plainly rather than leaving a hole for someone to fill with nothing.
+const section = parsed.length
+	? render(parsed, pkg.version, date)
+	: `## ${pkg.version} - ${date}\n\n- maintenance only; nothing user-facing changed.\n`;
+
+fs.writeFileSync(logPath, log.replace(marker, `${marker}\n${section}\n`));
+console.log(`wrote ${parsed.length} entr${parsed.length === 1 ? 'y' : 'ies'} for ${pkg.version}` +
+	` from ${since ?? 'the first commit'}..HEAD`);
 
 // Advisory only: the Marketplace rejects a version that is already live, and
 // finding that out at publish time is late. Never blocks — being offline is not
@@ -63,4 +80,4 @@ try {
 	}
 } catch { /* offline, or not listed yet */ }
 
-console.log(`next: describe ${pkg.version} in CHANGELOG.md, then npm run build`);
+console.log(`next: read ${pkg.version} in CHANGELOG.md, then npm run build`);
