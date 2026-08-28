@@ -31,15 +31,51 @@ export interface IngestResult {
 const OVERLAP_MS = 5 * 60 * 1000;
 
 /**
- * Only `chat` spans are billable LLM calls.
+ * Only `chat` spans are billable LLM calls -- where that is what they are called.
  *
  * This filter is load-bearing. An agent turn produces an `invoke_agent` span
  * that repeats its child `chat` span's token counts verbatim -- 18,183 input
  * tokens appearing on both -- while carrying no cost attribute of its own.
  * Counting every span with tokens on it would double every agent turn.
  * `execute_tool` spans carry no tokens at all.
+ *
+ * The name is the fallback, not the rule. Hardcoded, it matched nothing on a
+ * machine whose copilot-chat spelled the operation differently, and the failure
+ * was silent in the worst way: `MIN(start_time_ms)` is taken over the whole
+ * table with no filter, so the panel reported when recording had started while
+ * ingesting none of it, dressed the transcript backfill up as measurement, and
+ * attributed the entire billing period to other machines.
  */
 const BILLABLE_OPERATION = 'chat';
+
+/**
+ * Which operation names are billable on THIS database.
+ *
+ * What separates a billable span from the `invoke_agent` wrapper repeating its
+ * counts is not the name -- it is that only the billable one carries the cost
+ * attribute. Asking which names ever carry it derives the filter from the
+ * database rather than assuming last month's spelling, and keeps the
+ * anti-double-count guarantee for the same reason it held before.
+ *
+ * Names, not spans: a free model emits no cost attribute at all, and its
+ * requests still have to be counted.
+ */
+function billableOperations(db: DatabaseSync, schema: SpanSchema): string[] {
+	if (!schema.hasAttributes) {
+		return [BILLABLE_OPERATION];
+	}
+	try {
+		const rows = prepare(db,
+			`SELECT DISTINCT s.operation_name AS op FROM ${SPAN_TABLE} s ` +
+			`WHERE EXISTS (SELECT 1 FROM ${ATTR_TABLE} a ` +
+			`WHERE a.span_id = s.span_id AND a.key = ?)`
+		).all(NANO_AIU_KEY) as unknown as { op: unknown }[];
+		const ops = rows.map(r => str(r.op)).filter((o): o is string => Boolean(o));
+		return ops.length > 0 ? ops : [BILLABLE_OPERATION];
+	} catch {
+		return [BILLABLE_OPERATION];
+	}
+}
 
 /** `dbs` is injectable so the pipeline can be exercised against fixtures. */
 export async function ingestAll(
@@ -120,6 +156,8 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 			: 'NULL';
 		const nano = attr(NANO_AIU_KEY);
 
+		const billable = billableOperations(db, schema);
+
 		const sql =
 			`SELECT s.span_id AS span_id, s.start_time_ms AS start_ms, ` +
 			`${col('response_model')} AS response_model, ` +
@@ -133,12 +171,32 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 			`${nano} AS nano_aiu, ` +
 			`${attr(CACHE_WRITE_KEY)} AS cache_write_tokens ` +
 			`FROM ${SPAN_TABLE} s ` +
-			`WHERE s.operation_name = ? AND s.start_time_ms >= ? ` +
+			`WHERE s.operation_name IN (${billable.map(() => '?').join(', ')}) ` +
+			`AND s.start_time_ms >= ? ` +
 			// Turn ordinals are only meaningful in time order.
 			`ORDER BY s.start_time_ms ASC`;
 
 		const rows = prepare(db, sql)
-			.all(BILLABLE_OPERATION, since) as unknown as Record<string, unknown>[];
+			.all(...billable, since) as unknown as Record<string, unknown>[];
+
+		// Nothing matched, but the database is not empty: the filter and this
+		// schema disagree. Silence here is what let a machine present four days
+		// of transcript backfill as a measured billing period, so name both what
+		// was looked for and what is actually there.
+		if (rows.length === 0) {
+			const present = prepare(db,
+				`SELECT s.operation_name AS op, COUNT(*) AS n FROM ${SPAN_TABLE} s ` +
+				`WHERE s.start_time_ms >= ? GROUP BY s.operation_name ORDER BY n DESC`
+			).all(since) as unknown as { op: unknown; n: unknown }[];
+			if (present.length > 0) {
+				result.errors.push(
+					`No billable spans found in ${traceDb.path}. Looked for ` +
+					`${billable.join(', ')}; the database holds ` +
+					present.map(r => `${str(r.op) ?? '?'} (${num(r.n) ?? 0})`).join(', ') +
+					'. Credit figures come from chat transcripts, not measurement.'
+				);
+			}
+		}
 
 		// The earliest span overall, so the backfill knows where to stop.
 		const earliest = prepare(db, `SELECT MIN(start_time_ms) AS t FROM ${SPAN_TABLE}`)

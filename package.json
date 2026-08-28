@@ -148,7 +148,7 @@
     "purge": "tsc -p . && node scripts/purge-content.mjs",
     "test:entitlement": "tsc -p . && node scripts/entitlement.test.mjs",
     "test:projection": "tsc -p . && node scripts/projection.test.mjs",
-    "test": "tsc -p . && node scripts/entitlement.test.mjs && node scripts/projection.test.mjs && node scripts/advice.test.mjs && node scripts/confidence.test.mjs && node scripts/pricing.test.mjs && node scripts/depth.test.mjs && node scripts/fleet.test.mjs && node scripts/backfill.test.mjs && node scripts/reconcile.test.mjs && node scripts/tuning.test.mjs && node scripts/ratecard.test.mjs && node scripts/specs.test.mjs && node scripts/rendering.test.mjs && node scripts/responsive.test.mjs && node scripts/release.test.mjs && node scripts/selftest.mjs",
+    "test": "tsc -p . && node scripts/entitlement.test.mjs && node scripts/projection.test.mjs && node scripts/advice.test.mjs && node scripts/confidence.test.mjs && node scripts/pricing.test.mjs && node scripts/depth.test.mjs && node scripts/fleet.test.mjs && node scripts/backfill.test.mjs && node scripts/reconcile.test.mjs && node scripts/tuning.test.mjs && node scripts/ratecard.test.mjs && node scripts/specs.test.mjs && node scripts/rendering.test.mjs && node scripts/responsive.test.mjs && node scripts/operations.test.mjs && node scripts/release.test.mjs && node scripts/selftest.mjs",
     "test:advice": "tsc -p . && node scripts/advice.test.mjs",
     "test:pricing": "tsc -p . && node scripts/pricing.test.mjs",
     "test:depth": "tsc -p . && node scripts/depth.test.mjs",
@@ -173,7 +173,8 @@
     "specs": "tsc -p . && node scripts/preview.mjs --specs",
     "release": "node scripts/release.mjs",
     "test:release": "node scripts/release.test.mjs",
-    "diagnose": "node scripts/diagnose.mjs"
+    "diagnose": "node scripts/diagnose.mjs",
+    "test:operations": "tsc -p . && node scripts/operations.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
