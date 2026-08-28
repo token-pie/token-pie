@@ -1456,6 +1456,11 @@ const STYLES = `
 		.week { flex: 1 1 100%; border-left: none; padding-left: 0;
 		        border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
 		        padding-top: 14px; }
+		/* The floor that keeps the bar visible in a 30% column is three pixels
+		   more than a 320px split can spare once the day and the value have
+		   taken theirs. Lower here; the bar is still a bar. */
+		.wk-track { min-width: 34px; }
+		.wk-val { min-width: 0; }
 		.verdict-top { gap: 10px 16px; }
 		.hero { font-size: 2rem; }
 		.tiles { gap: 14px; }

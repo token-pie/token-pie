@@ -202,23 +202,39 @@ const PROBE = `<script>(() => {
  * Without this the probe measures against browser defaults -- black on white --
  * and every contrast reading is a fiction.
  */
-function themed(html, theme, width) {
+function themed(html, theme, narrow) {
   const palette = theme === 'light' ? LIGHT : DARK;
-  // Width is forced on `body` rather than through --window-size: headless
-  // clamps the viewport to about 485px, so a sidebar measured that way is not
-  // a sidebar at all.
-  const clamp = width
-    ? `body { width: ${width}px !important; max-width: ${width}px !important; margin: 0 !important; }\n`
-    : '';
-  return html.replace('<style>',
+  let out = html.replace('<style>',
     `<style>:root {\n${vars(palette)}\n}\n` +
-    `html, body { background: var(--vscode-editor-background); }\n${clamp}`);
+    `html, body { background: var(--vscode-editor-background); }\n`);
+  if (!narrow) {
+    return out;
+  }
+  // Headless ignores --window-size for --dump-dom, and a media query keys off
+  // the viewport, so neither the flag nor a clamp on the body can put the
+  // narrow stylesheet into effect. The breakpoint is unconditioned instead and
+  // the body constrained to match: what is under test is the narrow rules at a
+  // narrow width, which is what a split editor gives you.
+  out = out.replace(/@media \(max-width: \d+px\) \{/g, '@media all {');
+  return out.replace('</style>',
+    `body { width: ${narrow}px !important; max-width: ${narrow}px !important; ` +
+    `margin: 0 !important; }</style>`);
 }
 
-function measure(html, file, theme = 'dark', width) {
+/**
+ * Width is the viewport, not a clamp on the body.
+ *
+ * It was the latter, and that measured the wrong thing entirely: media queries
+ * key off the viewport, so a 320px body inside a wide window is a narrow box
+ * wearing the wide stylesheet. Every narrow-layout rule went unexercised and
+ * the check still passed. Headless will not go below about 485px, which is
+ * under the panel's 560px breakpoint, so a real narrow render is reachable --
+ * just not an arbitrarily small one.
+ */
+function measure(html, file, theme = 'dark', narrow) {
   // The pages ship `default-src 'none'`, which is right for a webview and
   // blocks the probe, and every <details> is opened so nothing hides.
-  const prepared = themed(html, theme, width)
+  const prepared = themed(html, theme, narrow)
     .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/g, '')
     .replace(/<details([^>]*?)(?<! open)>/g, '<details$1 open>') + PROBE;
   fs.writeFileSync(file, prepared);
@@ -331,6 +347,8 @@ console.log('\npanel in a narrow editor split (320px)');
     overflow.map(o => `${o.what} +${o.over}px`).join(', '), '');
   check('so the page itself does not scroll horizontally', body.scroll, body.client);
   check('and it still lays out', rows.length > 15, true);
+  // clientWidth carries the padding, so this is the 320px box plus 28px of it.
+  check('and the narrow layout is the one being measured', body.client < 560, true);
   console.log(`        ${rows.length} adjacent pairs at ${body.client}px`);
 }
 
