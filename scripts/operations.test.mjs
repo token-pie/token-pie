@@ -89,7 +89,7 @@ console.log('a database that spells the operation our way');
   const { result } = await run('chat', { operation: 'chat', wrapper: 'invoke_agent' });
   check('billable spans counted', result.spansCounted, 4);
   check('the wrapper is not counted twice', result.costSpans, 4);
-  check('and nothing is reported wrong', result.errors.length, 0);
+  check('and nothing is reported wrong', result.errors.length + result.notices.length, 0);
 }
 
 console.log('\na database that does not');
@@ -99,7 +99,7 @@ console.log('\na database that does not');
   const { result } = await run('other', { operation: 'llm.chat', wrapper: 'invoke_agent' });
   check('an unfamiliar name is still ingested', result.spansCounted, 4);
   check('the wrapper beside it still is not', result.costSpans, 4);
-  check('and this is not an error', result.errors.length, 0);
+  check('and this is not remarked on at all', result.errors.length + result.notices.length, 0);
 }
 
 console.log('\nthe wrapper alone is never billable');
@@ -110,14 +110,19 @@ console.log('\nthe wrapper alone is never billable');
   check('one operation discovered, not two', result.spansCounted, 4);
 }
 
-console.log('\na database we cannot read says so');
+console.log('\na database with nothing billable in it says so');
 {
-  // No span anywhere carries the cost attribute, so nothing is discoverable and
-  // the `chat` fallback matches nothing either.
+  // The work-machine shape: spans present, none carrying cost, so nothing is
+  // discoverable and the `chat` fallback matches nothing either.
   const { result } = await run('none', { operation: 'llm.chat', wrapper: undefined, cost: false });
   check('nothing was ingested', result.spansCounted, 0);
-  check('and it is reported', result.errors.length, 1);
-  const e = result.errors[0] ?? '';
+  check('and it is reported', result.notices.length, 1);
+  // Not an error. The status bar treats any error as a degraded install and
+  // sends its click to the log instead of the report, so filing this as one
+  // took the panel away from a machine whose only problem was an empty
+  // database -- which is exactly the machine that needed to read the panel.
+  check('as a finding, not a fault', result.errors.length, 0);
+  const e = result.notices[0] ?? '';
   check('the error names what was looked for', e.includes('chat'), true);
   check('and what the database actually holds', e.includes('llm.chat (4)'), true);
   // The panel showed transcript backfill as measurement; the warning has to

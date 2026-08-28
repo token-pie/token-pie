@@ -617,8 +617,13 @@ function buildHtml(): string {
 			'No agent-traces.db found. Run "Token Pie: Enable Local Trace Collection", reload, and use Copilot Chat.'
 		);
 	}
+	// Both reach the reader; only errors reach `lastErrors`, and only that
+	// makes the status bar send its click to the log rather than here.
 	if (lastResult?.errors.length) {
 		warnings.push(...lastResult.errors);
+	}
+	if (lastResult?.notices.length) {
+		warnings.push(...lastResult.notices);
 	}
 	// Only warn about content that is actually substantial. With
 	// maxAttributeSizeChars set to 1 the keys still exist but hold a single
@@ -768,7 +773,7 @@ function buildSpecsHtml(): string {
 			spansCounted: lastResult?.spansCounted ?? 0,
 			costSpans: lastResult?.costSpans ?? 0,
 			recoveredMessages: lastResult?.backfill?.turnsCounted ?? 0,
-			errors: lastResult?.errors ?? []
+			errors: [...(lastResult?.errors ?? []), ...(lastResult?.notices ?? [])]
 		},
 		lastRefresh
 	});

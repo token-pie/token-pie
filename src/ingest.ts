@@ -24,6 +24,16 @@ export interface IngestResult {
 	contentSpans: number;
 	contentBytes: number;
 	errors: string[];
+	/**
+	 * Findings about the data, as against faults in reading it.
+	 *
+	 * The distinction is load-bearing: the status bar treats any error as a
+	 * degraded install and sends its click to the log instead of the report. A
+	 * database read perfectly that holds nothing billable is not a degraded
+	 * install, and reporting it as one took the panel away from a machine whose
+	 * only problem was having nothing to show in it.
+	 */
+	notices: string[];
 	schemas: { db: string; schema: SpanSchema | undefined; error?: string }[];
 }
 
@@ -93,6 +103,7 @@ export async function ingestAll(
 ): Promise<IngestResult> {
 	const result: IngestResult = {
 		dbCount: dbs.length,
+		notices: [],
 		spansScanned: 0,
 		spansCounted: 0,
 		costSpans: 0,
@@ -189,7 +200,7 @@ function ingestOne(traceDb: TraceDb, store: RollupStore, result: IngestResult): 
 				`WHERE s.start_time_ms >= ? GROUP BY s.operation_name ORDER BY n DESC`
 			).all(since) as unknown as { op: unknown; n: unknown }[];
 			if (present.length > 0) {
-				result.errors.push(
+				result.notices.push(
 					`No billable spans found in ${traceDb.path}. Looked for ` +
 					`${billable.join(', ')}; the database holds ` +
 					present.map(r => `${str(r.op) ?? '?'} (${num(r.n) ?? 0})`).join(', ') +

@@ -281,6 +281,13 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-spacing-'));
 const bundled = parse(JSON.parse(fs.readFileSync(
   new URL('../rate-card.json', import.meta.url).pathname, 'utf8')));
 
+/** `n` days ago, as a day key. Relative so the coverage note stays reachable. */
+const today = (n) => {
+  const d = new Date(Date.now() - n * 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+         `-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const rollup = (over = {}) => ({
   day: '2026-08-26', model: 'claude-sonnet-5', workspace: 'w', operation: 'chat',
   selection: 'manual', source: 'measured', requests: 20, inputTokens: 100000,
@@ -306,6 +313,26 @@ const pages = {
     projection: { verdict: 'ok', quotaId: 'premium_interactions', entitlement: 1500,
       remaining: 1450, percentRemaining: 96.7, creditsUsed: 50, burnPerDay: 5,
       daysToReset: 20, sustainableDailyBurn: 72 }
+  }),
+  // The same panel with the notes the ordinary one has nothing to say.
+  //
+  // The harness measures every adjacent pair, so what it never renders it can
+  // never check. The reconciliation line sat flush against the table beneath
+  // it in a shipped build, and this was green: the fixture had complete
+  // coverage and no backfill, so neither note existed to be measured.
+  reconciled: renderReport({
+    rollups: [
+      rollup({ day: today(2) }),
+      rollup({ day: today(1), source: 'reported', nanoAiu: 4e9 }),
+      rollup({ day: today(0), model: 'gpt-5.6-luna' })
+    ],
+    creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+    warnings: ['a warning, so the banner is measured too'], prices: {}, depth: {},
+    history: { traceStartDay: today(2), recoveredMessages: 3 },
+    projection: { verdict: 'ok', quotaId: 'premium_interactions', entitlement: 1500,
+      remaining: 1450, percentRemaining: 96.7, creditsUsed: 50, burnPerDay: 5,
+      daysToReset: 20, sustainableDailyBurn: 72,
+      resetDate: new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10) }
   })
 };
 

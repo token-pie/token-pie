@@ -1648,7 +1648,11 @@ const STYLES = `
 	/* Subtotal rows carry no hue of their own; their bars borrow the neutral. */
 	.c-any    { background: var(--vscode-charts-foreground, #cccccc); opacity: 0.75; }
 	.swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-	.note { font-size: 0.83rem; margin: 12px 0 0; line-height: 1.6; text-wrap: pretty; }
+	/* Block margins, not just a top one. A note introduces whatever follows it
+	   as often as it trails what came before, and with no bottom margin the
+	   reconciliation line sat flush against the table it was introducing.
+	   Adjacent margins collapse, so .note + .card still gets its 20px. */
+	.note { font-size: 0.83rem; margin: 12px 0; line-height: 1.6; text-wrap: pretty; }
 	.rate-card { padding: 0; margin-top: 6px; }
 
 	table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
