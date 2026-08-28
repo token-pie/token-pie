@@ -533,6 +533,31 @@ merge churn that cancelled out, promote the one entry that matters, write the
 bold lead. 0.3.0 had a sidebar added and reverted inside the same release; both
 lines generated, and neither belongs in notes a user reads.
 
+### Publish gates versus package gates
+
+Most of preflight is about the artefact, and an artefact can be wrong the
+moment it is built. A few checks are not: the listing images are served from
+`main`, so a screenshot regenerated locally but not pushed harms nobody until
+someone reads the Marketplace page.
+
+Failing the build on those made a circle. Taking a new screenshot needs a
+`.vsix` to install; building the `.vsix` refused until the screenshot was
+pushed; the screenshot could not be pushed before it was taken.
+
+So `gate()` warns where `check()` fails, and promotes to a failure under
+`--publish` or `CI`. The default is what you want while iterating, and CI is
+strict for free — a tag being built there is already pushed, and its green run
+is what a Release is created from.
+
+```bash
+npm run build              # warns on the publish gates
+npm run build -- --publish # fails on them
+```
+
+The build prints every warning in full rather than counting them, and drops
+"Ready to publish" when there are any: a line that says it anyway is a line
+worth ignoring.
+
 ### GitHub Releases
 
 `.github/workflows/release.yml`, on any `v*` tag. Pushing the tag is the last

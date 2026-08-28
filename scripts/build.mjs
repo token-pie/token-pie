@@ -8,8 +8,9 @@
  * that shipped inside the .vsix. A build is only trustworthy if it starts from
  * nothing and refuses to continue when a stage fails.
  *
- *   npm run build          clean, compile, test, package, preflight
- *   npm run build -- --fast  skip the clean, for iterating
+ *   npm run build            clean, compile, test, package, preflight
+ *   npm run build -- --fast     skip the clean, for iterating
+ *   npm run build -- --publish  fail on the publish gates too, not warn
  */
 import { execFileSync, execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -19,8 +20,13 @@ const root = path.resolve(new URL('..', import.meta.url).pathname);
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const vsix = `${manifest.name}-${manifest.version}.vsix`;
 const fast = process.argv.includes('--fast');
+// Passed through to preflight, which turns its publish gates from warnings
+// into failures. Off by default: packaging is how you get a .vsix to install
+// and screenshot, and it must not require the result of that screenshot.
+const publish = process.argv.includes('--publish');
 
 let stage = 0;
+let warnings = [];
 const started = Date.now();
 const LABEL_WIDTH = 34;
 const announce = label => process.stdout.write(`  ${++stage}. ${label.padEnd(LABEL_WIDTH)}`);
@@ -82,13 +88,21 @@ if (!fs.existsSync(path.join(root, vsix))) {
 // the listing's images resolve, whether the metadata agrees with itself.
 announce('preflight');
 try {
-  const out = execFileSync('node', ['scripts/preflight.mjs'],
+  const out = execFileSync('node',
+    ['scripts/preflight.mjs', ...(publish ? ['--publish'] : [])],
     { cwd: root, encoding: 'utf8', stdio: 'pipe' });
   const failed = (out.match(/^\s+FAIL/gm) || []).length;
   if (failed) {
     throw Object.assign(new Error('preflight'), { stdout: out });
   }
+  warnings = out.match(/^\s+WARN .*/gm) || [];
+  const warned = warnings;
   console.log(`ok   ${(out.match(/PASS/g) || []).length} checks passed`);
+  // Shown in full rather than counted: a warning nobody reads is a warning
+  // that stops being one, and every line here names something to push.
+  for (const w of warned) {
+    console.log(`     ${w.trim()}`);
+  }
 } catch (err) {
   console.log('FAILED');
   console.log('\n' + ((err.stdout ?? '') + (err.stderr ?? '')).trimEnd() + '\n');
@@ -136,5 +150,12 @@ console.log(`\n${vsix}  ${size} KB  in ${((Date.now() - started) / 1000).toFixed
 for (const n of notes) {
   console.log(`  note: ${n}`);
 }
-console.log(notes.length ? '\nReady to publish, but the repo has changes not committed.\n'
-                         : '\nReady to publish.\n');
+// "Ready to publish" has to mean it. A warning here is a publish gate that did
+// not hold, so saying it anyway would make the line worth ignoring.
+if (warnings.length) {
+  console.log(`\nInstallable, but not ready to publish: ${warnings.length} gate(s) above.`);
+  console.log('Re-run with --publish once pushed, to have them checked properly.\n');
+} else {
+  console.log(notes.length ? '\nReady to publish, but the repo has changes not committed.\n'
+                           : '\nReady to publish.\n');
+}

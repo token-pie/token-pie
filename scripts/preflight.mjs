@@ -23,6 +23,28 @@ const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${ok || !detail ? '' : `  — ${detail}`}`);
 };
 
+/**
+ * A publish gate, not a package gate.
+ *
+ * Some of what is checked here cannot be wrong until the extension is
+ * published -- the listing images are served from `main`, so an unpushed
+ * screenshot harms nobody until someone reads the Marketplace page. Failing
+ * the build on those made a circle: taking a new screenshot needs a .vsix to
+ * install, and building the .vsix refused until the screenshot was pushed,
+ * which cannot happen before it is taken.
+ *
+ * So they warn by default and fail where a publish is actually in prospect --
+ * `--publish`, or CI, where the tag being built is already pushed and a green
+ * run is what a Release is created from.
+ */
+const strict = process.argv.includes('--publish') || process.env.CI === 'true';
+let warnings = 0;
+const gate = (label, ok, detail = '') => {
+  if (ok) { console.log(`  PASS  ${label}`); return; }
+  if (strict) { failures++; } else { warnings++; }
+  console.log(`  ${strict ? 'FAIL' : 'WARN'}  ${label}${detail ? `  — ${detail}` : ''}`);
+};
+
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const vsix = path.join(root, `${manifest.name}-${manifest.version}.vsix`);
@@ -124,7 +146,7 @@ for (const url of images) {
     const digest = b => crypto.createHash('sha256').update(b).digest('hex').slice(0, 12);
     const mine = digest(fs.readFileSync(localFile));
     const theirs = digest(fs.readFileSync(body));
-    check(`${path.basename(url)} matches the local copy`, mine === theirs,
+    gate(`${path.basename(url)} matches the local copy`, mine === theirs,
       `local ${mine}, served ${theirs} — push images/ before publishing`);
   }
 }
@@ -153,5 +175,13 @@ check('publisher is set', Boolean(packed.publisher));
 check('repository is set', Boolean(packed.repository));
 
 fs.rmSync(dir, { recursive: true, force: true });
-console.log(failures ? `\n${failures} check(s) failed.\n` : '\nReady to publish.\n');
+fs.rmSync(served, { recursive: true, force: true });
+if (failures) {
+  console.log(`\n${failures} check(s) failed.\n`);
+} else if (warnings) {
+  // Named as what it is: the package is sound, the listing would not be.
+  console.log(`\n${warnings} warning(s). Fine to install; run with --publish before publishing.\n`);
+} else {
+  console.log('\nReady to publish.\n');
+}
 process.exit(failures ? 1 : 0);
