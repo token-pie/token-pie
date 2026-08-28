@@ -188,12 +188,18 @@ export function statusLabel(p: Projection): string {
 			return `${fmtDays(p.daysToExhaust)} left`;
 		case 'tight':
 			return `${fmtDays(p.daysToExhaust)} left`;
+		// "97%" alone is ambiguous in the one direction that matters: on a spend
+		// tracker it reads as easily as 97% *used*, which is a crisis, as 97%
+		// left, which is fine. The day counts already end in "left"; this now
+		// matches them.
 		case 'ok':
 			return p.percentRemaining !== undefined
-				? `${Math.round(p.percentRemaining)}%`
+				? `${Math.round(p.percentRemaining)}% left`
 				: `${fmtDays(p.daysToExhaust)} left`;
 		case 'no-rate':
-			return p.percentRemaining !== undefined ? `${Math.round(p.percentRemaining)}%` : '--';
+			return p.percentRemaining !== undefined
+				? `${Math.round(p.percentRemaining)}% left`
+				: '--';
 		default:
 			return '--';
 	}

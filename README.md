@@ -123,9 +123,9 @@ and says plainly when it has not. Nothing is taken from a published price list.
 While it works, the status bar says so rather than going blank:
 
 ```
-$(sync~spin) TP | usage          reading local usage
-$(sync~spin) TP | history 24/61  reading chat transcripts
-$(sync~spin) TP | allowance      asking GitHub what is left
+$(sync~spin) usage             reading local usage
+$(sync~spin) history 24/61     reading chat transcripts
+$(sync~spin) allowance         asking GitHub what is left
 ```
 
 While it is working the item is not clickable — there is no report to open yet.
@@ -138,10 +138,10 @@ is ever chained behind the network call.
 **Status bar**, once it settles:
 
 ```
-$(pie-chart) TP | 98%             on track
-$(pie-chart) TP | 6.2d left       tight, yellow background
-$(pie-chart) TP | 2.1d left       will run out first, red background
-$(pie-chart) TP | 5.0d to reset   already used up, red background
+$(pie-chart) 98% left          on track
+$(pie-chart) 6.2d left         tight, yellow background
+$(pie-chart) 2.1d left         will run out first, red background
+$(pie-chart) 5.0d to reset     already used up, red background
 ```
 
 The icon encodes the verdict, so it changes when your situation does. Click for

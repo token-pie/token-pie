@@ -33,7 +33,7 @@ export type OnProgress = (p: Progress) => void;
 /**
  * Human wording for the status bar.
  *
- * Terse on purpose: this sits after `TP |` in a bar competing with the branch
+ * Terse on purpose: this sits beside the icon in a bar competing with the branch
  * name, problem counts and everything else an editor puts there. The tooltip
  * carries the full sentence.
  */

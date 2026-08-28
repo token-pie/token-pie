@@ -53,7 +53,7 @@ check('trace reading announced', phases.includes('reading-traces'), true);
 check('history reading announced', phases.includes('reading-history'), true);
 
 console.log('\nphase labels are readable, not internal names');
-// Terse on purpose: these sit after "TP |" in a crowded status bar.
+// Terse on purpose: these sit beside the icon in a crowded status bar.
 for (const ph of ['starting', 'reading-traces', 'reading-history', 'tidying', 'checking-quota']) {
   const l = phaseLabel({ phase: ph, done: 12, total: 34 }) ?? '';
   check(`"${l}" fits the bar`, l.length <= 14, true);

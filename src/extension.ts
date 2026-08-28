@@ -425,8 +425,6 @@ function autoPurge(): void {
  * the text after the separator, not by swapping the icon -- a status bar item
  * whose glyph keeps changing is one nobody can find at a glance.
  */
-const NAME = 'TP';
-
 /**
  * Three marks, and only three.
  *
@@ -441,9 +439,17 @@ const MARK = {
 	broken: '$(warning)'
 } as const;
 
-/** Everything after the separator is state, and only state. */
+/**
+ * The icon carries the name; the text carries only state.
+ *
+ * This read "TP | 97%". The initials were doing the identifying back when the
+ * mark was a generic codicon shared with every other extension, and the pie
+ * has been the product's own logo everywhere else for a while now. Two
+ * characters and a separator of pure redundancy in the most crowded strip of
+ * the window.
+ */
 function label(mark: string, state: string): string {
-	return `${mark} ${NAME} | ${state}`;
+	return `${mark} ${state}`;
 }
 
 function updateStatusBar(): void {

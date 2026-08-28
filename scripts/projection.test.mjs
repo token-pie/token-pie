@@ -41,7 +41,9 @@ console.log('\ncomfortably on track');
 // 1400 left, 20/day, resets in 6 days.
 p = project(ent(1400, 1500, '2026-09-01T00:00:00.000Z'), roll(100, 5), 1e-9, NOW);
 check('verdict', p.verdict, 'ok');
-check('label shows percent', statusLabel(p), '93%');
+check('label shows percent', statusLabel(p), '93% left');
+// Bare "93%" reads as easily as 93% used, which is the opposite and alarming.
+check('and says which direction it means', statusLabel(p).endsWith(' left'), true);
 
 console.log('\ntight: survives the period but barely');
 // 130 left, 20/day => 6.5 days; resets in 6 days.
