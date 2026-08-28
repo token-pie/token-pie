@@ -8,6 +8,7 @@
  * status bar item had vanished. This measures the longest stretch during a
  * refresh in which a timer could not run.
  */
+import { DatabaseSync } from 'node:sqlite';
 import { ingestAll } from '../out/ingest.js';
 import { RollupStore } from '../out/store.js';
 import { phaseLabel, YIELD_EVERY } from '../out/progress.js';
@@ -24,26 +25,95 @@ const check = (label, actual, expected) => {
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-resp-'));
 const store = new RollupStore(path.join(dir, 'r.json'));
 
+/**
+ * Databases of our own, rather than whatever this developer has used Copilot for.
+ *
+ * This used to pass `undefined`, which means "find the real ones". It measured
+ * whatever history the machine happened to hold, read live user data on every
+ * run, and asserted nothing at all on a machine with none -- no databases, no
+ * work, no yields. Green on a laptop, red on the release runner, and neither
+ * result was about the code.
+ *
+ * Several databases because `ingestAll` yields once per database: `ingestOne`
+ * reads all of a database's spans synchronously, so a single fixture can only
+ * ever produce one turn and "the loop kept running" would be unfalsifiable.
+ */
+const DBS = 4;
+const SPANS = YIELD_EVERY * 4;
+function fixture(n) {
+  const dbPath = path.join(dir, `agent-traces-${n}.db`);
+  const db = new DatabaseSync(dbPath);
+  db.exec(`CREATE TABLE schema_version (version INTEGER)`);
+  db.exec(`INSERT INTO schema_version VALUES (1)`);
+  db.exec(`CREATE TABLE spans (
+    span_id TEXT PRIMARY KEY, trace_id TEXT, parent_span_id TEXT, name TEXT,
+    start_time_ms INTEGER, end_time_ms INTEGER, status_code INTEGER, status_message TEXT,
+    operation_name TEXT, provider_name TEXT, agent_name TEXT, conversation_id TEXT,
+    request_model TEXT, response_model TEXT, input_tokens INTEGER, output_tokens INTEGER,
+    cached_tokens INTEGER, reasoning_tokens INTEGER, tool_name TEXT, tool_call_id TEXT,
+    tool_type TEXT, chat_session_id TEXT, turn_index INTEGER, ttft_ms REAL
+  )`);
+  db.exec(`CREATE TABLE span_attributes (span_id TEXT, key TEXT, value TEXT)`);
+  const span = db.prepare(
+    `INSERT INTO spans (span_id, trace_id, parent_span_id, name, start_time_ms, end_time_ms,
+      status_code, operation_name, provider_name, agent_name, conversation_id,
+      request_model, response_model, input_tokens, output_tokens, cached_tokens,
+      reasoning_tokens, chat_session_id, ttft_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const attr = db.prepare('INSERT INTO span_attributes (span_id, key, value) VALUES (?, ?, ?)');
+  const base = Date.now() - SPANS * 60_000;
+  for (let i = 0; i < SPANS; i++) {
+    span.run(`s${n}-${i}`, `t${i}`, null, 'chat', base + i * 60_000, base + i * 60_000 + 900,
+      0, 'chat', 'github', 'panel/editAgent', 'sess',
+      'claude-sonnet-5', 'claude-sonnet-5', 12_000, 800, 9_000, 0, 'sess', 500);
+    attr.run(`s${n}-${i}`, 'copilot_chat.copilot_usage_nano_aiu', String(1e9));
+  }
+  db.close();
+  return { path: dbPath, channel: 'Code', profile: `p${n}`,
+           userDir: path.join(dir, 'User'), sizeBytes: 0, mtime: Date.now() };
+}
+const dbs = Array.from({ length: DBS }, (_, n) => fixture(n));
+
 console.log('\nthe event loop keeps running during a refresh');
-// A timer that should fire every 5ms. Whatever gap it observes is a stretch
-// during which the editor would have been unresponsive.
+/*
+ * A timer rescheduled every turn, not one fixed at 5ms.
+ *
+ * A 5ms interval only fires when five whole milliseconds pass, and the whole
+ * fixture ingests in about six -- so it fired once whether the pipeline
+ * yielded eighty times or twice, and could fire zero times on a quicker
+ * machine. It measured how slow the run was, not how often the editor got a
+ * turn, which is the thing that matters: the reported symptom was a frozen
+ * VS Code, not a slow one.
+ *
+ * Rescheduling at 0ms puts the callback in the next timers phase, so it runs
+ * once per turn of the loop and counts the turns the editor would have had.
+ */
 let last = Date.now();
 let worst = 0;
 let ticks = 0;
-const beat = setInterval(() => {
+let watching = true;
+const beat = () => {
+  if (!watching) { return; }
   const now = Date.now();
   worst = Math.max(worst, now - last);
   last = now;
   ticks++;
-}, 5);
+  setTimeout(beat, 0);
+};
+setTimeout(beat, 0);
 
 const phases = [];
 last = Date.now();
-await ingestAll(store, undefined, p => { if (!phases.includes(p.phase)) phases.push(p.phase); });
-clearInterval(beat);
+await ingestAll(store, dbs, p => { if (!phases.includes(p.phase)) phases.push(p.phase); }, []);
+watching = false;
 
 console.log(`  timer fired ${ticks} time(s); longest stall ${worst}ms`);
-check('the loop was given turns during the work', ticks > 0, true);
+check('spans were actually read', store.all().length > 0, true);
+// One turn is not evidence of yielding: a run that blocked throughout still
+// gets a turn when it finishes. One per database is what the pipeline actually
+// promises, so four databases must produce turns while there is still work
+// left to do.
+check('the loop was given turns during the work', ticks >= DBS, true);
 // Anything approaching a second is a visible freeze; a real budget is far
 // tighter, but the bar here is "not blocked for the whole run".
 check('no single stall over 1s', worst < 1000, true);
