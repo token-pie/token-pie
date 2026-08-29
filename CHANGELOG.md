@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1 - 2026-08-29
+
+### Fixed
+
+- **An exhausted allowance no longer blanks half the panel.** A week with
+  nothing spent in it draws its seven days rather than disappearing, today's
+  spend is shown even when there is no allowance left to measure it against,
+  and the pace tiles keep their places when a figure cannot be computed.
+- **The over-quota figure was too faint to read.** "9,114 credits over" took
+  its red from a chart colour, which measured 3.36:1 against a light theme
+  where 4.5:1 is the floor for text that size.
+
+
 ## 0.4.0 - 2026-08-29
 
 ### Added
