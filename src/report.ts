@@ -1334,11 +1334,18 @@ function dayFigure(p: Projection, tuning: Tuning): string {
 	// The overflow is drawn in the same track rather than a longer one: the
 	// track is the budget, so a full bar is exactly the point it was spent.
 	const fill = Math.min(100, pct);
+	// Where the denominator came from, because it is two different numbers.
+	// Unset, it is what remains over the days left -- derived, and calling that
+	// "budgeted" would credit the reader with a decision the code made. Set, it
+	// is a figure they chose, and saying so is what makes it theirs.
+	const source = tuning.projection.dailyBudgetPercent > 0
+		? 'your daily budget'
+		: 'your pace to reset';
 	return `<div class="day day-${pressure}">
 		<div class="day-v">${pct}<span class="unit">% used today</span></div>
 		<div class="day-track"><span class="day-fill" style="width:${fill}%"></span></div>
 		<div class="day-k">${fmtCredits(p.todayCredits ?? 0)} of
-			${fmtCredits(p.todayBudget)} budgeted</div>
+			${fmtCredits(p.todayBudget)} credits<br>${source}</div>
 	</div>`;
 }
 
