@@ -299,6 +299,31 @@ export function dayLabel(p: Projection): string | undefined {
 		: `${Math.round(p.todayShare * 100)}% used today`;
 }
 
+/**
+ * Both horizons, on one item.
+ *
+ * Two percentages side by side with different denominators, and nothing saying
+ * so, is the whole reading problem: 97% is of the allowance and 30% is of
+ * today's share of it, and a reader has no way to know that. So the month is
+ * named -- but only where it is itself a percentage, because that is the only
+ * time the two can be confused. "3.3d to reset this month" is not a sentence,
+ * and a day figure beside it was never going to be read as a share of a month.
+ *
+ * The directions stay opposite on purpose. You cannot exceed the month, so
+ * what remains is the figure that can be acted on; you can exceed the day, and
+ * by how much is the entire signal. Framed as remaining, an overspent day
+ * reads "-18% left" exactly when the item has turned red, which is when it has
+ * to be at its clearest.
+ */
+export function barLabel(p: Projection): string {
+	const month = statusLabel(p);
+	const day = dayLabel(p);
+	if (day === undefined) {
+		return month;
+	}
+	return `${/%\s+left$/.test(month) ? `${month} this month` : month} \u00b7 ${day}`;
+}
+
 /** Short status-bar label. Every character has to earn its place. */
 export function statusLabel(p: Projection): string {
 	switch (p.verdict) {

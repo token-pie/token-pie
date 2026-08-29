@@ -14,7 +14,7 @@
  */
 process.env.TZ = 'UTC';
 
-const { project, statusLabel, dayLabel, dayPressure } = await import('../out/projection.js');
+const { project, statusLabel, barLabel, dayLabel, dayPressure } = await import('../out/projection.js');
 const { defaults } = await import('../out/tuning.js');
 
 let failures = 0;
@@ -181,6 +181,30 @@ console.log('\na budget you can spend to the line');
   // The error grew as the reset approached, which is when the figure matters.
   check('and it holds with the reset in sight',
     Math.round(at(100, 2.7).todayShare * 100), 30);
+}
+
+console.log('\ntwo horizons on one item');
+{
+  const at = (rem, days, spent) => project(
+    { snapshots: [{ name: 'q', entitlement: 1500, remaining: rem, remainingExact: rem,
+      percentRemaining: rem / 15, hasQuota: true, unlimited: false }],
+      resetDate: new Date(NOW + days * 86400000).toISOString() },
+    [onDay(spent * 1e9)], 1e-9, NOW);
+
+  // Two percentages side by side with different denominators is the reading
+  // problem: 97% is of the allowance, 30% is of today's share of it.
+  check('the month is named when both are percentages',
+    barLabel(at(1456, 3, 0)), '97% left this month · 0% used today');
+  // ...and only then. "3.3d to reset this month" is not a sentence, and no
+  // reader was going to take a day figure beside it for a share of a month.
+  check('and not when it is a duration',
+    barLabel(at(0, 3, 200)).includes('this month'), false);
+  check('an exhausted allowance says only when it returns',
+    barLabel(at(0, 3, 200)), '3.0d to reset');
+  // Over the day, framed as used. As remaining this reads "-18% left" exactly
+  // when the item turns red, which is when it has to be at its clearest.
+  check('over the day still reads forwards',
+    barLabel(at(1000, 3, 400)).endsWith('86% used today'), true);
 }
 
 console.log('\nwhat cannot be a budget');

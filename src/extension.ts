@@ -9,7 +9,7 @@ import { purgeAll, PurgeResult } from './purge';
 import { fetchEntitlement, governingSnapshot, hasCopilotAccess, QuotaError } from './quota';
 import { ReadingStore, toReading, reconcile, periodCoverage } from './reconcile';
 import { userDirs, readTurns, clearTurnCache, Turn } from './sessions';
-import { project, statusLabel, dayLabel, dayPressure, Projection } from './projection';
+import { project, statusLabel, barLabel, dayPressure, Projection } from './projection';
 import { Progress, phaseLabel } from './progress';
 import { Entitlement } from './entitlement';
 import { RollupStore } from './store';
@@ -501,8 +501,7 @@ function updateStatusBar(): void {
 
 	// Two horizons on one item: the month, which is a fact until the reset, and
 	// today, which is the only figure this afternoon can still move.
-	const today = dayLabel(p);
-	statusBar.text = label(mark, today ? `${statusLabel(p)} \u00b7 ${today}` : statusLabel(p));
+	statusBar.text = label(mark, barLabel(p));
 
 	// One background, not two signals fighting over it. The month's severity
 	// and the day's pressure are both ranked on the same scale and the higher
