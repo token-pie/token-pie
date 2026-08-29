@@ -1366,14 +1366,11 @@ function budgetHint(p: Projection, tuning: Tuning): string {
 		? `<p><strong>${tuning.projection.dailyBudgetPercent}%</strong> of your
 		   ${fmtCredits(p.entitlement ?? 0)}-credit allowance, which you set, is
 		   <strong>${fmtCredits(p.todayBudget ?? 0)} credits</strong> a day.</p>`
-		: `<p>You have not set one, so this is your own pace. You had
-		   <strong>${fmtCredits(had)} credits</strong> at the start of today and
-		   <strong>${days ?? 1} day${days === 1 ? '' : 's'}</strong> to spend
-		   them in before the allowance resets, which is
-		   <strong>${fmtCredits(p.todayBudget ?? 0)} a day</strong>.</p>
-		   <p>It counts whole days, so it does not drift as the hours pass, and
-		   what you have already spent today is added back &mdash; a budget that
-		   shrank as you spent against it could never be spent to the line.</p>`;
+		: `<p>You have not set one, so this is your own pace:
+		   <strong>${fmtCredits(had)} credits</strong> at the start of today over
+		   the <strong>${days ?? 1} day${days === 1 ? '' : 's'}</strong> left
+		   before the allowance resets, which is
+		   <strong>${fmtCredits(p.todayBudget ?? 0)} a day</strong>.</p>`;
 	return `<details class="hint">
 		<summary title="How this figure is worked out">?</summary>
 		<div class="hint-body">
@@ -1583,7 +1580,11 @@ const STYLES = `
 	.day-k { font-size: 0.72rem; color: var(--vscode-descriptionForeground); }
 	/* The marker is the affordance, so it has to look like one: a bordered
 	   circle rather than a bare question mark, which reads as punctuation. */
-	.hint { margin-top: 8px; }
+	/* An overlay, not an expansion. Inline, three paragraphs of explanation
+	   pushed the hero and the meter down the card and made opening the hint a
+	   worse page than not opening it. Anchored so the layout underneath never
+	   moves. */
+	.hint { position: relative; margin-top: 8px; }
 	.hint > summary { list-style: none; cursor: pointer; width: 15px; height: 15px;
 	                  border-radius: 50%; font-size: 0.66rem; line-height: 15px;
 	                  text-align: center; font-weight: 700;
@@ -1595,8 +1596,15 @@ const STYLES = `
 	.hint[open] > summary { color: var(--vscode-foreground);
 	                        border-color: var(--vscode-foreground); }
 	/* Wider than the column it hangs off, because the explanation is prose and
-	   a 132px measure would set it one or two words to the line. */
-	.hint-body { margin-top: 8px; width: 260px; max-width: 60vw;
+	   a 132px measure would set it one or two words to the line. Left-anchored
+	   and width-capped so it cannot reach past the page and start it scrolling
+	   sideways. */
+	.hint-body { position: absolute; z-index: 5; top: 21px; left: 0;
+	             width: 260px; max-width: min(260px, 70vw);
+	             padding: 10px 12px; border-radius: 6px;
+	             background: var(--vscode-editorWidget-background, #252526);
+	             border: 1px solid var(--vscode-editorWidget-border, #454545);
+	             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
 	             font-size: 0.72rem; line-height: 1.6;
 	             color: var(--vscode-descriptionForeground); }
 	.hint-body p { margin: 0 0 9px; }
