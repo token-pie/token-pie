@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 - 2026-08-29
+
+### Added
+
+- today's spend against a budget, beside the month's remainder
+- explain the daily figure, and fix its denominator again
+- the credit definition hangs off a figure, not the card
+- two columns, one for the month and one for the days
+- how the month was spent, not just how much
+
+### Fixed
+
+- say which direction the day figure runs
+- the day caption dropped its unit and invented a decision
+- a budget that shrinks as you spend cannot be spent to the line
+- name which quota each percentage is a share of
+- the hint pushed the card apart instead of sitting over it
+- the verdict card was mostly the spaces between things
+- the verdict sentence took a row to itself for no reason
+
+
 ## 0.3.3 - 2026-08-28
 
 ### Fixed
