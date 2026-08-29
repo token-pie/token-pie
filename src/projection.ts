@@ -140,6 +140,16 @@ export function project(
 	const remaining = snapshot.remainingExact;
 	const daysToReset = daysUntilReset(entitlement, now);
 
+	// Today's spend, measured only. Backfilled transcript days are a floor, and
+	// a budget checked against a floor says you have room you may not have.
+	// Computed before the exhausted return: what today cost is a fact whether
+	// or not there is an allowance left to measure it against, and leaving it
+	// out took the whole figure off the card at the moment it mattered most.
+	const todayKey = dayKeyOf(now);
+	const todayCredits = rollups
+		.filter(r => r.source !== 'reported' && r.day === todayKey)
+		.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
+
 	// Already out. A burn rate cannot say anything useful here and the only
 	// fact that matters is when the allowance comes back.
 	if (remaining <= 0) {
@@ -151,7 +161,12 @@ export function project(
 			percentRemaining: 0,
 			creditsUsed: snapshot.creditsUsed,
 			resetDate: entitlement.resetDate,
-			daysToReset
+			daysToReset,
+			todayCredits,
+			// Nothing left over the days remaining really is zero a day. It was
+			// left undefined, which took the tile off the card and left one
+			// figure sitting in a row built for three.
+			sustainableDailyBurn: 0
 		};
 	}
 	const base: Projection = {
@@ -167,12 +182,6 @@ export function project(
 			daysToReset && daysToReset > 0 ? remaining / daysToReset : undefined
 	};
 
-	// Today's spend, measured only. Backfilled transcript days are a floor, and
-	// a budget checked against a floor says you have room you may not have.
-	const todayKey = dayKeyOf(now);
-	const todayCredits = rollups
-		.filter(r => r.source !== 'reported' && r.day === todayKey)
-		.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
 	const pct = tuning.projection.dailyBudgetPercent;
 	// What today had to spend, which is not the same as what is left now.
 	//

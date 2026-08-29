@@ -409,6 +409,38 @@ const pages = {
   check('a whole period is drawn', cols >= 28 && cols <= 31, true);
 }
 
+/*
+ * The panel a work machine actually showed: allowance exhausted, nothing
+ * spent this week, and every figure recovered from transcripts.
+ *
+ * Each of those made something withhold itself, and every withheld thing left
+ * its space behind -- an empty 30% column, a row built for three tiles holding
+ * one. The fixtures were all healthy accounts, so none of it was ever drawn.
+ */
+{
+  const reset = new Date(Date.now() + 2.6 * 86400000);
+  pages.exhausted = renderReport({
+    rollups: [rollup({ day: '2026-08-03', source: 'reported', nanoAiu: 20.48e9 })],
+    creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+    warnings: ['No billable spans found. Looked for chat; the database holds ' +
+      'embeddings (21), execute_tool (15), invoke_agent (11).'],
+    prices: {}, depth: {},
+    projection: { verdict: 'exhausted', quotaId: 'premium_interactions',
+      entitlement: 10000, remaining: 0, percentRemaining: 0, creditsUsed: 19114,
+      daysToReset: 2.6, sustainableDailyBurn: 0, todayCredits: 0,
+      resetDate: reset.toISOString().slice(0, 10) }
+  });
+  // Nothing may leave a hole where it used to be.
+  check('the day figure stands even with no budget',
+    /class="day /.test(pages.exhausted), true);
+  check('a quiet week still draws its seven days',
+    /class="week"/.test(pages.exhausted), true);
+  check('and the column is never an empty box',
+    /<div class="aside">\s*<\/div>/.test(pages.exhausted), false);
+  check('a tile that cannot be computed still holds its place',
+    (pages.exhausted.match(/class="k">/g) || []).length, 3);
+}
+
 for (const [name, html] of Object.entries(pages)) {
   for (const theme of ['dark', 'light']) {
     console.log(`\n${name} (${theme})`);

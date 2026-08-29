@@ -578,13 +578,19 @@ check('no script tags in webview', /<script/i.test(html), false);
     /wk-future/.test(weekly) || new Date().getDay() === 0, true);
   check('the old daily column chart is gone',
     /Daily spend|class="chart"/.test(weekly), false);
-  // An empty week has no shape to show, and seven empty tracks read as broken.
-  check('a week with no spend is withheld',
-    /class="week"/.test(renderReport({
-      rollups: [{ ...priced, day: '2020-01-02', nanoAiu: 0 }],
-      creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
-      warnings: [], projection: undefined, prices: {}, depth: {}
-    })), false);
+  // This was withheld, on the reasoning that seven empty tracks read as broken.
+  // The opposite turned out to be true on the machine it mattered on: with the
+  // chart gone, and the day figure gone with it, a third of the card was a
+  // blank rectangle -- and an account that had simply not spent anything looked
+  // like a panel that had failed. Empty tracks say "quiet" perfectly well.
+  const quiet = renderReport({
+    rollups: [{ ...priced, day: '2020-01-02', nanoAiu: 0 }],
+    creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+    warnings: [], projection: undefined, prices: {}, depth: {}
+  });
+  check('a week with no spend still draws its seven days', /class="week"/.test(quiet), true);
+  check('and says so rather than showing a total of zero',
+    /nothing yet/.test(quiet), true);
 
   check('labels avoid internal jargon',
     /input tokens|output tokens|not yet priced|\bturns?\b/.test(costHtml), false);

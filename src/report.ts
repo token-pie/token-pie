@@ -172,6 +172,14 @@ function tile(value: string, unit: string, label: string, hint?: string, state?:
 
 function paceTiles(p: Projection): string {
 	const tiles: string[] = [];
+	// A tile that cannot be computed still stands in the row. Omitting it left
+	// the row short and the card looking like it had failed to render, when the
+	// truth is narrower: this one figure is not knowable yet.
+	if (p.burnPerDay === undefined) {
+		tiles.push(tile('&mdash;', '', 'your pace',
+			'A rate needs a day of measured history. Backfilled days are a floor ' +
+			'and are never averaged into it.'));
+	}
 	if (p.burnPerDay !== undefined) {
 		const overPace =
 			p.sustainableDailyBurn !== undefined && p.burnPerDay > p.sustainableDailyBurn;
@@ -1284,8 +1292,15 @@ function daysSince(day: string): number {
  */
 function dayFigure(p: Projection, tuning: Tuning): string {
 	const pressure = dayPressure(p, tuning);
+	// No budget to measure against -- an exhausted allowance, or a plan with no
+	// limit. What today cost is still a fact, and withholding the figure left a
+	// third of the card blank at the moment it was most worth looking at.
 	if (pressure === undefined || p.todayShare === undefined || p.todayBudget === undefined) {
-		return '';
+		return p.todayCredits === undefined ? '' : `<div class="day day-under">
+			<div class="day-v">${fmtCredits(p.todayCredits)}<span class="unit">today</span></div>
+			<div class="day-track"></div>
+			<div class="day-k"><span>credits spent<br>no budget to pace against</span></div>
+		</div>`;
 	}
 	const pct = Math.round(p.todayShare * 100);
 	// The overflow is drawn in the same track rather than a longer one: the
@@ -1494,23 +1509,24 @@ function weekBars(rollups: Rollup[], creditsPerNanoAiu: number, now = new Date()
 
 	const peak = Math.max(...rows.map(r => r.credits));
 	const total = rows.reduce((n, r) => n + r.credits, 0);
-	if (peak <= 0) {
-		return '';
-	}
+	// A quiet week still has seven days in it. Withholding the chart left a
+	// third of the card blank on an account that had simply not spent anything
+	// yet, which reads as broken rather than as quiet -- and the empty tracks
+	// say "nothing here" perfectly well on their own.
 
 	const bars = rows.map(r => `
 		<div class="wk-row${r.today ? ' wk-today' : ''}${r.future ? ' wk-future' : ''}"
 		     title="${escapeHtml(r.key)}: ${fmtCredits(r.credits)} credits">
 			<span class="wk-day">${escapeHtml(r.name)}</span>
 			<span class="wk-track"><span class="wk-fill"
-				style="width:${((r.credits / peak) * 100).toFixed(1)}%"></span></span>
+				style="width:${peak > 0 ? ((r.credits / peak) * 100).toFixed(1) : 0}%"></span></span>
 			<span class="wk-val">${r.credits > 0 ? fmtCredits(r.credits) : ''}</span>
 		</div>`).join('');
 
 	return `
 	<div class="week">
 		<div class="wk-head">This week
-			<span class="wk-total">${fmtCreditsWith(total)}</span></div>
+			<span class="wk-total">${total > 0 ? fmtCreditsWith(total) : 'nothing yet'}</span></div>
 		${bars}
 	</div>`;
 }
@@ -1734,7 +1750,12 @@ const STYLES = `
 	.meter-ghost { position: absolute; top: 0; bottom: 0;
 	     background: repeating-linear-gradient(135deg, var(--hue) 0 3px, transparent 3px 6px);
 	     opacity: 0.55; box-shadow: -2px 0 0 var(--vscode-editorWidget-background); }
-	.over { color: var(--vscode-charts-red, #f14c4c); font-weight: 600; }
+	/* charts-red is a fill. As body text it measured 4.29:1 on dark and 3.36:1
+	   on light, against the 4.5:1 a 12.5px run needs -- the third time this file
+	   has used a chart colour for text, and the first fixture with an
+	   over-quota account found it immediately. errorForeground is the theme's
+	   own text red and is contrast-checked against the editor background. */
+	.over { color: var(--vscode-errorForeground, #f14c4c); font-weight: 600; }
 
 	/* Inside the verdict card, not a separate band -- pace is part of the verdict. */
 	.tiles { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 14px;
