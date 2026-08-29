@@ -1521,7 +1521,10 @@ const STYLES = `
 	h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
 	.logo { vertical-align: -0.28em; margin-right: 8px; }
 	/* The sentence and the note share the column beside the hero figure. */
-	.say { flex: 1 1 260px; min-width: 240px; }
+	/* Narrow enough to stay on the row with the two figures. At 240 it could
+	   not, so it dropped to a line of its own and took a third of the card for
+	   one sentence with nothing beside it. */
+	.say { flex: 1 1 200px; min-width: 168px; }
 	.say .sentence { flex: none; }
 	/* The theme's link colour is contrast-checked against its background;
 	   charts-blue is a fill colour for chart marks and is not. */
