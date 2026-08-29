@@ -77,6 +77,7 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.meter-head->div.meter', 'the caption labels the bar directly beneath it'],
   ['div.meter->div.meter-foot', 'and the footnote labels the same bar'],
   ['div.v->div.k', "a tile's figure and its unit are one reading"],
+  ['div.pd-plot->div.pd-axis', 'an axis belongs against the plot it scales'],
 ]);
 
 /**

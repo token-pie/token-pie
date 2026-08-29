@@ -1063,6 +1063,7 @@ ${STYLES}
 		<div class="verdict-top">${heroFigure(p, totalCredits)}</div>
 		${allowanceMeter(p, tuning.history.days)}
 		${paceTiles(p)}
+		${periodBars(rollups, creditsPerNanoAiu, periodFit?.periodStart)}
 		</div>
 		<!-- Today over the week: two horizons, both narrower than the month,
 		     in the column that is already about time rather than totals. -->
@@ -1397,6 +1398,75 @@ function heroFigure(p: Projection, totalCredits: number): string {
  * Monday look like a finished week with one busy day, and the point of showing
  * seven rows is that you can see how much of the week is still to come.
  */
+/**
+ * Every day of the billing period, as a column.
+ *
+ * The meter says how much of the allowance has gone; it cannot say whether it
+ * went steadily or in one afternoon, and those call for opposite responses.
+ * The week chart answers the same question over seven days, which is too short
+ * to see a period in.
+ *
+ * Columns rather than the week's rows: thirty rows is a page, thirty columns is
+ * a strip. The two charts read differently on purpose -- one is a list of days
+ * you can name, the other a shape.
+ */
+function periodBars(
+	rollups: Rollup[],
+	creditsPerNanoAiu: number,
+	periodStart: number | undefined,
+	now = Date.now()
+): string {
+	if (periodStart === undefined) {
+		return '';
+	}
+	const spend = new Map<string, number>();
+	for (const r of rollups) {
+		spend.set(r.day, (spend.get(r.day) ?? 0) + creditsOf(r.nanoAiu, creditsPerNanoAiu));
+	}
+
+	const start = new Date(periodStart);
+	start.setHours(0, 0, 0, 0);
+	const today = new Date(now);
+	today.setHours(0, 0, 0, 0);
+	const span = Math.round((today.getTime() - start.getTime()) / 86_400_000) + 1;
+	// Two columns is not a shape. Below that the meter and the week say it all.
+	if (!Number.isFinite(span) || span < 3 || span > 62) {
+		return '';
+	}
+
+	const days = Array.from({ length: span }, (_, i) => {
+		const d = new Date(start);
+		d.setDate(start.getDate() + i);
+		const key = dayKeyLocal(d);
+		return { key, day: d.getDate(), credits: spend.get(key) ?? 0, today: i === span - 1 };
+	});
+	const peak = Math.max(...days.map(d => d.credits));
+	if (peak <= 0) {
+		return '';
+	}
+
+	const label = (d: Date) =>
+		d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+	// A floor of 2%, so a day that cost something is never drawn as a day that
+	// cost nothing -- the difference between "quiet" and "absent" is the whole
+	// point of the chart.
+	const cols = days.map(d => `
+		<span class="pd-col${d.today ? ' pd-today' : ''}"
+		      title="${escapeHtml(d.key)}: ${fmtCredits(d.credits)} credits">
+			<span class="pd-fill" style="height:${
+				d.credits > 0 ? Math.max(2, (d.credits / peak) * 100).toFixed(1) : 0}%"></span>
+		</span>`).join('');
+
+	return `
+	<div class="period">
+		<div class="pd-head">Since ${escapeHtml(label(start))}
+			<span class="pd-peak">busiest day ${fmtCreditsWith(peak)}</span></div>
+		<div class="pd-plot">${cols}</div>
+		<div class="pd-axis"><span>${escapeHtml(label(start))}</span>
+			<span>${escapeHtml(label(today))}</span></div>
+	</div>`;
+}
+
 function weekBars(rollups: Rollup[], creditsPerNanoAiu: number, now = new Date()): string {
 	// Monday of the current week, in local time: the day strings are local days.
 	const monday = new Date(now);
@@ -1516,6 +1586,33 @@ const STYLES = `
 	   inside a bordered column reads as a box inside a box. The bar still
 	   carries the state. */
 	.aside .day { padding: 0; border: none; background: none; }
+	/* Separated from the tiles the way the tiles are from the meter. */
+	.period { margin-top: 18px; padding-top: 14px;
+	          border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22)); }
+	.pd-head { display: flex; justify-content: space-between; align-items: baseline;
+	           gap: 8px; font-size: 0.72rem; text-transform: uppercase;
+	           letter-spacing: 0.07em; color: var(--vscode-descriptionForeground);
+	           margin-bottom: 9px; }
+	/* Columns share the width evenly and sit on a common baseline, so the shape
+	   is the reading and no single day can widen the strip. */
+	.pd-plot { display: flex; align-items: flex-end; gap: 3px; height: 46px; }
+	/* The empty days are context, not content. At the week chart's track weight
+	   twenty-six of them were a wall of grey with the two days that cost
+	   anything lost inside it. */
+	.pd-col { flex: 1 1 0; min-width: 0; height: 100%;
+	          display: flex; align-items: flex-end;
+	          background: rgba(128, 128, 128, 0.1);
+	          background: color-mix(in srgb,
+	              var(--vscode-editorWidget-border, rgba(128,128,128,0.22)) 45%, transparent);
+	          border-radius: 2px; }
+	.pd-fill { display: block; width: 100%; border-radius: 2px; background: var(--hue); }
+	/* Today is the column a reader looks for first, and on a quiet day it is
+	   also the shortest. The outline finds it when the bar cannot. */
+	.pd-today { outline: 1px solid var(--hue); outline-offset: 1px; }
+	.pd-peak { letter-spacing: 0; text-transform: none; font-size: 0.7rem; }
+	.pd-axis { display: flex; justify-content: space-between; margin-top: 6px;
+	           font-size: 0.68rem; color: var(--vscode-descriptionForeground); }
+
 	.wk-head {
 		display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
 		font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em;
