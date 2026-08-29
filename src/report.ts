@@ -1801,6 +1801,10 @@ const STYLES = `
 		.verdict { padding: 12px 13px; }
 		/* Beside becomes below: 30% of a narrow split is not a chart. */
 		.verdict-cols { flex-wrap: wrap; gap: 18px; }
+		/* Thirty-one columns share about 290px here. At the wide gap they take
+		   less than half of it and the chart reads as stripes rather than as a
+		   shape; the columns are the data and the gaps only separate them. */
+		.pd-plot { gap: 1px; height: 38px; }
 		.aside { flex: 1 1 100%; border-left: none; padding-left: 0;
 		         border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
 		         padding-top: 14px; }

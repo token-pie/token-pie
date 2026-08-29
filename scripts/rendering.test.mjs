@@ -373,6 +373,42 @@ const pages = {
   });
 }
 
+/*
+ * The longest period there can be, on its last day.
+ *
+ * The chart draws a column per day from the period start to today, and a
+ * period is a calendar month, so 31 is the most it can ever hold -- it resets
+ * rather than accumulating. That bound is worth measuring rather than
+ * asserting: at 31 columns in a 320px split each one is a few pixels wide, and
+ * whether that is a chart or a smear is not something the arithmetic says.
+ */
+{
+  const reset = new Date();
+  reset.setDate(reset.getDate() + 1);
+  const start = new Date(reset);
+  start.setMonth(start.getMonth() - 1);
+  const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+                   `-${String(d.getDate()).padStart(2, '0')}`;
+  const spread = [];
+  for (let i = 0; i < 31; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    if (d > new Date()) { break; }
+    // Uneven on purpose: a flat chart hides a column that cannot be seen.
+    spread.push(rollup({ day: key(d), nanoAiu: (1 + (i % 7) * 4) * 1e9 }));
+  }
+  pages.wholePeriod = renderReport({
+    rollups: spread, creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+    costCoverage: 1, warnings: [], prices: {}, depth: {},
+    projection: { verdict: 'ok', quotaId: 'premium_interactions', entitlement: 1500,
+      remaining: 900, percentRemaining: 60, creditsUsed: 600, burnPerDay: 20,
+      daysToReset: 1, sustainableDailyBurn: 900,
+      resetDate: reset.toISOString().slice(0, 10) }
+  });
+  const cols = (pages.wholePeriod.match(/class="pd-col/g) || []).length;
+  check('a whole period is drawn', cols >= 28 && cols <= 31, true);
+}
+
 for (const [name, html] of Object.entries(pages)) {
   for (const theme of ['dark', 'light']) {
     console.log(`\n${name} (${theme})`);
