@@ -1340,9 +1340,8 @@ function dayFigure(p: Projection, tuning: Tuning): string {
 	return `<div class="day day-${pressure}">
 		<div class="day-v">${pct}<span class="unit">% used today</span></div>
 		<div class="day-track"><span class="day-fill" style="width:${fill}%"></span></div>
-		<div class="day-k">${fmtCredits(p.todayCredits ?? 0)} of
-			${fmtCredits(p.todayBudget)} credits<br>${source}</div>
-		${budgetHint(p, tuning)}
+		<div class="day-k"><span>${fmtCredits(p.todayCredits ?? 0)} of
+			${fmtCredits(p.todayBudget)} credits<br>${source}</span>${budgetHint(p, tuning)}</div>
 	</div>`;
 }
 
@@ -1539,7 +1538,7 @@ const STYLES = `
 	   the tiles reads as a separate section nobody scrolls to. 30%, not 20:
 	   a heavy week reads "1,234" where a light one reads "23.04", and the
 	   value column grows to fit it out of the bar's width. */
-	.verdict-cols { display: flex; gap: 26px; align-items: flex-start; }
+	.verdict-cols { display: flex; gap: 26px; align-items: stretch; }
 	.verdict-main { flex: 1 1 auto; min-width: 0; }
 	.week {
 		flex: 0 0 30%; min-width: 0;
@@ -1579,7 +1578,8 @@ const STYLES = `
 	   is small text ending where the note's small text begins, so a gap sized
 	   for the big numeral leaves the two reading as one run. Wrapped on a narrow
 	   panel the figure sits above the note and needs far less. */
-	.verdict-top { display: flex; align-items: center; gap: 14px 30px; flex-wrap: wrap; }
+	.verdict-top { display: flex; align-items: center; gap: 14px 30px; flex-wrap: wrap;
+	               justify-content: space-between; }
 	/* Today, beside the month.
 	   The state is the bar and the ground, never the number. Colouring the
 	   figure itself put amber text at 2.93:1 on a light theme -- below the 3:1
@@ -1597,7 +1597,11 @@ const STYLES = `
 	.day-track { height: 4px; border-radius: 2px; margin: 8px 0;
 	             background: var(--vscode-editorWidget-border, #8884); overflow: hidden; }
 	.day-fill { display: block; height: 100%; background: var(--day-hue); }
-	.day-k { font-size: 0.72rem; color: var(--vscode-descriptionForeground); }
+	/* The marker sits against the caption it explains. On a line of its own it
+	   read as an orphan and cost the card a row. */
+	.day-k { display: flex; align-items: flex-end; gap: 7px;
+	         font-size: 0.72rem; color: var(--vscode-descriptionForeground); }
+	.day-k .hint { margin-top: 0; }
 	/* The marker is the affordance, so it has to look like one: a bordered
 	   circle rather than a bare question mark, which reads as punctuation. */
 	/* An overlay, not an expansion. Inline, three paragraphs of explanation

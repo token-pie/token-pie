@@ -242,10 +242,14 @@ if (flag('shot')) {
     console.error(`no headless browser at ${chrome}; set CHROME=<path>`);
     process.exit(1);
   }
-  // Every <details> forced open: a collapsed page screenshots as a list of
-  // summaries and says nothing about the tables inside them.
+  // Every <details> forced open, except the hints: a collapsed page screenshots
+  // as a list of summaries and says nothing about the tables inside them, but a
+  // hint is a popover rather than a section. Opened, they float over the layout
+  // the screenshot exists to show -- two of them covered most of the verdict
+  // card, which is exactly where the layout was being judged.
   const opened = out.replace(/\.html$/, '-open.html');
-  fs.writeFileSync(opened, html.replace(/<details([^>]*?)(?<! open)>/g, '<details$1 open>'));
+  fs.writeFileSync(opened, html.replace(
+    /<details(?![^>]*class="hint")([^>]*?)(?<! open)>/g, '<details$1 open>'));
   const png = out.replace(/\.html$/, '.png');
   // Its own profile directory, always. Without one, headless Chrome opens the
   // default profile -- the same one a running Chrome already holds -- and the
