@@ -170,6 +170,8 @@ Each of these reversed an earlier assumption. Full evidence in `DECISIONS.md`.
 | The billable operation is not always called `chat` | A work machine held `execute_tool`, `embeddings`, `invoke_agent` and no `chat`. The filter is derived per database, not hardcoded |
 | The same model arrives under several spellings | `copilot/claude-opus-4.6`, `claude-opus-4-6`, `…/(AK-AIF)gpt-5.6-luna`. Group on `modelKey()`, never the raw string |
 | `dayKey()` builds **local** calendar days | Parse them back with `dayStartMs()`. A `Z` shifts a day by the timezone offset |
+| `remaining` already has today's spend taken out | Add it back before dividing, or a daily budget shrinks as you spend against it and can never be spent to the line |
+| A chart state the harness never renders is a state it never checks | Every new panel state needs a fixture in `rendering.test.mjs`, or spacing and contrast go unmeasured |
 | The prompt cache is **per model**, not per thread | Only the *first* request to a model in a thread pays full price; returning to it stays warm |
 | `request_model` is already resolved — Auto is invisible in the trace DB | Selection mode is recovered from session files (`src/selection.ts`) |
 | `spans.turn_index` is NULL in copilot-chat 0.62.0 | No per-turn join. Attribution is `(chat_session_id, resolved model)` |

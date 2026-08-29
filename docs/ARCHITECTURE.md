@@ -304,6 +304,22 @@ Three things about the default, each of which was wrong first:
 - **Only measured spend counts.** Backfill is a floor, and a budget checked
   against a floor reports room that may not be there.
 
+### Two charts, two questions
+
+The week chart answers "what did I do this week" — seven rows, each a day you
+can name. `periodBars` answers "was this steady or one bad afternoon" — a
+column per day from the period start to today, which is a shape rather than a
+list. The meter above it gives the total and cannot distinguish the two, and
+those call for opposite responses.
+
+Bounded by construction: a period is one calendar month, so 31 columns is the
+most it can hold, and it resets rather than growing. Empty days are drawn faint
+and a day that cost anything never falls below 2% of the height, because the
+difference between quiet and absent is what the chart is for. It reports the
+busiest day rather than the total — the meter directly above already gives the
+total, from GitHub's figure rather than ours, and a second slightly different
+one invites a comparison the chart is not making.
+
 `sustainableDailyBurn` is deliberately *not* this number. "The pace that lasts
 from here" is right for the tile that shows it and wrong for a line you spend
 against; they were one expression and had to stop being one.
@@ -488,27 +504,36 @@ which needs no script.
   content now, with the logo optically aligned via `vertical-align: -0.28em`.
   Verified by measuring both text rects: 1px apart, exactly the descender
   difference between 1.1rem and 0.82rem.
-- **Align to the block, not the first line.** `.verdict-top` used
-  `align-items: baseline`, which was right while the hero sat beside a single
-  sentence. Once that column carried the sentence *and* the note, a baseline
-  pinned the figure to the first line and stranded it at the top of a taller
-  block; it is centred against the column now.
-- **A definition goes before the figures it defines.** Every figure is
-  denominated in credits and nothing said what one was. The note gives the
-  definition, the dollar value and a link to GitHub's own page, and it sits
-  under the verdict sentence inside the first card — not as a paragraph above
-  the card, and not beside the pace tiles.
+- **A figure sits on the thing it describes.** The hero is directly above the
+  meter, the day figure directly above its own bar. A sentence used to stand
+  between the hero and the meter saying what the meter, the projection line and
+  the pace tiles all said already; it was also the widest thing on the page,
+  wrapping to a row of its own and taking a third of the card for one clause.
+- **The card is split by horizon.** The month on the left — the figure, its
+  bar, the pace, and a column per day of the period. The day and the week on
+  the right, both narrower than a month, in the column that is about time
+  rather than totals. The hero names its horizon (*97% left this month*) for
+  the same reason the status bar had to once a second figure sat beside it.
+- **A definition hangs off the figure it defines, not above it.** Every figure
+  is denominated in credits and nothing said what one was. Standing prose was
+  tried in three positions and the argument each time was reading order: a
+  definition has to precede the first figure that uses it. All three were wrong
+  in the same way — read once on the first visit, then skipped past on every
+  refresh, while costing the card two lines forever.
 
-  The tile row was tried first because it is free: tiles are `flex: 0 1 auto`,
-  so they leave most of that row empty while standing exactly the note's height.
-  It cost 0px, but it put the definition *after* the meter had already said
-  "1,500 credits used", and parked it where it read as a caption for YOUR PACE.
-  Measured across all three: 1507px standalone, 1444px beside the tiles, 1478px
-  under the sentence. The 34px buys correct reading order and is still 29px
-  better than the paragraph it replaced — cheapest is not the same as right.
+  It is a `?` on that first figure instead: the meter when an allowance is
+  known, the total when there is none, because the meter is absent without one
+  and the definition must not disappear with it. `hint()` renders the marker and
+  an overlay; the day figure's derivation uses the same one.
 
   The history window is stated as a maximum — *up to* 30 days — never as a claim
   that 30 days of data exist; see `historyNote`.
+- **A hint overlays, and never off the page.** Inline, it pushed the hero, the
+  meter and the tiles down the card, so opening it gave a worse view than not
+  opening it. It is anchored to its marker and floats. In the right-hand column
+  it opens leftwards, and under 560px it goes back to expanding in place — a
+  260px panel anchored to a marker two-thirds across a 320px split reaches
+  127px past the page and takes it sideways.
 - **Reference before recommendations.** *Where the credits went* sits above
   *What to change*: advice about spend you have not seen yet is not actionable.
   Nothing is expanded on arrival, so the reader chooses what to open rather than
