@@ -136,8 +136,11 @@ const onDay = (nano, day = dayKey(NOW), source = 'measured') => ({
   check('a budget exists without one being set', Math.round(p.todayBudget), 18);
   check('today is measured', p.todayCredits, 9);
   check('and stated as a share of it', Math.round(p.todayShare * 100), 49);
-  check('which is what the bar says', dayLabel(p), '49% today');
+  check('which is what the bar says', dayLabel(p), '49% used today');
   check('and it is not pressing yet', dayPressure(p), 'under');
+  // A bare percentage beside "97% left" would be read as remaining. Only one
+  // of the two readings is a reason to stop.
+  check('the direction is stated, never implied', dayLabel(p).includes('used'), true);
 }
 {
   // A figure that is set overrides the pace: it is a stricter promise.
@@ -149,7 +152,7 @@ const onDay = (nano, day = dayKey(NOW), source = 'measured') => ({
   check('at the warn line', dayPressure(at(12e9), t), 'near');
   check('at the budget', dayPressure(at(15e9), t), 'over');
   // Not clamped: a figure that stopped at 100 would hide how far over it went.
-  check('and past it, uncapped', dayLabel(at(18e9)), '120% today');
+  check('and past it, uncapped', dayLabel(at(18e9)), '120% used today');
 }
 
 console.log('\nwhat cannot be a budget');

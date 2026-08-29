@@ -238,14 +238,19 @@ export function dayPressure(
 /**
  * Today's figure, for the status bar.
  *
- * Says "today" rather than a bare percent for the reason the month figure says
- * "left": on a spend tracker a lone percentage reads as easily as the share
- * used as the share remaining, and the two are opposite readings.
+ * "used" for the same reason the month figure says "left": on a spend tracker
+ * a lone percentage reads as easily as the share used as the share remaining,
+ * and beside a figure that means remaining, the day would be read as remaining
+ * too. The two are opposite readings and only one of them is a reason to stop.
+ *
+ * "of today" was tried and dropped -- today is not a quantity, so the phrase
+ * elides the noun it is a share of and leaves the reader to supply it. The
+ * hover names the denominator in credits; this only has room for the direction.
  */
 export function dayLabel(p: Projection): string | undefined {
 	return p.todayShare === undefined
 		? undefined
-		: `${Math.round(p.todayShare * 100)}% today`;
+		: `${Math.round(p.todayShare * 100)}% used today`;
 }
 
 /** Short status-bar label. Every character has to earn its place. */

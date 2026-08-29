@@ -16,6 +16,7 @@ export const DARK = {
   'charts-blue': '#3794ff', 'charts-green': '#89d185', 'charts-purple': '#b180d7',
   'charts-red': '#f14c4c', 'charts-yellow': '#cca700',
   'inputValidation-warningBackground': '#352a05', 'inputValidation-warningBorder': '#b89500',
+  'inputValidation-errorBackground': '#5a1d1d', 'inputValidation-errorBorder': '#be1100',
   'textLink-foreground': '#4daafc', 'editorWarning-foreground': '#cca700',
   'editorError-foreground': '#f14c4c',
   'charts-orange': '#d18616', 'panel-border': '#2b2b2b',
@@ -28,6 +29,7 @@ export const LIGHT = {
   'list-hoverBackground': '#f0f0f0', 'charts-foreground': '#3b3b3b',
   'charts-blue': '#1a85ff', 'charts-green': '#388a34', 'charts-purple': '#652d90',
   'inputValidation-warningBackground': '#fff8c5', 'textLink-foreground': '#005fb8', 'editorWarning-foreground': '#bf8803',
+  'inputValidation-errorBackground': '#fddede', 'inputValidation-errorBorder': '#be1100',
   'editorError-foreground': '#e51400',
   'charts-orange': '#bf6a02', 'panel-border': '#e5e5e5',
   'textBlockQuote-background': '#f3f3f3'

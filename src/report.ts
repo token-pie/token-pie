@@ -1335,10 +1335,10 @@ function dayFigure(p: Projection, tuning: Tuning): string {
 	// track is the budget, so a full bar is exactly the point it was spent.
 	const fill = Math.min(100, pct);
 	return `<div class="day day-${pressure}">
-		<div class="day-v">${pct}<span class="unit">% of today</span></div>
+		<div class="day-v">${pct}<span class="unit">% used today</span></div>
 		<div class="day-track"><span class="day-fill" style="width:${fill}%"></span></div>
 		<div class="day-k">${fmtCredits(p.todayCredits ?? 0)} of
-			${fmtCredits(p.todayBudget)} credits</div>
+			${fmtCredits(p.todayBudget)} budgeted</div>
 	</div>`;
 }
 
