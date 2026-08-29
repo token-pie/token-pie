@@ -28,6 +28,7 @@ const { RollupStore, sum, groupBy } = await import('../out/store.js');
 const { read } = await import('../out/tuning.js');
 const { renderReport } = await import('../out/report.js');
 const { emptyStats, accumulate } = await import('../out/pricing.js');
+const { project } = await import('../out/projection.js');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'token-pie-selftest-'));
 const dbPath = path.join(dir, 'agent-traces.db');
@@ -627,10 +628,32 @@ check('no script tags in webview', /<script/i.test(html), false);
   const visible = html.slice(html.indexOf('<body')).replace(/<[^>]+>/g, ' ');
   const abbreviated = visible.match(/[\d.,]+\s*\bcr\b[/\w]*/g) || [];
   check('the unit is never abbreviated to "cr"', abbreviated.join(', '), '');
-  // The hero shares a row with a two-part column now, so a baseline would pin
-  // it to the first line and strand it at the top.
-  check('the hero is centred against the column beside it',
-    /\.verdict-top \{ display: flex; align-items: center;/.test(html), true);
+  // The hero sits against the bar it describes, the way the day figure sits
+  // against its own. A sentence used to stand between them saying what the
+  // meter, the projection line and the pace tiles all say already.
+  {
+    // A real projection, because the day figure is withheld without one and a
+    // hand-built object silently omits the fields it is computed from.
+    const today = { ...priced, day: new Date().toISOString().slice(0, 10) };
+    const metered = renderReport({
+      rollups: [today], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+      costCoverage: 1, warnings: [], prices: {}, depth: {},
+      projection: project({
+        snapshots: [{ name: 'q', entitlement: 1500, remaining: 1450, remainingExact: 1450,
+          percentRemaining: 96.7, hasQuota: true, unlimited: false }],
+        resetDate: new Date(Date.now() + 20 * 86400000).toISOString()
+      }, [today], 1e-9)
+    });
+    const inBody = metered.slice(metered.indexOf('<body>')).replace(/\s+/g, ' ');
+    check('nothing stands between the hero and its bar',
+      /class="verdict-top">.*?<\/div><\/div> ?<div class="meter-wrap">/.test(inBody), true);
+    check('and the hero names the horizon it measures',
+      /% left this month/.test(inBody), true);
+    // Today and the week are both narrower than the month, so they share the
+    // column that is about time rather than totals.
+    check('today sits above the week, in one column',
+      /class="aside">.*?class="day .*?class="week"/.test(inBody), true);
+  }
   check('footer identifiers are picked out of the prose',
     /footer code \{ font-weight: 700;/.test(html), true);
   check('it is spelled out beside a figure', /[\d.,]+\s+credits?\b/.test(visible), true);

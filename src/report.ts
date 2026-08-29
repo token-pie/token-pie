@@ -85,45 +85,6 @@ function severityVar(p: Projection): string {
 	}
 }
 
-function verdictSentence(p: Projection, lastDay: string | undefined): string {
-	switch (p.verdict) {
-		case 'exhausted': {
-			const when = p.daysToReset !== undefined
-				? `It comes back in <strong>${fmtDays(p.daysToReset)} days</strong>.`
-				: '';
-			const over = p.creditsUsed !== undefined && p.entitlement
-				&& p.creditsUsed > p.entitlement
-				? ` You are <strong>${fmtCredits(p.creditsUsed - p.entitlement)} credits</strong>
-				   past the ${fmtCredits(p.entitlement)} you were allowed.`
-				: '';
-			return `<strong>Your ${escapeHtml(p.quotaId ?? 'allowance')} is used up</strong>
-				&mdash; Copilot will refuse premium requests until it resets.${over} ${when}`;
-		}
-		case 'will-exhaust': {
-			const when = p.exhaustDate
-				? p.exhaustDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
-				: 'soon';
-			const short = p.daysToReset !== undefined && p.daysToExhaust !== undefined
-				? ` &mdash; ${fmtDays(p.daysToReset - p.daysToExhaust)} days before it resets`
-				: '';
-			return `At your current rate the allowance runs out on <strong>${escapeHtml(when)}</strong>${short}.`;
-		}
-		case 'tight':
-			return `Your allowance lasts to the reset, but with under ${fmtDays(2)} days of slack. ` +
-				'One heavy day changes the answer.';
-		case 'ok':
-			return 'Your current rate finishes the period with room to spare.';
-		case 'no-rate':
-			return lastDay
-				? 'Not enough history to project a burn rate yet &mdash; a rate needs more than ' +
-				  'one day, or a single busy afternoon reads as a crisis. The allowance below is live.'
-				: 'No usage recorded yet. Use Copilot Chat, then refresh.';
-		default:
-			return 'No quota information. Run <strong>Token Pie: Check Quota</strong> to sign in ' +
-				'and read your entitlement from GitHub.';
-	}
-}
-
 /**
  * A meter: one ratio against a limit.
  *
@@ -1096,21 +1057,19 @@ ${STYLES}
 	<section class="verdict" style="--hue:${severityVar(p)}">
 		<div class="verdict-cols">
 		<div class="verdict-main">
-		<div class="verdict-top">
-			${heroFigure(p, totalCredits)}
-			${dayFigure(p, tuning)}
-			<!-- The definition used to sit here, four lines of standing prose
-			     between the verdict and the meter. It now hangs off the first
-			     figure denominated in a credit, which is where the argument for
-			     putting it here pointed all along. -->
-			<div class="say">
-				<p class="sentence">${verdictSentence(p, days.at(-1)?.[0])}</p>
-			</div>
-		</div>
+		<!-- The hero sits against the bar it describes. A sentence used to
+		     stand between them saying what the meter, the projection line and
+		     the pace tiles all say already. -->
+		<div class="verdict-top">${heroFigure(p, totalCredits)}</div>
 		${allowanceMeter(p, tuning.history.days)}
 		${paceTiles(p)}
 		</div>
-		${weekBars(rollups, creditsPerNanoAiu)}
+		<!-- Today over the week: two horizons, both narrower than the month,
+		     in the column that is already about time rather than totals. -->
+		<div class="aside">
+			${dayFigure(p, tuning)}
+			${weekBars(rollups, creditsPerNanoAiu)}
+		</div>
 		</div>
 	</section>
 
@@ -1418,7 +1377,7 @@ function heroFigure(p: Projection, totalCredits: number): string {
 		case 'ok':
 		case 'no-rate':
 			return p.percentRemaining !== undefined
-				? `<div class="hero">${Math.round(p.percentRemaining)}<span class="unit">% left</span></div>`
+				? `<div class="hero">${Math.round(p.percentRemaining)}<span class="unit">% left this month</span></div>`
 				: `<div class="hero">${fmtCredits(totalCredits)}<span class="unit">credits</span></div>`;
 		default:
 			return `<div class="hero">${fmtCredits(totalCredits)}<span class="unit">credits spent</span></div>`;
@@ -1521,14 +1480,15 @@ const STYLES = `
 	h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
 	.logo { vertical-align: -0.28em; margin-right: 8px; }
 	/* The sentence and the note share the column beside the hero figure. */
-	/* Narrow enough to stay on the row with the two figures. At 240 it could
-	   not, so it dropped to a line of its own and took a third of the card for
-	   one sentence with nothing beside it. */
-	.say { flex: 1 1 200px; min-width: 168px; }
-	.say .sentence { flex: none; }
+
 	/* The theme's link colour is contrast-checked against its background;
 	   charts-blue is a fill colour for chart marks and is not. */
 	.hint-body a { color: var(--vscode-textLink-foreground, #4a9eff); }
+	/* Opening leftwards in the right-hand column. Anchored to the marker's left
+	   edge it reached 127px past the page and took it sideways -- the same
+	   overflow the narrow split caught, arrived at by moving the marker instead
+	   of shrinking the window. */
+	.aside .hint-body { left: auto; right: 0; }
 	h2 { font-size: 0.72rem; margin: 20px 0 8px; text-transform: uppercase;
 	     letter-spacing: 0.07em; color: var(--vscode-descriptionForeground); font-weight: 600; }
 	h2.first { margin-top: 0; }
@@ -1543,11 +1503,19 @@ const STYLES = `
 	   value column grows to fit it out of the bar's width. */
 	.verdict-cols { display: flex; gap: 26px; align-items: stretch; }
 	.verdict-main { flex: 1 1 auto; min-width: 0; }
-	.week {
+	.aside {
 		flex: 0 0 30%; min-width: 0;
 		border-left: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
 		padding-left: 18px;
 	}
+	.week { min-width: 0; }
+	/* Today above the week, separated the way the meter is from the tiles. */
+	.aside .day + .week { margin-top: 16px; padding-top: 14px;
+	                      border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22)); }
+	/* No ground of its own here: the column is the frame, and a tinted box
+	   inside a bordered column reads as a box inside a box. The bar still
+	   carries the state. */
+	.aside .day { padding: 0; border: none; background: none; }
 	.wk-head {
 		display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
 		font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em;
@@ -1581,8 +1549,9 @@ const STYLES = `
 	   is small text ending where the note's small text begins, so a gap sized
 	   for the big numeral leaves the two reading as one run. Wrapped on a narrow
 	   panel the figure sits above the note and needs far less. */
-	.verdict-top { display: flex; align-items: center; gap: 14px 30px; flex-wrap: wrap;
-	               justify-content: space-between; }
+	/* Tight against the meter beneath it, the way the day figure sits against
+	   its own bar. The gap was sized for a sentence that is no longer there. */
+	.verdict-top { margin-bottom: 14px; }
 	/* Today, beside the month.
 	   The state is the bar and the ground, never the number. Colouring the
 	   figure itself put amber text at 2.93:1 on a light theme -- below the 3:1
@@ -1732,14 +1701,12 @@ const STYLES = `
 		             box-shadow: none; margin-top: 8px; }
 		body { padding: 12px 14px 20px; }
 		header { gap: 6px 10px; }
-		.say { flex: 1 1 100%; min-width: 0; }
-		.sentence { flex: 1 1 100%; min-width: 0; }
 		.verdict { padding: 12px 13px; }
 		/* Beside becomes below: 30% of a narrow split is not a chart. */
 		.verdict-cols { flex-wrap: wrap; gap: 18px; }
-		.week { flex: 1 1 100%; border-left: none; padding-left: 0;
-		        border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
-		        padding-top: 14px; }
+		.aside { flex: 1 1 100%; border-left: none; padding-left: 0;
+		         border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.22));
+		         padding-top: 14px; }
 		/* The floor that keeps the bar visible in a 30% column is three pixels
 		   more than a 320px split can spare once the day and the value have
 		   taken theirs. Lower here; the bar is still a bar. */
