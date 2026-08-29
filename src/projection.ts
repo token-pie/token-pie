@@ -52,6 +52,8 @@ export interface Projection {
 	creditsUsed?: number;
 	/** Measured spend on today's local calendar day. */
 	todayCredits?: number;
+	/** Whole days this allowance still has to cover, counting today. */
+	daysToCover?: number;
 	/**
 	 * What today was allowed to cost.
 	 *
@@ -76,6 +78,35 @@ export interface Projection {
 	 * over which our measured total and GitHub's are comparable.
 	 */
 	resetDate?: string;
+}
+
+/**
+ * Whole days this allowance still has to cover, counting today.
+ *
+ * `daysToReset` is continuous and falls all day, so dividing by it gave a
+ * budget that grew as the hours passed: the same 100 credits read as 30% used
+ * at one in the morning and 20% at eleven at night. A daily figure that moves
+ * while you are not spending is not a daily figure.
+ *
+ * Counted between local midnights, so it changes at midnight rather than at
+ * whatever hour the allowance happens to renew -- the boundary a reader means
+ * by "today" is their own, not the billing system's.
+ */
+function daysToCover(now: number, resetDate: string | undefined): number | undefined {
+	if (resetDate === undefined) {
+		return undefined;
+	}
+	const reset = new Date(resetDate.includes('T') ? resetDate : `${resetDate}T00:00:00.000Z`);
+	if (Number.isNaN(reset.getTime())) {
+		return undefined;
+	}
+	const today = new Date(now);
+	today.setHours(0, 0, 0, 0);
+	const resetDay = new Date(reset);
+	resetDay.setHours(0, 0, 0, 0);
+	// The allowance refills on the reset day, so that day is not one to cover.
+	// At least one, because today always is.
+	return Math.max(1, Math.round((resetDay.getTime() - today.getTime()) / 86_400_000));
 }
 
 /** Today's local day key, built the way `dayKey()` builds them. */
@@ -153,13 +184,15 @@ export function project(
 	//
 	// Adding today's spend back puts the denominator where it stood at
 	// midnight, so spending exactly that reads as exactly 100%.
-	const paced = base.remaining !== undefined && daysToReset && daysToReset > 0
-		? (base.remaining + todayCredits) / daysToReset
+	const cover = daysToCover(now, entitlement.resetDate);
+	const paced = base.remaining !== undefined && cover !== undefined
+		? (base.remaining + todayCredits) / cover
 		: undefined;
 	const budget = pct > 0 && base.entitlement !== undefined
 		? base.entitlement * (pct / 100)
 		: paced;
 	base.todayCredits = todayCredits;
+	base.daysToCover = cover;
 	base.todayBudget = budget !== undefined && budget > 0 ? budget : undefined;
 	base.todayShare = base.todayBudget !== undefined
 		? todayCredits / base.todayBudget

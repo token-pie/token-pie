@@ -1338,15 +1338,55 @@ function dayFigure(p: Projection, tuning: Tuning): string {
 	// Unset, it is what remains over the days left -- derived, and calling that
 	// "budgeted" would credit the reader with a decision the code made. Set, it
 	// is a figure they chose, and saying so is what makes it theirs.
-	const source = tuning.projection.dailyBudgetPercent > 0
-		? 'your daily budget'
-		: 'your pace to reset';
+	const set = tuning.projection.dailyBudgetPercent > 0;
+	const source = set ? 'your daily budget' : 'your pace to reset';
 	return `<div class="day day-${pressure}">
 		<div class="day-v">${pct}<span class="unit">% used today</span></div>
 		<div class="day-track"><span class="day-fill" style="width:${fill}%"></span></div>
 		<div class="day-k">${fmtCredits(p.todayCredits ?? 0)} of
 			${fmtCredits(p.todayBudget)} credits<br>${source}</div>
+		${budgetHint(p, tuning)}
 	</div>`;
+}
+
+/**
+ * Where the number in the denominator came from, and how to choose your own.
+ *
+ * A figure nobody set is a figure nobody can argue with, and 539 credits a day
+ * arrived with no provenance at all -- the first thing asked of it was what it
+ * meant. `details` rather than a hover: the panel runs with scripts disabled
+ * and a CSP of `default-src 'none'`, and a title attribute cannot be read on a
+ * touch device or by a keyboard.
+ */
+function budgetHint(p: Projection, tuning: Tuning): string {
+	const set = tuning.projection.dailyBudgetPercent > 0;
+	const days = p.daysToCover;
+	const had = (p.remaining ?? 0) + (p.todayCredits ?? 0);
+	const derivation = set
+		? `<p><strong>${tuning.projection.dailyBudgetPercent}%</strong> of your
+		   ${fmtCredits(p.entitlement ?? 0)}-credit allowance, which you set, is
+		   <strong>${fmtCredits(p.todayBudget ?? 0)} credits</strong> a day.</p>`
+		: `<p>You have not set one, so this is your own pace. You had
+		   <strong>${fmtCredits(had)} credits</strong> at the start of today and
+		   <strong>${days ?? 1} day${days === 1 ? '' : 's'}</strong> to spend
+		   them in before the allowance resets, which is
+		   <strong>${fmtCredits(p.todayBudget ?? 0)} a day</strong>.</p>
+		   <p>It counts whole days, so it does not drift as the hours pass, and
+		   what you have already spent today is added back &mdash; a budget that
+		   shrank as you spent against it could never be spent to the line.</p>`;
+	return `<details class="hint">
+		<summary title="How this figure is worked out">?</summary>
+		<div class="hint-body">
+			${derivation}
+			<p>${set
+				? `Change <code>tokenPie.dailyBudget</code> to move the line, or
+				   set it to <strong>0</strong> to go back to your own pace.`
+				: `Set <code>tokenPie.dailyBudget</code> to a percent of your whole
+				   allowance to measure against a figure of your own instead
+				   &mdash; <strong>1</strong> would be
+				   ${fmtCredits((p.entitlement ?? 0) / 100)} credits a day.`}</p>
+		</div>
+	</details>`;
 }
 
 function heroFigure(p: Projection, totalCredits: number): string {
@@ -1541,6 +1581,27 @@ const STYLES = `
 	             background: var(--vscode-editorWidget-border, #8884); overflow: hidden; }
 	.day-fill { display: block; height: 100%; background: var(--day-hue); }
 	.day-k { font-size: 0.72rem; color: var(--vscode-descriptionForeground); }
+	/* The marker is the affordance, so it has to look like one: a bordered
+	   circle rather than a bare question mark, which reads as punctuation. */
+	.hint { margin-top: 8px; }
+	.hint > summary { list-style: none; cursor: pointer; width: 15px; height: 15px;
+	                  border-radius: 50%; font-size: 0.66rem; line-height: 15px;
+	                  text-align: center; font-weight: 700;
+	                  color: var(--vscode-descriptionForeground);
+	                  border: 1px solid var(--vscode-descriptionForeground); }
+	.hint > summary::-webkit-details-marker { display: none; }
+	.hint > summary:hover { color: var(--vscode-foreground);
+	                        border-color: var(--vscode-foreground); }
+	.hint[open] > summary { color: var(--vscode-foreground);
+	                        border-color: var(--vscode-foreground); }
+	/* Wider than the column it hangs off, because the explanation is prose and
+	   a 132px measure would set it one or two words to the line. */
+	.hint-body { margin-top: 8px; width: 260px; max-width: 60vw;
+	             font-size: 0.72rem; line-height: 1.6;
+	             color: var(--vscode-descriptionForeground); }
+	.hint-body p { margin: 0 0 9px; }
+	.hint-body p:last-child { margin-bottom: 0; }
+	.hint-body code { font-size: 0.95em; }
 	.day-under { --day-hue: var(--vscode-charts-blue, #4a9eff); }
 	.day-near  { --day-hue: var(--vscode-charts-yellow, #cca700);
 	             background: var(--vscode-inputValidation-warningBackground, rgba(255,190,0,0.1));

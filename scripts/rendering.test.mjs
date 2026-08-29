@@ -205,6 +205,9 @@ const PROBE = `<script>(() => {
  * and every contrast reading is a fiction.
  */
 function themed(html, theme, narrow) {
+  // Opened, because a closed <details> renders no box to measure and its body
+  // is muted prose -- the kind of run that has failed contrast here before.
+  html = html.replace(/<details class="hint">/g, '<details class="hint" open>');
   const palette = theme === 'light' ? LIGHT : DARK;
   let out = html.replace('<style>',
     `<style>:root {\n${vars(palette)}\n}\n` +

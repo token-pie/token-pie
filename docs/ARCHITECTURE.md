@@ -280,6 +280,39 @@ the panel unreachable on the single machine that most needed to read it.
 panel warnings and in Token Specs — and only `errors` degrades the item. When
 adding a message, ask whether the extension failed or the data disappointed.
 
+## Today's budget
+
+The month figure is a fact until the reset; today's is the only one an
+afternoon can still move. It is a share of what today was allowed to cost:
+
+```
+tokenPie.dailyBudget set:  entitlement x percent
+              otherwise:  (remaining + spent today) / whole days left
+```
+
+Three things about the default, each of which was wrong first:
+
+- **Today's spend is added back.** `remaining` already has it deducted, so
+  dividing by it shrank the budget as the spend against it grew, and the ratio
+  ran ahead by `days / (days - 1)`. Spending exactly the sustainable amount
+  reported 111% used over ten days and 159% over three. A budget that recedes
+  as you spend cannot be spent to the line.
+- **Whole days, not `daysToReset`.** That figure is continuous and falls all
+  day, so the same 100 credits read as 30% used at 1am and 20% at 11pm. Days
+  are counted between local midnights, so the boundary is the reader's idea of
+  "today" rather than the hour the allowance happens to renew.
+- **Only measured spend counts.** Backfill is a floor, and a budget checked
+  against a floor reports room that may not be there.
+
+`sustainableDailyBurn` is deliberately *not* this number. "The pace that lasts
+from here" is right for the tile that shows it and wrong for a line you spend
+against; they were one expression and had to stop being one.
+
+The panel carries the derivation in a `details` beside the figure, with the
+account's own numbers in it — the first thing asked of a bare 539 was what it
+meant. `details` rather than a hover because the webview runs with scripts
+disabled, and a `title` attribute cannot be read by a keyboard.
+
 ## Verdict pipeline
 
 ```mermaid

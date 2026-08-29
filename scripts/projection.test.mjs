@@ -133,10 +133,14 @@ const onDay = (nano, day = dayKey(NOW), source = 'measured') => ({
   // the days left is already the pace that lasts to the reset. A budget exists
   // before anyone configures one.
   const p = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), [onDay(9e9)], 1e-9, NOW);
-  check('a budget exists without one being set', Math.round(p.todayBudget), 20);
+  // Whole calendar days, counting today, up to the day the allowance refills.
+  check('whole days are what it divides by', p.daysToCover, 6);
+  check('a budget exists without one being set', Math.round(p.todayBudget), 18);
+  check('and it is what today had over those days',
+    Math.round(p.todayBudget), Math.round((100 + 9) / p.daysToCover));
   check('today is measured', p.todayCredits, 9);
-  check('and stated as a share of it', Math.round(p.todayShare * 100), 45);
-  check('which is what the bar says', dayLabel(p), '45% used today');
+  check('and stated as a share of it', Math.round(p.todayShare * 100), 50);
+  check('which is what the bar says', dayLabel(p), '50% used today');
   check('and it is not pressing yet', dayPressure(p), 'under');
   // A bare percentage beside "97% left" would be read as remaining. Only one
   // of the two readings is a reason to stop.
@@ -176,7 +180,7 @@ console.log('\na budget you can spend to the line');
   check('and twice it is twice', Math.round(at(200).todayShare * 100), 200);
   // The error grew as the reset approached, which is when the figure matters.
   check('and it holds with the reset in sight',
-    Math.round(at(100, 2.7).todayShare * 100), 27);
+    Math.round(at(100, 2.7).todayShare * 100), 30);
 }
 
 console.log('\nwhat cannot be a budget');
