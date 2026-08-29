@@ -619,7 +619,7 @@ check('no script tags in webview', /<script/i.test(html), false);
   check('the breakdown sits outside the advice section',
     /<\/section>\s*(<!--[\s\S]*?-->)?\s*<section>\s*<h2>Where the credits went<\/h2>/.test(html), true);
   check('the unit every figure uses is defined',
-    /Note: An <strong>AI Credit<\/strong> is GitHub's billing unit/
+    /An <strong>AI Credit<\/strong> is GitHub's billing unit/
       .test(html.replace(/\s+/g, ' ')), true);
   // It rides in the dead space beside the pace tiles rather than standing as a
   // paragraph above the card, which cost 63px of height for the same words.
@@ -635,29 +635,51 @@ check('no script tags in webview', /<script/i.test(html), false);
     /footer code \{ font-weight: 700;/.test(html), true);
   check('it is spelled out beside a figure', /[\d.,]+\s+credits?\b/.test(visible), true);
 
-  // A definition has to precede the first figure that uses it, so the note sits
-  // under the verdict sentence -- not beside the pace tiles, where it followed
-  // the meter and read as a caption for YOUR PACE.
-  check('the note sits under the verdict sentence',
-    /<p class="sentence">[\s\S]*?<p class="lede">/.test(html), true);
-  // The meter is absent when no allowance is known, so only assert the order
-  // when there is something to be ordered against.
-  const meterAt = html.indexOf('class="meter-wrap"');
-  check('and above the allowance meter when there is one',
-    meterAt === -1 || html.indexOf('class="lede"') < meterAt, true);
-  check('and not as a block above the verdict card',
-    /<p class="lede">[\s\S]*?<section class="verdict"/.test(html), false);
+  // A definition has to be reachable from the first figure that uses it. It
+  // used to stand under the verdict sentence, four lines of prose read once and
+  // skipped past on every refresh after; it now hangs off that figure instead.
+  // Rendered with an allowance, because the base fixture has none and the
+  // meter is the figure the definition attaches to when there is one. Matched
+  // in the body: these class names appear in the stylesheet first, and a
+  // whole-document search finds those instead of the markup.
+  {
+    const metered = renderReport({
+      rollups: [priced], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+      costCoverage: 1, warnings: [], prices: {}, depth: {},
+      projection: { verdict: 'ok', quotaId: 'q', entitlement: 1500, remaining: 1450,
+        percentRemaining: 96.7, creditsUsed: 50, daysToReset: 20 }
+    });
+    const inBody = metered.slice(metered.indexOf('<body>')).replace(/\s+/g, ' ');
+    check('it hangs off the first figure denominated in a credit',
+      /class="mh-label">[\s\S]*?credits used<details class="hint">/.test(inBody), true);
+  }
+  // The meter is absent when no allowance is known, and the definition must not
+  // disappear with it -- it moves to the total, which is always rendered.
+  {
+    const noQuota = renderReport({
+      rollups: [priced], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+      costCoverage: 1, warnings: [], projection: undefined, prices: {}, depth: {}
+    });
+    check('no allowance, no meter', /class="meter-wrap"/.test(noQuota), false);
+    check('and the definition is still reachable',
+      /An <strong>AI Credit<\/strong> is/.test(noQuota.replace(/\s+/g, ' ')), true);
+    check('from the total instead', /message[s]?<details class="hint">/
+      .test(noQuota.replace(/\s+/g, ' ')), true);
+  }
+  check('and is not standing prose in the card',
+    /<p class="lede">/.test(html), false);
   check('with a reference that is not a bare domain',
     /href="https:\/\/docs\.github\.com\/en\/copilot\/concepts\/billing\/[a-z-]+"/.test(html), true);
-  check('the history window is stated', /up to the last 30 days/.test(html.replace(/\s+/g, ' ')), true);
+  const words = h => h.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+  check('the history window is stated', /up to the last 30 days/.test(words(html)), true);
   // `tokenPie.history.days` moves that window, and a note claiming 30 days on a
   // panel keeping 14 is a lie the reader has no way to catch.
   check('and follows the setting rather than being hardcoded',
-    /up to the last 14 days/.test(renderReport({
+    /up to the last 14 days/.test(words(renderReport({
       rollups: [priced], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
       costCoverage: 1, warnings: [], projection: undefined, prices: {}, depth: {},
       tuning: read(id => (id === 'history.days' ? 14 : undefined)).tuning
-    }).replace(/\s+/g, ' ')), true);
+    }))), true);
   check('the title carries the mark', /<svg class="logo"/.test(html), true);
   // A flex container's baseline comes from its first item. With the logo first,
   // <header>'s baseline alignment pinned the date to the image's bottom edge,

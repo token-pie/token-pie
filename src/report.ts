@@ -131,7 +131,7 @@ function verdictSentence(p: Projection, lastDay: string | undefined): string {
  * observed burn rate lands you by the reset date -- if it runs off the end of
  * the track, that is the throttle, drawn.
  */
-function allowanceMeter(p: Projection): string {
+function allowanceMeter(p: Projection, historyDays: number): string {
 	if (p.entitlement === undefined || p.remaining === undefined || p.entitlement <= 0) {
 		return '';
 	}
@@ -174,7 +174,8 @@ function allowanceMeter(p: Projection): string {
 	return `
 	<div class="meter-wrap">
 		<div class="meter-head">
-			<span><strong>${fmtCredits(used)}</strong> of ${fmtCredits(p.entitlement)} credits used</span>
+			<div class="mh-label"><strong>${fmtCredits(used)}</strong> of
+				${fmtCredits(p.entitlement)} credits used${creditHint(historyDays)}</div>
 			${projectionNote}
 		</div>
 		<div class="meter" style="--hue:${hue}"
@@ -1015,15 +1016,6 @@ const LOGO = `<svg class="logo" viewBox="42 42 172 172" width="21" height="21" a
 	</g>
 </svg>`;
 
-// The window is stated from the setting, not hardcoded: `tokenPie.history.days`
-// moves it, and a note claiming 30 days on a panel keeping 14 is a lie the
-// reader has no way to catch.
-const lede = (days: number) => `<p class="lede">Note: An <strong>AI Credit</strong> is
-	GitHub's billing unit for Copilot &mdash; one is $0.01, charged on the tokens each
-	message sends and receives. This panel keeps up to the last ${fmtInt(days)} days.
-	<a href="https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-organizations-and-enterprises"
-	   target="_blank" rel="noopener noreferrer">How credits work</a></p>`;
-
 export function renderReport(input: ReportInput): string {
 	const { rollups, creditsPerNanoAiu } = input;
 	const tuning = input.tuning ?? defaults();
@@ -1055,6 +1047,11 @@ export function renderReport(input: ReportInput): string {
 			: undefined,
 		tuning
 	});
+
+	// A definition has to precede the first figure that uses it, and which
+	// figure that is depends on the page: the meter is absent when no allowance
+	// is known, and the definition must not disappear with it.
+	const hasMeter = p.entitlement !== undefined && p.remaining !== undefined && p.entitlement > 0;
 
 	const byModel = groupModels(rollups);
 	const byWorkspace = groupBy(rollups, 'workspace');
@@ -1102,16 +1099,15 @@ ${STYLES}
 		<div class="verdict-top">
 			${heroFigure(p, totalCredits)}
 			${dayFigure(p, tuning)}
-			<!-- The note defines the unit, so it belongs before the first figure
-			     denominated in it. Beside the pace tiles it sat below the meter,
-			     after "1,500 credits used" had already been read, and read as a
-			     caption for YOUR PACE -- which it has nothing to do with. -->
+			<!-- The definition used to sit here, four lines of standing prose
+			     between the verdict and the meter. It now hangs off the first
+			     figure denominated in a credit, which is where the argument for
+			     putting it here pointed all along. -->
 			<div class="say">
 				<p class="sentence">${verdictSentence(p, days.at(-1)?.[0])}</p>
-				${lede(tuning.history.days)}
 			</div>
 		</div>
-		${allowanceMeter(p)}
+		${allowanceMeter(p, tuning.history.days)}
 		${paceTiles(p)}
 		</div>
 		${weekBars(rollups, creditsPerNanoAiu)}
@@ -1134,7 +1130,8 @@ ${STYLES}
 		<h2>Where the credits went</h2>
 	<details class="detail" open>
 		<summary><strong>${fmtCredits(totalCredits)} credits</strong> over
-			${fmtInt(totals.requests)} message${totals.requests === 1 ? '' : 's'}</summary>
+			${fmtInt(totals.requests)} message${totals.requests === 1 ? '' : 's'}${
+			hasMeter ? '' : creditHint(tuning.history.days)}</summary>
 		<div class="detail-body">
 
 		${coverageLine(periodFit)}
@@ -1358,6 +1355,36 @@ function dayFigure(p: Projection, tuning: Tuning): string {
  * and a CSP of `default-src 'none'`, and a title attribute cannot be read on a
  * touch device or by a keyboard.
  */
+/**
+ * A marker that opens an explanation over the page rather than in it.
+ *
+ * Shared because the second one was about to be a copy of the first, and the
+ * two differ only in prose.
+ */
+function hint(summary: string, body: string): string {
+	return `<details class="hint">
+		<summary title="${escapeHtml(summary)}">?</summary>
+		<div class="hint-body">${body}</div>
+	</details>`;
+}
+
+/**
+ * What a credit is, at the first figure denominated in one.
+ *
+ * This was four lines of standing prose in the middle of the verdict card, read
+ * once and then skipped past on every refresh forever. The definition still has
+ * to be reachable -- nobody arrives knowing what an AI Credit is -- but it does
+ * not have to be in the way to be reachable.
+ */
+function creditHint(days: number): string {
+	return hint('What an AI Credit is', `<p>An <strong>AI Credit</strong> is
+		GitHub's billing unit for Copilot. One is <strong>$0.01</strong>, charged
+		on the tokens each message sends and receives.</p>
+		<p>This panel keeps up to the last <strong>${fmtInt(days)} days</strong>.
+		<a href="https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-organizations-and-enterprises"
+		   target="_blank" rel="noopener noreferrer">How credits work</a></p>`);
+}
+
 function budgetHint(p: Projection, tuning: Tuning): string {
 	const set = tuning.projection.dailyBudgetPercent > 0;
 	const days = p.daysToCover;
@@ -1371,9 +1398,7 @@ function budgetHint(p: Projection, tuning: Tuning): string {
 		   the <strong>${days ?? 1} day${days === 1 ? '' : 's'}</strong> left
 		   before the allowance resets, which is
 		   <strong>${fmtCredits(p.todayBudget ?? 0)} a day</strong>.</p>`;
-	return `<details class="hint">
-		<summary title="How this figure is worked out">?</summary>
-		<div class="hint-body">
+	return hint('How this figure is worked out', `
 			${derivation}
 			<p>${set
 				? `Change <code>tokenPie.dailyBudget</code> to move the line, or
@@ -1381,9 +1406,7 @@ function budgetHint(p: Projection, tuning: Tuning): string {
 				: `Set <code>tokenPie.dailyBudget</code> to a percent of your whole
 				   allowance to measure against a figure of your own instead
 				   &mdash; <strong>1</strong> would be
-				   ${fmtCredits((p.entitlement ?? 0) / 100)} credits a day.`}</p>
-		</div>
-	</details>`;
+				   ${fmtCredits((p.entitlement ?? 0) / 100)} credits a day.`}</p>`);
 }
 
 function heroFigure(p: Projection, totalCredits: number): string {
@@ -1501,12 +1524,9 @@ const STYLES = `
 	/* The sentence and the note share the column beside the hero figure. */
 	.say { flex: 1 1 260px; min-width: 240px; }
 	.say .sentence { flex: none; }
-	.lede { margin: 9px 0 0;
-	        font-size: 0.74rem; line-height: 1.55;
-	        font-style: italic; color: var(--vscode-descriptionForeground); }
 	/* The theme's link colour is contrast-checked against its background;
 	   charts-blue is a fill colour for chart marks and is not. */
-	.lede a { color: var(--vscode-textLink-foreground, #4a9eff); }
+	.hint-body a { color: var(--vscode-textLink-foreground, #4a9eff); }
 	h2 { font-size: 0.72rem; margin: 20px 0 8px; text-transform: uppercase;
 	     letter-spacing: 0.07em; color: var(--vscode-descriptionForeground); font-weight: 600; }
 	h2.first { margin-top: 0; }
@@ -1585,6 +1605,10 @@ const STYLES = `
 	   worse page than not opening it. Anchored so the layout underneath never
 	   moves. */
 	.hint { position: relative; margin-top: 8px; }
+	/* Inline beside a label rather than under a figure: no line of its own, and
+	   centred on the text it hangs off. */
+	.mh-label { display: flex; align-items: center; gap: 7px; }
+	.mh-label .hint { margin-top: 0; }
 	.hint > summary { list-style: none; cursor: pointer; width: 15px; height: 15px;
 	                  border-radius: 50%; font-size: 0.66rem; line-height: 15px;
 	                  text-align: center; font-weight: 700;
@@ -1692,6 +1716,13 @@ const STYLES = `
 	 * rows stack, and the padding comes in.
 	 */
 	@media (max-width: 560px) {
+		/* Back to expanding in place. An overlay is anchored to its marker, so
+		   in a 320px split a 260px panel starts 146px past the edge and takes
+		   the whole page sideways with it. There is no room to float something
+		   over this width anyway: the thing it would cover is the thing you
+		   were reading. */
+		.hint-body { position: static; width: auto; max-width: none;
+		             box-shadow: none; margin-top: 8px; }
 		body { padding: 12px 14px 20px; }
 		header { gap: 6px 10px; }
 		.say { flex: 1 1 100%; min-width: 0; }
