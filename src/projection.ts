@@ -143,9 +143,22 @@ export function project(
 		.filter(r => r.source !== 'reported' && r.day === todayKey)
 		.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
 	const pct = tuning.projection.dailyBudgetPercent;
-	const budget = pct > 0 && entitlement !== undefined && base.entitlement !== undefined
+	// What today had to spend, which is not the same as what is left now.
+	//
+	// `sustainableDailyBurn` divides what remains by the days left, and what
+	// remains already has today's spend taken out of it -- so as the numerator
+	// of the day figure rose its denominator fell, and spending exactly the
+	// sustainable amount reported 111% used over ten days, 159% over three.
+	// A budget that shrinks as you spend against it cannot be spent to the line.
+	//
+	// Adding today's spend back puts the denominator where it stood at
+	// midnight, so spending exactly that reads as exactly 100%.
+	const paced = base.remaining !== undefined && daysToReset && daysToReset > 0
+		? (base.remaining + todayCredits) / daysToReset
+		: undefined;
+	const budget = pct > 0 && base.entitlement !== undefined
 		? base.entitlement * (pct / 100)
-		: base.sustainableDailyBurn;
+		: paced;
 	base.todayCredits = todayCredits;
 	base.todayBudget = budget !== undefined && budget > 0 ? budget : undefined;
 	base.todayShare = base.todayBudget !== undefined

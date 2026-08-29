@@ -133,10 +133,10 @@ const onDay = (nano, day = dayKey(NOW), source = 'measured') => ({
   // the days left is already the pace that lasts to the reset. A budget exists
   // before anyone configures one.
   const p = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), [onDay(9e9)], 1e-9, NOW);
-  check('a budget exists without one being set', Math.round(p.todayBudget), 18);
+  check('a budget exists without one being set', Math.round(p.todayBudget), 20);
   check('today is measured', p.todayCredits, 9);
-  check('and stated as a share of it', Math.round(p.todayShare * 100), 49);
-  check('which is what the bar says', dayLabel(p), '49% used today');
+  check('and stated as a share of it', Math.round(p.todayShare * 100), 45);
+  check('which is what the bar says', dayLabel(p), '45% used today');
   check('and it is not pressing yet', dayPressure(p), 'under');
   // A bare percentage beside "97% left" would be read as remaining. Only one
   // of the two readings is a reason to stop.
@@ -153,6 +153,30 @@ const onDay = (nano, day = dayKey(NOW), source = 'measured') => ({
   check('at the budget', dayPressure(at(15e9), t), 'over');
   // Not clamped: a figure that stopped at 100 would hide how far over it went.
   check('and past it, uncapped', dayLabel(at(18e9)), '120% used today');
+}
+
+console.log('\na budget you can spend to the line');
+{
+  // 1000 at the start of today, 10 days to reset: the pace is 100 a day. The
+  // denominator is what today HAD, not what is left now -- `remaining` already
+  // has today's spend taken out, so dividing by it shrank the budget as the
+  // spend against it grew. Exactly 100 spent reported 111% used over ten days
+  // and 159% over three, and a budget that recedes cannot be spent to.
+  const at = (spent, days = 10) => project(
+    { snapshots: [{ name: 'q', entitlement: 1500, remaining: 1000 - spent,
+      remainingExact: 1000 - spent, percentRemaining: (1000 - spent) / 15,
+      hasQuota: true, unlimited: false }],
+      resetDate: new Date(NOW + days * 86400000).toISOString() },
+    [onDay(spent * 1e9)], 1e-9, NOW);
+  check('the budget does not move as the day is spent',
+    [0, 50, 100, 200].map(n => Math.round(at(n).todayBudget)).join(), '100,100,100,100');
+  check('nothing spent is nothing used', Math.round(at(0).todayShare * 100), 0);
+  check('half of it is half used', Math.round(at(50).todayShare * 100), 50);
+  check('spending exactly the pace is exactly full', Math.round(at(100).todayShare * 100), 100);
+  check('and twice it is twice', Math.round(at(200).todayShare * 100), 200);
+  // The error grew as the reset approached, which is when the figure matters.
+  check('and it holds with the reset in sight',
+    Math.round(at(100, 2.7).todayShare * 100), 27);
 }
 
 console.log('\nwhat cannot be a budget');
