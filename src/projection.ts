@@ -50,6 +50,24 @@ export interface Projection {
 	sustainableDailyBurn?: number;
 	/** What GitHub says you have spent against this allowance. */
 	creditsUsed?: number;
+	/** Measured spend on today's local calendar day. */
+	todayCredits?: number;
+	/**
+	 * What today was allowed to cost.
+	 *
+	 * `projection.dailyBudgetPercent` of the allowance when it is set, and
+	 * `sustainableDailyBurn` otherwise -- a budget exists without anyone
+	 * configuring one, because what remains divided by the days left is
+	 * already the pace that lasts to the reset.
+	 */
+	todayBudget?: number;
+	/**
+	 * Today's spend as a share of today's budget. Above 1 is over.
+	 *
+	 * Deliberately not clamped: "118% of today" is the reading, and a figure
+	 * that stopped at 100 would hide how far over the day went.
+	 */
+	todayShare?: number;
 	/**
 	 * When the allowance refills, verbatim from the endpoint.
 	 *
@@ -58,6 +76,13 @@ export interface Projection {
 	 * over which our measured total and GitHub's are comparable.
 	 */
 	resetDate?: string;
+}
+
+/** Today's local day key, built the way `dayKey()` builds them. */
+function dayKeyOf(now: number): string {
+	const d = new Date(now);
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+		`-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function project(
@@ -110,6 +135,22 @@ export function project(
 		sustainableDailyBurn:
 			daysToReset && daysToReset > 0 ? remaining / daysToReset : undefined
 	};
+
+	// Today's spend, measured only. Backfilled transcript days are a floor, and
+	// a budget checked against a floor says you have room you may not have.
+	const todayKey = dayKeyOf(now);
+	const todayCredits = rollups
+		.filter(r => r.source !== 'reported' && r.day === todayKey)
+		.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
+	const pct = tuning.projection.dailyBudgetPercent;
+	const budget = pct > 0 && entitlement !== undefined && base.entitlement !== undefined
+		? base.entitlement * (pct / 100)
+		: base.sustainableDailyBurn;
+	base.todayCredits = todayCredits;
+	base.todayBudget = budget !== undefined && budget > 0 ? budget : undefined;
+	base.todayShare = base.todayBudget !== undefined
+		? todayCredits / base.todayBudget
+		: undefined;
 
 	const rate = burnPerDay(rollups, creditsPerNanoAiu, now, tuning.projection.minDaysForRate);
 	if (!rate) {
@@ -175,6 +216,36 @@ function burnPerDay(
 
 	const credits = rollups.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
 	return { perDay: credits / elapsedDays, days: elapsedDays };
+}
+
+/**
+ * How hard today is pressing against its budget.
+ *
+ * `undefined` when there is no budget to press against -- an unlimited plan,
+ * or no reset date to pace towards.
+ */
+export function dayPressure(
+	p: Projection,
+	tuning: Tuning = defaults()
+): 'under' | 'near' | 'over' | undefined {
+	if (p.todayShare === undefined) {
+		return undefined;
+	}
+	if (p.todayShare >= 1) { return 'over'; }
+	return p.todayShare >= tuning.projection.dailyWarnShare ? 'near' : 'under';
+}
+
+/**
+ * Today's figure, for the status bar.
+ *
+ * Says "today" rather than a bare percent for the reason the month figure says
+ * "left": on a spend tracker a lone percentage reads as easily as the share
+ * used as the share remaining, and the two are opposite readings.
+ */
+export function dayLabel(p: Projection): string | undefined {
+	return p.todayShare === undefined
+		? undefined
+		: `${Math.round(p.todayShare * 100)}% today`;
 }
 
 /** Short status-bar label. Every character has to earn its place. */

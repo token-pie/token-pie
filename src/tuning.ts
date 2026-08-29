@@ -47,7 +47,10 @@ export interface Knob {
 	min?: number;
 	max?: number;
 	/** Rendered after the value in the console. */
-	unit: 'credits' | 'requests' | 'days' | 'share' | 'ratio' | 'r2';
+	// `share` is 0-1 and `percent` is 0-100. Both exist because the first is
+	// what internal arithmetic wants and the second is what a person types
+	// into a settings box: nobody sets a daily budget of 0.05.
+	unit: 'credits' | 'requests' | 'days' | 'share' | 'percent' | 'ratio' | 'r2';
 	/** What is withheld, or what changes, when this is not met. */
 	gates: string;
 	/**
@@ -197,6 +200,25 @@ export const KNOBS: Knob[] = [
 		why: 'Rounding alone does not scale with the window; this absorbs the drift that does.'
 	},
 	{
+		id: 'projection.dailyBudgetPercent',
+		setting: 'dailyBudget',
+		kind: 'tolerance', default: 0, min: 0, max: 100, unit: 'percent',
+		gates: 'A daily spending budget, as a percent of the whole allowance. ' +
+			'Zero means pace yourself to the reset instead.',
+		basis: 'judged',
+		why: 'Zero by default because a budget already exists without being set: ' +
+			'what remains, divided by the days left, is the pace that lasts. ' +
+			'A figure here is a stricter promise you are making to yourself.'
+	},
+	{
+		id: 'projection.dailyWarnShare',
+		kind: 'tolerance', default: 0.8, min: 0, max: 1, unit: 'share',
+		gates: 'How much of the day\'s budget is spent before the figure turns amber.',
+		basis: 'judged',
+		why: 'Late enough that an ordinary morning does not colour the bar, ' +
+			'early enough to leave the afternoon to act in.'
+	},
+	{
 		id: 'reconcile.minRecordedShare',
 		kind: 'tolerance', default: 0.9, min: 0, max: 1, unit: 'share',
 		gates: 'How much of the billing period must have been recorded before a ' +
@@ -225,7 +247,8 @@ export interface Tuning {
 		minShareOfAllowance: number; minCacheFactor: number; autoDominantShare: number;
 	};
 	report: { minBucketRequests: number; minPricedShare: number; cacheWriteDominant: number };
-	projection: { minDaysForRate: number; tightDaysMargin: number };
+	projection: { minDaysForRate: number; tightDaysMargin: number;
+		dailyBudgetPercent: number; dailyWarnShare: number };
 	reconcile: { roundingSlack: number; relativeTolerance: number; minRecordedShare: number };
 	history: { days: number };
 }

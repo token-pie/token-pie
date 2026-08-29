@@ -1,6 +1,7 @@
 import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum, dayStartMs } from './store';
 import { Projection } from './projection';
 import { PeriodCoverage, periodCoverage, conversionConfidence } from './reconcile';
+import { dayPressure } from './projection';
 import { bareModel, modelKey } from './ratecard';
 import { Tuning, defaults } from './tuning';
 import { Advice, advise, selectionMix } from './advice';
@@ -1100,6 +1101,7 @@ ${STYLES}
 		<div class="verdict-main">
 		<div class="verdict-top">
 			${heroFigure(p, totalCredits)}
+			${dayFigure(p, tuning)}
 			<!-- The note defines the unit, so it belongs before the first figure
 			     denominated in it. Beside the pace tiles it sat below the meter,
 			     after "1,500 credits used" had already been read, and read as a
@@ -1315,6 +1317,31 @@ function daysSince(day: string): number {
 }
 
 /** Exactly one per view. The number the panel exists to deliver. */
+/**
+ * Today, beside the month.
+ *
+ * The hero is a fact you cannot change before the reset; this is the only
+ * figure an afternoon can still move. Shown as a share of what the day was
+ * allowed to cost, and deliberately not clamped -- 118% is the reading, and a
+ * bar that stopped at full would hide how far over the day went.
+ */
+function dayFigure(p: Projection, tuning: Tuning): string {
+	const pressure = dayPressure(p, tuning);
+	if (pressure === undefined || p.todayShare === undefined || p.todayBudget === undefined) {
+		return '';
+	}
+	const pct = Math.round(p.todayShare * 100);
+	// The overflow is drawn in the same track rather than a longer one: the
+	// track is the budget, so a full bar is exactly the point it was spent.
+	const fill = Math.min(100, pct);
+	return `<div class="day day-${pressure}">
+		<div class="day-v">${pct}<span class="unit">% of today</span></div>
+		<div class="day-track"><span class="day-fill" style="width:${fill}%"></span></div>
+		<div class="day-k">${fmtCredits(p.todayCredits ?? 0)} of
+			${fmtCredits(p.todayBudget)} credits</div>
+	</div>`;
+}
+
 function heroFigure(p: Projection, totalCredits: number): string {
 	switch (p.verdict) {
 		case 'exhausted':
@@ -1489,6 +1516,32 @@ const STYLES = `
 	   for the big numeral leaves the two reading as one run. Wrapped on a narrow
 	   panel the figure sits above the note and needs far less. */
 	.verdict-top { display: flex; align-items: center; gap: 14px 30px; flex-wrap: wrap; }
+	/* Today, beside the month.
+	   The state is the bar and the ground, never the number. Colouring the
+	   figure itself put amber text at 2.93:1 on a light theme -- below the 3:1
+	   a 24px run needs -- which is the same mistake this file records under
+	   "chart colours are fills, and I kept using them as text". A fill is
+	   exactly what the bar is, so the hue goes there, and the tint follows the
+	   .warn treatment, which is the one warning styling here already proven to
+	   survive both themes. */
+	.day { flex: none; min-width: 132px; padding: 7px 10px; border-radius: 5px;
+	       border: 1px solid transparent; }
+	.day-v { font-size: 1.5rem; font-weight: 600; line-height: 1;
+	         color: var(--vscode-foreground); }
+	.day-v .unit { font-size: 0.78rem; font-weight: 500; margin-left: 5px;
+	               color: var(--vscode-descriptionForeground); }
+	.day-track { height: 4px; border-radius: 2px; margin: 8px 0;
+	             background: var(--vscode-editorWidget-border, #8884); overflow: hidden; }
+	.day-fill { display: block; height: 100%; background: var(--day-hue); }
+	.day-k { font-size: 0.72rem; color: var(--vscode-descriptionForeground); }
+	.day-under { --day-hue: var(--vscode-charts-blue, #4a9eff); }
+	.day-near  { --day-hue: var(--vscode-charts-yellow, #cca700);
+	             background: var(--vscode-inputValidation-warningBackground, rgba(255,190,0,0.1));
+	             border-color: var(--vscode-inputValidation-warningBorder, rgba(255,190,0,0.4)); }
+	.day-over  { --day-hue: var(--vscode-charts-red, #f14c4c);
+	             background: var(--vscode-inputValidation-errorBackground, rgba(241,76,76,0.1));
+	             border-color: var(--vscode-inputValidation-errorBorder, rgba(241,76,76,0.4)); }
+
 	.hero { font-size: 2.5rem; font-weight: 600; line-height: 1; color: var(--hue); flex: none; }
 	.hero .unit { font-size: 1.15rem; font-weight: 500; margin-left: 7px;
 	              color: var(--vscode-descriptionForeground); }

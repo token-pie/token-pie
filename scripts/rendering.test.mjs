@@ -30,6 +30,8 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { renderReport } from '../out/report.js';
+import { project } from '../out/projection.js';
+import { defaults } from '../out/tuning.js';
 import { renderSpecs } from '../out/specs.js';
 import { parse } from '../out/ratecard.js';
 import { read } from '../out/tuning.js';
@@ -335,6 +337,37 @@ const pages = {
       resetDate: new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10) }
   })
 };
+
+/*
+ * The day figure at the amber threshold.
+ *
+ * Its hue is the state, so the state has to be rendered to be measured --
+ * `--vscode-editorWarning-foreground` is the token most likely to fail contrast
+ * on a light background, and the panel has twice shipped a colour that read
+ * fine in dark and vanished in light. `over` uses the same mechanism with the
+ * error token, so measuring one proves the wiring for both.
+ */
+{
+  const now = Date.now();
+  const d = new Date(now);
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+              `-${String(d.getDate()).padStart(2, '0')}`;
+  const t = defaults();
+  t.projection.dailyBudgetPercent = 1;              // 15 of a 1500 allowance
+  const rollups = [rollup({ day, nanoAiu: 13e9 })]; // 87% of it
+  const ent = { snapshots: [{ name: 'premium_interactions', entitlement: 1500,
+    remaining: 1450, remainingExact: 1450, percentRemaining: 96.7,
+    hasQuota: true, unlimited: false }],
+    resetDate: new Date(now + 20 * 86400000).toISOString() };
+  const p = project(ent, rollups, 1e-9, now, t);
+  if (p.todayShare === undefined) {
+    throw new Error('the budgeted fixture produced no day figure to measure');
+  }
+  pages.budgeted = renderReport({
+    rollups, creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+    costCoverage: 1, warnings: [], prices: {}, depth: {}, tuning: t, projection: p
+  });
+}
 
 for (const [name, html] of Object.entries(pages)) {
   for (const theme of ['dark', 'light']) {

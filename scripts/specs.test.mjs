@@ -88,7 +88,8 @@ check('every threshold is listed, settings and rules alike',
 // Most are not choices: they exist so the panel cannot claim more than it
 // measured, and offering them invites turning the honesty off.
 check('only a handful are offered as settings',
-  (html.match(/<code>tokenPie\.(minCreditsWorthMentioning|warnAtDaysLeft|historyDays)<\/code>/g) || []).length, 3);
+  (html.match(/<code>tokenPie\.(minCreditsWorthMentioning|warnAtDaysLeft|historyDays|dailyBudget)<\/code>/g) || []).length,
+  settings().length);
 check('the rest keep their dotted paths and are not settings',
   /<code>tokenPie\.pricing\.minR2<\/code>/.test(html), true);
 check('each says whether its value was derived or judged',

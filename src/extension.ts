@@ -9,7 +9,7 @@ import { purgeAll, PurgeResult } from './purge';
 import { fetchEntitlement, governingSnapshot, hasCopilotAccess, QuotaError } from './quota';
 import { ReadingStore, toReading, reconcile, periodCoverage } from './reconcile';
 import { userDirs, readTurns, clearTurnCache, Turn } from './sessions';
-import { project, statusLabel, Projection } from './projection';
+import { project, statusLabel, dayLabel, dayPressure, Projection } from './projection';
 import { Progress, phaseLabel } from './progress';
 import { Entitlement } from './entitlement';
 import { RollupStore } from './store';
@@ -499,20 +499,31 @@ function updateStatusBar(): void {
 		return;
 	}
 
-	// Severity is the background colour, not the icon. Keeping one mark means
-	// the item stays findable, and keeps the label as short as it can be.
-	statusBar.text = label(mark, statusLabel(p));
+	// Two horizons on one item: the month, which is a fact until the reset, and
+	// today, which is the only figure this afternoon can still move.
+	const today = dayLabel(p);
+	statusBar.text = label(mark, today ? `${statusLabel(p)} \u00b7 ${today}` : statusLabel(p));
+
+	// One background, not two signals fighting over it. The month's severity
+	// and the day's pressure are both ranked on the same scale and the higher
+	// one wins; the tooltip says which, so the colour is never unexplained.
+	const monthly =
+		p.verdict === 'exhausted' || p.verdict === 'will-exhaust' ? 2
+		: p.verdict === 'tight' ? 1
+		: 0;
+	const pressure = dayPressure(p, tuning().tuning);
+	const daily = pressure === 'over' ? 2 : pressure === 'near' ? 1 : 0;
+	const severity = Math.max(monthly, daily);
 	statusBar.backgroundColor =
-		p.verdict === 'exhausted' || p.verdict === 'will-exhaust'
-			? new vscode.ThemeColor('statusBarItem.errorBackground')
-			: p.verdict === 'tight'
-				? new vscode.ThemeColor('statusBarItem.warningBackground')
-				: undefined;
+		severity === 2 ? new vscode.ThemeColor('statusBarItem.errorBackground')
+		: severity === 1 ? new vscode.ThemeColor('statusBarItem.warningBackground')
+		: undefined;
+
 	statusBar.tooltip = degraded
 		? `Token Pie read what it could, but ${lastErrors.length} problem` +
 		  `${lastErrors.length === 1 ? '' : 's'} came up. Click to open the log; ` +
 		  'the report is on the command palette.'
-		: buildTooltip(p);
+		: buildTooltip(p, daily > monthly ? 'day' : monthly > 0 ? 'month' : undefined);
 	statusBar.show();
 }
 
@@ -536,7 +547,11 @@ function unknownTooltip(reason: Projection['unknownReason']): string {
 	}
 }
 
-function buildTooltip(p: Projection): vscode.MarkdownString {
+function buildTooltip(
+	p: Projection,
+	/** Which horizon is driving the background colour, so it is never unexplained. */
+	driving?: 'day' | 'month'
+): vscode.MarkdownString {
 	const md = new vscode.MarkdownString();
 	md.supportThemeIcons = true;
 	// The hover reports GitHub's numbers, so it has to say who is reporting
@@ -566,6 +581,15 @@ function buildTooltip(p: Projection): vscode.MarkdownString {
 			`  \n`
 		);
 	}
+	if (p.todayBudget !== undefined && p.todayShare !== undefined) {
+		// The status bar shows a percent; the hover shows the credits behind it,
+		// because "118% today" is a reading nobody can act on without knowing
+		// what the day was allowed to cost.
+		md.appendMarkdown(
+			`Today: **${fmt(p.todayCredits ?? 0)} of ${fmt(p.todayBudget)}** credits` +
+			` (${Math.round(p.todayShare * 100)}%)  \n`
+		);
+	}
 	if (p.burnPerDay !== undefined) {
 		md.appendMarkdown(
 			`Your pace: **${fmt(p.burnPerDay)} credits/day** over ${fmt(p.daysObserved ?? 0)} days  \n`
@@ -578,6 +602,15 @@ function buildTooltip(p: Projection): vscode.MarkdownString {
 	}
 	if (p.daysToReset !== undefined) {
 		md.appendMarkdown(`Quota resets in **${fmt(p.daysToReset)} days**  \n`);
+	}
+	// A coloured status bar with no stated cause is a puzzle, and the two
+	// horizons share one background -- so say which of them turned it.
+	if (driving === 'day') {
+		md.appendMarkdown(
+			`\nThe colour is **today's budget**, not the month.  \n`
+		);
+	} else if (driving === 'month') {
+		md.appendMarkdown(`\nThe colour is **the month**, not today.  \n`);
 	}
 	// Says where the click goes, not just that it does something: a click that
 	// opened a tab and now reveals a view is a different promise.

@@ -14,7 +14,8 @@
  */
 process.env.TZ = 'UTC';
 
-const { project, statusLabel } = await import('../out/projection.js');
+const { project, statusLabel, dayLabel, dayPressure } = await import('../out/projection.js');
+const { defaults } = await import('../out/tuning.js');
 
 let failures = 0;
 const check = (label, actual, expected) => {
@@ -120,6 +121,56 @@ const noRemaining = { snapshots: [
   { name: 'chat', entitlement: 300, hasQuota: true, unlimited: false }], resetDate: undefined };
 check('a limit but no remaining figure',
   project(noRemaining, [], 1e-9, NOW).unknownReason, 'no-remaining-figure');
+
+console.log('\ntoday, against what today was allowed to cost');
+const onDay = (nano, day = dayKey(NOW), source = 'measured') => ({
+  day, model: 'm', workspace: 'w', operation: 'chat', selection: 'manual', source,
+  requests: 1, inputTokens: 0, outputTokens: 0, reasoningTokens: 0,
+  cacheReadTokens: 0, cacheWriteTokens: 0, nanoAiu: nano
+});
+{
+  // Nothing set, so it falls back to the sustainable pace: what remains over
+  // the days left is already the pace that lasts to the reset. A budget exists
+  // before anyone configures one.
+  const p = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), [onDay(9e9)], 1e-9, NOW);
+  check('a budget exists without one being set', Math.round(p.todayBudget), 18);
+  check('today is measured', p.todayCredits, 9);
+  check('and stated as a share of it', Math.round(p.todayShare * 100), 49);
+  check('which is what the bar says', dayLabel(p), '49% today');
+  check('and it is not pressing yet', dayPressure(p), 'under');
+}
+{
+  // A figure that is set overrides the pace: it is a stricter promise.
+  const t = defaults();
+  t.projection.dailyBudgetPercent = 1;           // 1% of 1500 = 15 credits
+  const at = n => project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), [onDay(n)], 1e-9, NOW, t);
+  check('the setting wins over the pace', at(1e9).todayBudget, 15);
+  check('under the warn line', dayPressure(at(9e9), t), 'under');
+  check('at the warn line', dayPressure(at(12e9), t), 'near');
+  check('at the budget', dayPressure(at(15e9), t), 'over');
+  // Not clamped: a figure that stopped at 100 would hide how far over it went.
+  check('and past it, uncapped', dayLabel(at(18e9)), '120% today');
+}
+
+console.log('\nwhat cannot be a budget');
+{
+  // Nothing to pace against, so no figure rather than a percentage of an unknown.
+  const none = project(undefined, [onDay(9e9)], 1e-9, NOW);
+  check('an unlimited plan gets no day figure', dayLabel(none), undefined);
+  check('and no pressure to report', dayPressure(none), undefined);
+}
+
+console.log('\nyesterday is not today, and a floor is not a measurement');
+{
+  const p = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'),
+    [onDay(99e9, dayKey(NOW - 86400000)), onDay(9e9)], 1e-9, NOW);
+  check('only today counts', p.todayCredits, 9);
+  // Backfill omits retried and cancelled messages, so a budget checked against
+  // it says you have room you may not have.
+  const floored = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'),
+    [onDay(50e9, dayKey(NOW), 'reported'), onDay(9e9)], 1e-9, NOW);
+  check('and only what was measured', floored.todayCredits, 9);
+}
 
 console.log(failures === 0 ? '\nAll projection checks passed.\n' : `\n${failures} failed.\n`);
 process.exit(failures ? 1 : 0);

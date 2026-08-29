@@ -93,7 +93,13 @@ check('and when the materiality floor is raised past it',
 console.log('\nsettings are the few, rules are the rest');
 const props = contributions();
 check('only exposed knobs become settings', Object.keys(props).length, settings().length);
-check('and that is a small number', settings().length, 3);
+// A ceiling rather than an exact count. The point is that the settings page
+// stays readable, not that the number never moves -- pinned to an exact figure
+// it was a speed bump on every legitimate addition and said nothing about
+// whether the list had got long.
+check('and that is a small number', settings().length <= 6, true);
+check('every one of them is something a person would want to change',
+  settings().every(k => /budget|history|warn|worth/i.test(k.setting ?? '')), true);
 check('every knob is either a setting or a rule', settings().length + rules().length, KNOBS.length);
 check('exposed settings have plain names, not dotted paths',
   Object.keys(props).every(k => k.split('.').length === 2), true);

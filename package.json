@@ -115,6 +115,13 @@
           "minimum": 0,
           "markdownDescription": "Warn when the allowance has fewer than this many days of slack left. _How much warning you want is a decision about your own week, not something the data can settle. One heavy day changes the answer at two._"
         },
+        "tokenPie.dailyBudget": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "A daily spending budget, as a percent of the whole allowance. Zero means pace yourself to the reset instead. _Zero by default because a budget already exists without being set: what remains, divided by the days left, is the pace that lasts. A figure here is a stricter promise you are making to yourself._"
+        },
         "tokenPie.historyDays": {
           "type": "number",
           "default": 30,
