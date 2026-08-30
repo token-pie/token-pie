@@ -180,6 +180,33 @@ chat transcripts for the preceding 30 days. In testing, 38 of 42 transcripts
 recorded no cost figures at all, so most history is simply not there. Recovered days are marked as a floor and never feed the throttle
 projection.
 
+### What is traced, and what is not
+
+The allowance figures — the percentage, the meter, *credits left* — come from
+GitHub and cover **everywhere you use Copilot**. Everything below them is built
+from OpenTelemetry spans that Copilot Chat writes on this machine. Anything
+that does not produce one of those spans spends your allowance without
+appearing in the breakdown.
+
+| | Traced |
+|---|---|
+| Copilot Chat panel, in this editor | **Yes** — verified: billed spans with per-request cost |
+| The **agents window** | **No** — verified: 363 credits billed with no span written |
+| Copilot CLI | No — a different process, different storage |
+| github.com, Copilot coding agent | No — the work does not happen on this machine |
+| Another machine, or another VS Code profile | No — each writes its own database |
+| Inline chat, edit mode, completions | Untested. Completions are not premium-billed; the others may or may not export spans |
+
+So the honest summary is that this measures **the chat panel on this machine**.
+That is where most interactive spend goes for most people, and it is the spend
+you can act on — but it is not all of it.
+
+When the two disagree, the panel says so rather than splitting the difference:
+the reconciliation line under *Where the credits went* names the shortfall and
+refuses to attribute it to anything it has not measured. If your allowance
+drops while the breakdown does not move, that gap is the answer — something in
+the table above spent it.
+
 ## Status
 
 Proof of concept, **confirmed against a real database** — `github.copilot-chat`
