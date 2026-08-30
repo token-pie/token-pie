@@ -16,12 +16,13 @@ already writes, and answers three things in order:
 
 Nothing leaves the machine. No server, no account, no telemetry of our own.
 
-> **It measures the Copilot Chat panel on this machine.** The allowance figures
-> come from GitHub and cover your whole account, but everything below them is
-> built from spans this editor writes. The **agents window**, Copilot CLI,
-> github.com and any other machine spend the same allowance without appearing
-> in the breakdown — so the percentage can fall while the breakdown does not
-> move. See [What is traced, and what is
+> **It measures Copilot Chat, and only what Copilot Chat records locally.** The
+> allowance figures come from GitHub and cover your whole account. Everything
+> below them is read from the trace databases Copilot Chat writes — across every
+> VS Code install and profile under your user account, but nowhere else. The
+> **agents window**, Copilot CLI, github.com and other computers spend the same
+> allowance and write no such record, so the percentage can fall while the
+> breakdown does not move. See [What is traced, and what is
 > not](#what-is-traced-and-what-is-not) before you rely on it.
 
 > **Not affiliated with GitHub, Microsoft, or the Copilot team.** Token Pie is
@@ -95,7 +96,7 @@ replies at `4×` — which is why 1% of the text is 21% of the bill.
 
 ![Recommendations, each with the measurement behind it and the credits at stake](https://raw.githubusercontent.com/token-pie/token-pie/main/images/Screen-3.png)
 
-Findings derived from this machine's own spend. Each carries the credits at
+Findings derived from your own recorded spend. Each carries the credits at
 stake and the evidence behind it, so you can check the arithmetic rather than
 take it on faith. A figure marked `≤` is an upper bound rather than a
 measurement, and never outranks something measured — a speculative saving should
@@ -191,23 +192,29 @@ projection.
 ### What is traced, and what is not
 
 The allowance figures — the percentage, the meter, *credits left* — come from
-GitHub and cover **everywhere you use Copilot**. Everything below them is built
-from OpenTelemetry spans that Copilot Chat writes on this machine. Anything
-that does not produce one of those spans spends your allowance without
-appearing in the breakdown.
+GitHub and cover **everywhere you use Copilot**. Everything below them is read
+from `agent-traces.db`, the OpenTelemetry database Copilot Chat writes. The
+question for any given piece of spend is therefore not where it happened but
+whether Copilot Chat recorded a span for it.
 
-| | Traced |
+**Where it looks.** Every `agent-traces.db` under your user account on this
+computer: each VS Code install it finds (Stable, Insiders, and forks such as
+Cursor) and each profile within them, including profiles you are not currently
+using. It is not limited to the window it is running in.
+
+| | In the breakdown |
 |---|---|
-| Copilot Chat panel, in this editor | **Yes** — verified: billed spans with per-request cost |
-| The **agents window** | **No** — verified: 363 credits billed with no span written |
-| Copilot CLI | No — a different process, different storage |
-| github.com, Copilot coding agent | No — the work does not happen on this machine |
-| Another machine, or another VS Code profile | No — each writes its own database |
-| Inline chat, edit mode, completions | Untested. Completions are not premium-billed; the others may or may not export spans |
+| Copilot Chat panel | **Yes** — verified: billed spans carrying per-request cost |
+| Another VS Code profile, or Insiders alongside Stable | Yes — every install and profile under your user account is scanned |
+| The **agents window** | **No** — verified: 363 credits billed, no span written |
+| Copilot CLI | No — it does not write to this database |
+| github.com, Copilot coding agent | No — nothing runs locally to record |
+| Another computer, or another OS user account | No — a different home directory, different databases |
+| Inline chat, edit mode, completions | Untested. Completions are not premium-billed; whether the others export spans has not been checked |
 
-So the honest summary is that this measures **the chat panel on this machine**.
-That is where most interactive spend goes for most people, and it is the spend
-you can act on — but it is not all of it.
+So the honest summary is that this measures **Copilot Chat**. That is where
+most interactive spend goes for most people, and it is the spend you can act
+on — but it is not all of it.
 
 When the two disagree, the panel says so rather than splitting the difference:
 the reconciliation line under *Where the credits went* names the shortfall and
