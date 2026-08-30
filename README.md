@@ -16,14 +16,15 @@ already writes, and answers three things in order:
 
 Nothing leaves the machine. No server, no account, no telemetry of our own.
 
-> **It measures Copilot Chat, and only what Copilot Chat records locally.** The
-> allowance figures come from GitHub and cover your whole account. Everything
-> below them is read from the trace databases Copilot Chat writes — across every
-> VS Code install and profile under your user account, but nowhere else. The
-> **agents window**, Copilot CLI, github.com and other computers spend the same
-> allowance and write no such record, so the percentage can fall while the
-> breakdown does not move. See [What is traced, and what is
-> not](#what-is-traced-and-what-is-not) before you rely on it.
+> **The allowance is your account's; the breakdown is only what Copilot Chat
+> records.** The percentage and the meter come from GitHub and cover everywhere
+> you use Copilot. Everything below them is read from the trace databases
+> Copilot Chat writes, so any spend Copilot does not record a span for — the
+> agents window and Copilot CLI appear not to be recorded, github.com and other
+> computers cannot be — is invisible to the breakdown while still counting
+> against the allowance. The percentage can therefore fall while the breakdown
+> does not move. See [What is traced, and what is
+> not](#what-is-traced-and-what-is-not).
 
 > **Not affiliated with GitHub, Microsoft, or the Copilot team.** Token Pie is
 > an independent tool that reads telemetry the Copilot extension writes locally.
@@ -202,19 +203,30 @@ computer: each VS Code install it finds (Stable, Insiders, and forks such as
 Cursor) and each profile within them, including profiles you are not currently
 using. It is not limited to the window it is running in.
 
+**What the code determines.** These follow from how the extension reads, and
+you can check them in `src/locate.ts`:
+
 | | In the breakdown |
 |---|---|
-| Copilot Chat panel | **Yes** — verified: billed spans carrying per-request cost |
 | Another VS Code profile, or Insiders alongside Stable | Yes — every install and profile under your user account is scanned |
-| The **agents window** | **No** — verified: 363 credits billed, no span written |
-| Copilot CLI | No — it does not write to this database |
-| github.com, Copilot coding agent | No — nothing runs locally to record |
 | Another computer, or another OS user account | No — a different home directory, different databases |
-| Inline chat, edit mode, completions | Untested. Completions are not premium-billed; whether the others export spans has not been checked |
+| Anything that writes no span to `agent-traces.db` | No — there is nothing to read |
 
-So the honest summary is that this measures **Copilot Chat**. That is where
-most interactive spend goes for most people, and it is the spend you can act
-on — but it is not all of it.
+**What has been observed.** Copilot decides what to write a span for, and that
+is not documented anywhere we can cite. The rest of this table is inference
+from one developer's database, not a test:
+
+| | In the breakdown | On what basis |
+|---|---|---|
+| Copilot Chat panel | Appears to be | Billed spans with per-request cost show up while using it |
+| The **agents window** | Appears not to be | A session's worth of agent work coincided with a large drop in the allowance and no billed span. Suggestive, not isolated — nothing ruled out concurrent use of another surface |
+| Copilot CLI, github.com, coding agents | Assumed not to be | Nothing local runs, so nothing local records. Not tested |
+| Inline chat, edit mode | Unknown | Not tested |
+| Inline completions | Not applicable | Not billed as premium requests |
+
+If you find one of these is wrong, the reconciliation line under *Where the
+credits went* is the symptom to look for, and an issue with what you were
+doing is more useful than any of the above.
 
 When the two disagree, the panel says so rather than splitting the difference:
 the reconciliation line under *Where the credits went* names the shortfall and
