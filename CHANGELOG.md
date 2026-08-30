@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.3 - 2026-08-30
+
+Documentation only. The extension is unchanged from 0.4.2.
+
+- **What is and is not measured, said up front.** The allowance figures come
+  from GitHub and cover your whole account; the breakdown is read from what
+  Copilot Chat records locally. Work started from the agents window appears
+  not to be recorded, so the percentage can fall while the breakdown does not
+  move. There is now a table separating what the code determines from what has
+  only been observed.
+- **Corrections.** The status bar examples predated the daily figure. The
+  README claimed the icon encodes the verdict, when severity is the background
+  colour and the icon is not. Three shipped commands were missing from the
+  command table, including Token Specs. `autoPurge.busyTimeoutMs` was
+  documented as a setting after it had stopped being one. The composition
+  percentages were one month's data presented as a property of the tool.
+
+
 ## 0.4.2 - 2026-08-30
 
 - Listing only. The Marketplace page now shows the status bar item and says
