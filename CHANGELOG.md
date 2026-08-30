@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 - 2026-08-30
+
+- Listing only. The Marketplace page now shows the status bar item and says
+  that clicking it is what opens the panel, and two captions that quoted
+  figures their own screenshots contradicted have been corrected. The
+  extension itself is unchanged from 0.4.1.
+
+
 ## 0.4.1 - 2026-08-29
 
 ### Fixed
