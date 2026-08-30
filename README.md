@@ -16,6 +16,14 @@ already writes, and answers three things in order:
 
 Nothing leaves the machine. No server, no account, no telemetry of our own.
 
+> **It measures the Copilot Chat panel on this machine.** The allowance figures
+> come from GitHub and cover your whole account, but everything below them is
+> built from spans this editor writes. The **agents window**, Copilot CLI,
+> github.com and any other machine spend the same allowance without appearing
+> in the breakdown — so the percentage can fall while the breakdown does not
+> move. See [What is traced, and what is
+> not](#what-is-traced-and-what-is-not) before you rely on it.
+
 > **Not affiliated with GitHub, Microsoft, or the Copilot team.** Token Pie is
 > an independent tool that reads telemetry the Copilot extension writes locally.
 > Figures are reported by Copilot; the analysis and any advice are ours.
