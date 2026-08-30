@@ -59,7 +59,18 @@ the headline so you do not have to open it to know.
 
 Your measured burn rate against what is actually left on your account, projected
 at the reset date. *Your pace* beside *sustainable pace* is the comparison that
-decides whether you finish the period — 14.40 against 319 credits a day here.
+decides whether you finish the period — 12.50 against 551 credits a day here.
+
+**Without opening anything.**
+
+![The status bar item and its hover: both horizons, your pace, and when the allowance resets](https://raw.githubusercontent.com/token-pie/token-pie/main/images/usage-tracker.png)
+
+Two horizons on one item — *97% left this month · 0% used today* — because the
+month is a fact until the reset and the day is the only figure an afternoon can
+still move. It takes the editor's warning or error colour when either one is
+pressing, and the hover carries the rest: what remains, what today has cost
+against its budget, your pace against a sustainable one, and when the allowance
+comes back. **Clicking it opens the panel above.**
 
 **Where the credits went.**
 
@@ -68,9 +79,9 @@ decides whether you finish the period — 14.40 against 319 credits a day here.
 By kind of text, by model, and by project. **Chosen by** separates the models
 you picked from the ones Auto picked for you. Prices are solved from your own
 billed messages rather than read off a price list, so composition is weighted by
-what each kind of token actually cost you. On `claude-sonnet-5` that came out at
-0.02 credits per 1k cached against 0.25 fresh — the 12.5× the evidence line
-quotes — with output at 4× fresh again.
+what each kind of token actually cost you. **Per token** states each row against
+what you send: on `claude-sonnet-5` here, cache reads at `0.08×` and Copilot's
+replies at `4×` — which is why 1% of the text is 21% of the bill.
 
 **What to change.**
 

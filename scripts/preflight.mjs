@@ -136,12 +136,21 @@ for (const url of images) {
      '--connect-timeout', '3', '--max-time', '30', url]).toString();
   // A redirect is the failure that shipped: the Marketplace does not follow
   // them, so the image silently never appears.
-  check(`${path.basename(url)} is served directly`, code === '200', `HTTP ${code}`);
+  //
+  // A 404 splits in two, and only one of them is a fault. If the file is here
+  // and not there, it has not been pushed yet -- which is every new screenshot,
+  // and failing on it means a new image cannot be added without already having
+  // added it. If it is not here either, the URL is wrong and nothing will ever
+  // serve it.
+  const localFile = path.join(root, 'images', path.basename(url));
+  const unpushed = code === '404' && fs.existsSync(localFile);
+  (unpushed ? gate : check)(
+    `${path.basename(url)} is served directly`, code === '200',
+    unpushed ? `HTTP 404 — new image, push images/ before publishing` : `HTTP ${code}`);
 
   // 200 only proves the URL exists. The listing renders whatever `main` serves,
   // so a screenshot regenerated locally but not pushed shows the previous
   // release's UI to everyone reading the Marketplace page.
-  const localFile = path.join(root, 'images', path.basename(url));
   if (code === '200' && fs.existsSync(localFile)) {
     const digest = b => crypto.createHash('sha256').update(b).digest('hex').slice(0, 12);
     const mine = digest(fs.readFileSync(localFile));

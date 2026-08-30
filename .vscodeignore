@@ -30,7 +30,12 @@ images/*.svg
 # Screenshots are referenced from the repository by absolute URL (vsce rewrites
 # them), so shipping copies inside the package is dead weight. The icon stays:
 # it is loaded from the manifest.
-images/Screen-*.png
+# Every png but the icon. The rule named Screen-*.png, so the first screenshot
+# with a different name shipped inside the package -- which the allow-list
+# caught, being the fourth thing it has caught that this file had not been told
+# about yet.
+images/*.png
+!images/icon.png
 
 # Rendered previews, written by scripts/preview.mjs.
 .preview/**
