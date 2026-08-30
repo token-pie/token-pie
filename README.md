@@ -126,7 +126,8 @@ inherit it. See [`docs/DECISIONS.md`](docs/DECISIONS.md#source).
 
 Cost is linear in the three token classes, so the per-class rates can be solved
 for from your own requests. In testing this recovered
-`claude-sonnet-5` exactly — R² = 1.00000, max residual 0.0000 credits:
+`claude-sonnet-5` exactly — R² = 1.00000, max residual 0.0000 credits, and it
+still reproduces to five decimal places on re-checking:
 
 | token class | credits per 1k | relative to fresh input |
 | --- | --- | --- |
@@ -134,9 +135,11 @@ for from your own requests. In testing this recovered
 | cached input | 0.02000 | 0.08× |
 | **output** | **1.00001** | **4.00×** |
 
-That changes what the numbers mean. On the same data, model output was **2% of
-tokens but 16% of spend**, and cached context was **66% of tokens but 12% of
-spend**. Token Pie weights composition by cost wherever it has solved a card,
+That changes what the numbers mean. On that same dataset, model output was 2%
+of tokens but 16% of spend, and cached context 66% of tokens but 12% —
+figures from one developer's month, quoted to show the size of the effect
+rather than as a number to expect. Yours will differ: the machine this was
+last checked on reads 1% and 19% for output, 84% and 25% for cache. Token Pie weights composition by cost wherever it has solved a card,
 and says plainly when it has not. Nothing is taken from a published price list.
 
 ## What you see
@@ -159,13 +162,17 @@ is ever chained behind the network call.
 **Status bar**, once it settles:
 
 ```
-$(pie-chart) 98% left          on track
-$(pie-chart) 6.2d left         tight, yellow background
-$(pie-chart) 2.1d left         will run out first, red background
-$(pie-chart) 5.0d to reset     already used up, red background
+$(pie-chart) 98% left this month · 12% used today    on track
+$(pie-chart) 6.2d left · 88% used today              tight, yellow background
+$(pie-chart) 2.1d left · 140% used today             will run out first, red
+$(pie-chart) 5.0d to reset                           already used up, red
 ```
 
-The icon encodes the verdict, so it changes when your situation does. Click for
+Two horizons: the month, and today against a daily budget. The month is named
+only when it is itself a percentage, since that is the only time the two could
+be read as the same measure. **Severity is the background colour, not the
+icon** — there are three icons and they say what the extension is doing, not
+how much you have left, so the item stays findable at a glance. Click for
 the panel: the projection and allowance meter, ranked findings with the numbers
 behind them, cost-weighted composition, and the by-model and by-workspace
 breakdowns — one screen, no tabs.
@@ -375,7 +382,9 @@ of the way:
 
 - **Probe before writing.** A cycle with nothing to delete takes no write lock
   at all and costs ~0.4 ms.
-- **Short busy timeout** (`tokenPie.autoPurge.busyTimeoutMs`, default 250 ms).
+- **Short busy timeout** (250 ms). No longer offered as a setting — a
+  millisecond lock timeout is not a preference anyone can hold — but an
+  existing `tokenPie.autoPurge.busyTimeoutMs` override is still read.
   If Copilot holds the lock we skip and retry next cycle rather than stalling
   the editor. Verified under a held `BEGIN EXCLUSIVE`: gives up at the timeout,
   reports a skip, never hangs. The purge is idempotent, so a missed cycle costs
@@ -503,10 +512,12 @@ Then press <kbd>F5</kbd>, or package with `npx vsce package`.
 | `Token Pie: Diagnostics` | Settings state, databases found, detected schema, ingest counts |
 | `Token Pie: Check Quota` | Reads `copilot_internal/user` for your live entitlement |
 | `Token Pie: Purge Retained Prompt Content` | Deletes model output and tool schemas the truncation setting cannot reach, and reclaims the space |
+| `Token Pie: Token Specs` | Every price, threshold and conversion behind the panel, and which of them is currently withholding something |
+| `Token Pie: Refresh Published Prices` | Fetches the published rate card now instead of waiting for the weekly check |
+| `Token Pie: Show Logs` | The output channel, where ingest problems are recorded |
 
-The status bar shows the throttle verdict across every window and workspace —
-days of headroom when a rate can be projected, percentage remaining when it
-cannot. Click for the panel.
+The status bar shows the same figures in every window — the month's remainder
+or the days of headroom, and today against its budget. Click for the panel.
 
 ## How it works
 
