@@ -1,6 +1,7 @@
 import { Entitlement, governingSnapshot, daysUntilReset } from './entitlement';
 import { Rollup, dayStartMs } from './store';
 import { Tuning, defaults } from './tuning';
+import { periodStartFrom } from './reconcile';
 
 /**
  * Joins remaining allowance to observed burn rate.
@@ -230,7 +231,14 @@ export function project(
 		? todayCredits / base.todayBudget
 		: undefined;
 
-	const rate = burnPerDay(rollups, creditsPerNanoAiu, now, tuning.projection.minDaysForRate);
+	// GitHub's own consumption over the days the period has run, which is the
+	// same source the month and the day are read from. The measured sum saw
+	// 81 credits where GitHub had billed 692, because spans stopped carrying
+	// cost partway through -- and a pace understated by that much projects a
+	// reset date that never arrives and a verdict of "fine".
+	const rate = quotaRate(snapshot.creditsUsed, entitlement.resetDate, now,
+		tuning.projection.minDaysForRate)
+		?? burnPerDay(rollups, creditsPerNanoAiu, now, tuning.projection.minDaysForRate);
 	if (!rate) {
 		return base;
 	}
@@ -294,6 +302,34 @@ function burnPerDay(
 
 	const credits = rollups.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
 	return { perDay: credits / elapsedDays, days: elapsedDays };
+}
+
+/**
+ * Spend per day from GitHub's period total, over the days the period has run.
+ *
+ * Preferred over the measured rate for the reason the day figure is: it counts
+ * everything billed, wherever it happened, and cannot go quiet when Copilot
+ * stops writing cost onto a span. `undefined` when the endpoint reports no
+ * total, or the period is too young to divide by.
+ */
+function quotaRate(
+	creditsUsed: number | undefined,
+	resetDate: string | undefined,
+	now: number,
+	minDays: number
+): { perDay: number; days: number } | undefined {
+	if (creditsUsed === undefined || !Number.isFinite(creditsUsed) || resetDate === undefined) {
+		return undefined;
+	}
+	const start = periodStartFrom(resetDate);
+	if (start === undefined) {
+		return undefined;
+	}
+	const days = (now - start) / 86_400_000;
+	if (!(days >= minDays)) {
+		return undefined;
+	}
+	return { perDay: creditsUsed / days, days };
 }
 
 /**

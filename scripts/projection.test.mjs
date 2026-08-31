@@ -264,6 +264,47 @@ console.log('\nthe day is differenced from the month');
   check('an empty span table no longer reads as a quiet day', blind.todayCredits, 75);
 }
 
+console.log('\nthe pace is billed spend over the period, not measured spend');
+{
+  // The panel that prompted this: GitHub had billed 692 credits since 1 Aug
+  // while this machine had measured 81, because spans stopped carrying cost
+  // partway through. 692 over the 25.5 days the period had run is 27.1/day;
+  // the measured figure said 13.69 and projected a reset that never arrives.
+  const billed = {
+    snapshots: [{ name: 'premium_interactions', entitlement: 1500, remaining: 808,
+      remainingExact: 808, percentRemaining: 53.9, creditsUsed: 692,
+      hasQuota: true, unlimited: false }],
+    resetDate: '2026-09-01T00:00:00.000Z'
+  };
+  const paced = project(billed, roll(81, 6), 1e-9, NOW);
+  check('the pace counts what GitHub billed', Math.round(paced.burnPerDay), 27);
+  check('over the days the period has run', Math.round(paced.daysObserved), 26);
+
+  // No running total from the endpoint, so the measured sum is all there is.
+  const unbilled = {
+    snapshots: [{ name: 'premium_interactions', entitlement: 1500, remaining: 808,
+      remainingExact: 808, percentRemaining: 53.9, hasQuota: true, unlimited: false }],
+    resetDate: '2026-09-01T00:00:00.000Z'
+  };
+  // 81 credits over the ~5.5 days those six day keys span, which is the same
+  // sum the measured path has always produced.
+  check('and falls back to spans when there is none',
+    Math.round(project(unbilled, roll(81, 6), 1e-9, NOW).burnPerDay), 15);
+
+  // Two days into a period, 692 credits really is 461 a day. Wild, and true:
+  // spending hard early does mean a pace that will not survive the month, and
+  // the same minDaysForRate gate the measured window uses lets this through.
+  const young = { ...billed, resetDate: '2026-09-25T00:00:00.000Z' };
+  check('an early burst is a real pace, not a smoothed one',
+    Math.round(project(young, roll(81, 6), 1e-9, NOW).burnPerDay), 461);
+
+  // A period that started this instant divides by zero days. Gated, so the
+  // measured sum answers instead of an infinity.
+  const born = { ...billed, resetDate: '2026-09-26T12:00:00.000Z' };
+  check('a period with no elapsed time is not a rate',
+    Math.round(project(born, roll(81, 6), 1e-9, NOW).burnPerDay), 15);
+}
+
 console.log('\nand the baseline it is differenced against');
 {
   const { RollupStore } = await import('../out/store.js');
