@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.15 - 2026-08-31
+
+### Fixed
+
+- the week and period charts draw what was billed
+
+
 ## 0.5.14 - 2026-08-31
 
 ### Fixed
