@@ -13,7 +13,7 @@
  *   - Every credit on the page came from chat transcripts and nothing said so,
  *     under a footer naming the cost record it had never read.
  */
-import { renderReport, creditsOf } from '../out/report.js';
+import { renderReport, creditsOf, weekBars, spendByDay } from '../out/report.js';
 import { bareModel, modelKey } from '../out/ratecard.js';
 import { selectionMix } from '../out/advice.js';
 
@@ -114,6 +114,36 @@ console.log('\na floor says it is a floor');
 
   const clean = render([roll('claude-sonnet-5', { source: 'measured' })]);
   check('a measured page says none of it', /come from chat transcripts/.test(clean), false);
+}
+
+/*
+ * The week is what was billed, not only what was traced.
+ *
+ * Copilot stopped writing cost onto its spans on 30 August. The month kept
+ * falling because it comes from GitHub; the week chart, which reads spans,
+ * drew seven empty bars under "nothing yet" through a day that billed 374
+ * credits. A chart that reports an empty table as an idle week is worse than
+ * no chart.
+ */
+console.log('\na billed day fills its bar');
+{
+  const d = new Date();
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+              `-${String(d.getDate()).padStart(2, '0')}`;
+
+  const measuredOnly = spendByDay([roll('m', { day: key, nanoAiu: 5e9 })], 1e-9);
+  check('measurement answers when nothing else can', measuredOnly.get(key), 5);
+
+  // GitHub's figure for a day replaces the measured one rather than adding to
+  // it: they are two readings of the same day, and one of them is billing.
+  const both = spendByDay([roll('m', { day: key, nanoAiu: 5e9 })], 1e-9,
+    new Map([[key, 374]]));
+  check('and the billed figure wins where there is one', both.get(key), 374);
+
+  const blind = weekBars([], 1e-9, new Date(), new Map([[key, 374]]));
+  check('a week with no spans still draws what was billed',
+    /nothing yet/.test(blind), false);
+  check('and the total is the billed one', /374/.test(blind), true);
 }
 
 console.log(failures ? `\n${failures} failed\n` : '\nall good\n');

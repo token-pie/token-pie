@@ -980,6 +980,13 @@ export interface ReportInput {
 	dbCount: number;
 	lastRefresh: Date | undefined;
 	costCoverage: number;
+	/**
+	 * Billed credits per local day, where GitHub could answer for one.
+	 *
+	 * The charts fall back to measured spans for every day it has none, which
+	 * is every day that ended before this record began.
+	 */
+	billedDays?: Map<string, number>;
 	warnings: string[];
 	projection: Projection | undefined;
 	prices: Record<string, PriceStats>;
@@ -1116,13 +1123,14 @@ ${STYLES}
 		<div class="verdict-top">${heroFigure(p, totalCredits)}</div>
 		${allowanceMeter(p, tuning.history.days)}
 		${paceTiles(p)}
-		${periodBars(rollups, creditsPerNanoAiu, periodFit?.periodStart)}
+		${periodBars(rollups, creditsPerNanoAiu, periodFit?.periodStart, Date.now(),
+			input.billedDays)}
 		</div>
 		<!-- Today over the week: two horizons, both narrower than the month,
 		     in the column that is already about time rather than totals. -->
 		<div class="aside">
 			${dayFigure(p, tuning)}
-			${weekBars(rollups, creditsPerNanoAiu)}
+			${weekBars(rollups, creditsPerNanoAiu, new Date(), input.billedDays)}
 		</div>
 		</div>
 	</section>
@@ -1471,19 +1479,40 @@ function heroFigure(p: Projection, totalCredits: number): string {
  * a strip. The two charts read differently on purpose -- one is a list of days
  * you can name, the other a shape.
  */
-export function periodBars(
+/**
+ * Spend per day, billed where GitHub could answer and measured where not.
+ *
+ * The charts read spans, so they emptied the day Copilot stopped writing cost
+ * onto them: a week of real work drawn as seven zero bars under the heading
+ * "nothing yet". A billed figure exists only for days watched whole since that
+ * record began, so the measured sum still answers for every day before it.
+ */
+export function spendByDay(
 	rollups: Rollup[],
 	creditsPerNanoAiu: number,
-	periodStart: number | undefined,
-	now = Date.now()
-): string {
-	if (periodStart === undefined) {
-		return '';
-	}
+	billed?: Map<string, number>
+): Map<string, number> {
 	const spend = new Map<string, number>();
 	for (const r of rollups) {
 		spend.set(r.day, (spend.get(r.day) ?? 0) + creditsOf(r.nanoAiu, creditsPerNanoAiu));
 	}
+	for (const [day, credits] of billed ?? []) {
+		spend.set(day, credits);
+	}
+	return spend;
+}
+
+export function periodBars(
+	rollups: Rollup[],
+	creditsPerNanoAiu: number,
+	periodStart: number | undefined,
+	now = Date.now(),
+	billed?: Map<string, number>
+): string {
+	if (periodStart === undefined) {
+		return '';
+	}
+	const spend = spendByDay(rollups, creditsPerNanoAiu, billed);
 
 	const start = new Date(periodStart);
 	start.setHours(0, 0, 0, 0);
@@ -1528,16 +1557,18 @@ export function periodBars(
 	</div>`;
 }
 
-export function weekBars(rollups: Rollup[], creditsPerNanoAiu: number, now = new Date()): string {
+export function weekBars(
+	rollups: Rollup[],
+	creditsPerNanoAiu: number,
+	now = new Date(),
+	billed?: Map<string, number>
+): string {
 	// Monday of the current week, in local time: the day strings are local days.
 	const monday = new Date(now);
 	monday.setHours(0, 0, 0, 0);
 	monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
 
-	const spend = new Map<string, number>();
-	for (const r of rollups) {
-		spend.set(r.day, (spend.get(r.day) ?? 0) + creditsOf(r.nanoAiu, creditsPerNanoAiu));
-	}
+	const spend = spendByDay(rollups, creditsPerNanoAiu, billed);
 
 	const today = dayKeyLocal(now);
 	const rows = Array.from({ length: 7 }, (_, i) => {

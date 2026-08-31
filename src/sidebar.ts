@@ -31,6 +31,8 @@ export interface CompactInput {
 	tuning?: Tuning;
 	/** Anything the pipeline wants to say. Shown as a single line, not a list. */
 	warnings?: string[];
+	/** Billed credits per local day, where GitHub could answer for one. */
+	billedDays?: Map<string, number>;
 }
 
 /** A figure and its unit, the sidebar's only heading. */
@@ -123,9 +125,10 @@ export function renderCompact(input: CompactInput): string {
 	// Thirty columns in three hundred pixels is about eight pixels each, which
 	// the narrow layout already renders and the harness already measures.
 	const period = p?.resetDate !== undefined
-		? periodBars(input.rollups, input.creditsPerNanoAiu, periodStartFrom(p.resetDate))
+		? periodBars(input.rollups, input.creditsPerNanoAiu, periodStartFrom(p.resetDate),
+			Date.now(), input.billedDays)
 		: '';
-	const week = weekBars(input.rollups, input.creditsPerNanoAiu);
+	const week = weekBars(input.rollups, input.creditsPerNanoAiu, new Date(), input.billedDays);
 	const warning = (input.warnings ?? [])[0];
 
 	return `<!DOCTYPE html>

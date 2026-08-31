@@ -755,6 +755,9 @@ function buildHtml(): string {
 		dbCount: lastResult?.dbCount ?? 0,
 		lastRefresh,
 		costCoverage: coverage,
+		// The charts read spans, which stop carrying cost the moment Copilot
+		// stops writing it. Billed days override them wherever one exists.
+		billedDays: store.billed(),
 		warnings,
 		projection,
 		prices: store.priceStats(),
@@ -936,6 +939,7 @@ class Sidebar implements vscode.WebviewViewProvider {
 			creditsPerNanoAiu: creditsPerNanoAiu(),
 			projection,
 			tuning: t,
+			billedDays: store.billed(),
 			warnings: [...lastErrors, ...lastNotices]
 		});
 	}

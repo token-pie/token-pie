@@ -170,6 +170,18 @@ interface Persisted {
 	 * version discards every rollup, which is a steep price for one number.
 	 */
 	quotaDay?: { day: string; creditsUsed: number; at: number };
+	/**
+	 * What GitHub billed on each local day, once a day has been watched whole.
+	 *
+	 * The week and period charts read measured spans, so they emptied for the
+	 * same reason the day figure did: no cost on the spans, no bars. This is
+	 * the billed figure per day, accumulated as the days pass.
+	 *
+	 * It cannot be backfilled. GitHub reports a period total, not a history, so
+	 * a day that ended before this existed has no billed figure and never will
+	 * -- those days keep whatever was measured for them.
+	 */
+	billedDays?: Record<string, number>;
 }
 
 export interface DepthStats {
@@ -446,7 +458,28 @@ export class RollupStore {
 			this.dirty = true;
 			return { credits: 0, since: now };
 		}
-		return { credits: creditsUsed - held.creditsUsed, since: held.at };
+		const credits = creditsUsed - held.creditsUsed;
+		// Written every refresh, so the day is current while it runs and final
+		// once it ends. Pruned to the longest window the charts can ask for.
+		const billed = (this.data.billedDays ??= {});
+		billed[day] = credits;
+		for (const key of Object.keys(billed)) {
+			if (key < day && Object.keys(billed).length > 40) {
+				delete billed[key];
+			}
+		}
+		this.dirty = true;
+		return { credits, since: held.at };
+	}
+
+	/**
+	 * Billed credits per local day, for the days that were watched whole.
+	 *
+	 * Empty before the first full day. The charts fall back to measured spans
+	 * for any day this cannot answer for.
+	 */
+	billed(): Map<string, number> {
+		return new Map(Object.entries(this.data.billedDays ?? {}));
 	}
 
 	/**
