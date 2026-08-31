@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.16 - 2026-08-31
+
+- maintenance only; nothing user-facing changed.
+
+
 ## 0.5.15 - 2026-08-31
 
 ### Fixed
