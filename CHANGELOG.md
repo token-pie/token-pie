@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.10 - 2026-08-31
+
+### Fixed
+
+- sustainable pace counted the hours left, not the days
+
+
 ## 0.5.9 - 2026-08-31
 
 ### Fixed
