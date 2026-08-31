@@ -150,6 +150,14 @@ export function project(
 		.filter(r => r.source !== 'reported' && r.day === todayKey)
 		.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
 
+	// Whole days, the same count the day figure covers. Sustainable burn once
+	// divided by `daysToReset`, which is fractional: with eight hours to go it
+	// read 1,055 remaining as 3,201 credits/day, a daily rate for a day that
+	// has eight hours in it. The figure ran to infinity as the reset
+	// approached, so it shouted loudest exactly where it meant least, and
+	// nothing could ever outpace it there.
+	const cover = daysToCover(now, entitlement.resetDate);
+
 	// Already out. A burn rate cannot say anything useful here and the only
 	// fact that matters is when the allowance comes back.
 	if (remaining <= 0) {
@@ -166,17 +174,12 @@ export function project(
 			// Nothing left over the days remaining really is zero a day. It was
 			// left undefined, which took the tile off the card and left one
 			// figure sitting in a row built for three.
-			sustainableDailyBurn: 0
+			sustainableDailyBurn: 0,
+			// Set here too: the exhausted branch returns early, and the tooltip
+			// needs the span to say "today" rather than a rate per day.
+			daysToCover: cover
 		};
 	}
-	// Whole days, the same count the day figure covers. This divided by
-	// `daysToReset`, which is fractional: with eight hours to go it read 1,055
-	// remaining as 3,201 credits/day, a daily rate for a day that has eight
-	// hours in it. The figure ran to infinity as the reset approached, so it
-	// shouted loudest exactly where it meant least, and nothing could ever
-	// outpace it there.
-	const cover = daysToCover(now, entitlement.resetDate);
-
 	const base: Projection = {
 		verdict: 'no-rate',
 		quotaId: snapshot.name,

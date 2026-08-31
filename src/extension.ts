@@ -637,9 +637,16 @@ function buildTooltip(
 		md.appendMarkdown(`Your pace: **${fmt(p.burnPerDay)} credits/day**${over}  \n`);
 	}
 	if (p.sustainableDailyBurn !== undefined) {
-		md.appendMarkdown(
-			`Sustainable: **${fmt(p.sustainableDailyBurn)} credits/day** until reset  \n`
-		);
+		// "credits/day until reset" reads as a rate you can hold for whatever is
+		// left, and on the final day what is left is a few hours. So the last
+		// day drops the rate entirely: the allowance does not carry over, so
+		// everything remaining is simply today's to spend. Any other day names
+		// the span it is averaged over, which was the number nobody could see.
+		const days = p.daysToCover;
+		md.appendMarkdown(days === 1
+			? `Sustainable: **${fmt(p.sustainableDailyBurn)} credits** today  \n`
+			: `Sustainable: **${fmt(p.sustainableDailyBurn)} credits/day**` +
+			  `${days !== undefined ? ` over the ${days} days left` : ' until reset'}  \n`);
 	}
 	if (p.daysToReset !== undefined) {
 		// Not `fmt(...) days`: under a day the figure counts hours, and this
