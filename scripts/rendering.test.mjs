@@ -85,6 +85,8 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.fig.t-near->div.line.dim', 'the same pair, coloured by the day\'s pressure'],
   ['div.fig.t-over->div.line.dim', 'and the same pair over budget'],
   ['div.line->div.bar', 'the caption labels the bar beneath it'],
+  ['span.pv->span.pk', "a pace figure and its label are one reading"],
+  ['div.pd-head->div.pd-plot', 'the caption labels the strip beneath it'],
   ['div.bar->div.line.dim', 'and the footnote labels the same bar'],
 ]);
 

@@ -150,7 +150,7 @@
         {
           "id": "tokenPie",
           "title": "Token Pie",
-          "icon": "images/icon.svg"
+          "icon": "images/activity.svg"
         }
       ]
     },
@@ -159,8 +159,7 @@
         {
           "type": "webview",
           "id": "tokenPie.summary",
-          "name": "Usage",
-          "icon": "images/icon.svg"
+          "name": "Usage"
         }
       ]
     }

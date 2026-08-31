@@ -1425,7 +1425,7 @@ function heroFigure(p: Projection, totalCredits: number): string {
  * a strip. The two charts read differently on purpose -- one is a list of days
  * you can name, the other a shape.
  */
-function periodBars(
+export function periodBars(
 	rollups: Rollup[],
 	creditsPerNanoAiu: number,
 	periodStart: number | undefined,

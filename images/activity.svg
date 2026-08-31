@@ -1,0 +1,19 @@
+<!--
+  The activity-bar glyph, which is not the marketplace icon.
+
+  VS Code tints this one to the active or inactive foreground, so it has to be
+  monochrome, transparent, and drawn in currentColor. The marketplace icon is a
+  filled, coloured, rounded square: pointed at the activity bar it renders as a
+  solid block, because there is nothing for the tint to do.
+
+  A pie at 24px cannot show three slices and stay legible, so it shows one: a
+  ring with a single wedge cut from it, which reads as a pie at any size.
+-->
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+     fill="none" stroke="currentColor" stroke-width="1.6"
+     stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 3a9 9 0 1 0 9 9"/>
+  <path d="M12 3v9h9a9 9 0 0 0-9-9z" fill="currentColor" stroke="none"/>
+  <path d="M12 12 21 12"/>
+  <path d="M12 12 12 3"/>
+</svg>

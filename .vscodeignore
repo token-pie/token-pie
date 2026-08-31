@@ -29,7 +29,10 @@ images/*.svg
 # ...but the activity-bar container names this one, and a container with no
 # icon renders as a blank strip. Preflight proves every icon the manifest
 # points at is actually in the package, having once caught this exact thing.
-!images/icon.svg
+# The activity-bar glyph, which the manifest names. icon.svg stays behind: it
+# is the source drawing for icon.png and nothing loads it at runtime, which
+# preflight proves by refusing any image the manifest does not point at.
+!images/activity.svg
 
 # Screenshots are referenced from the repository by absolute URL (vsce rewrites
 # them), so shipping copies inside the package is dead weight. The icon stays:

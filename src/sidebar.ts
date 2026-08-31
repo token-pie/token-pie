@@ -3,7 +3,10 @@ import { Rollup } from './store';
 // that follows it, and there are no tiles here.
 import { Projection, dayPressure, fmtDays } from './projection';
 import { Tuning, defaults } from './tuning';
-import { weekBars, fmtCredits, fmtCreditsWith, escapeHtml, creditsOf } from './report';
+import {
+	weekBars, periodBars, fmtCredits, fmtCreditsWith, escapeHtml, creditsOf
+} from './report';
+import { periodStartFrom } from './reconcile';
 import { sum } from './store';
 
 /**
@@ -73,6 +76,31 @@ function today(p: Projection, tuning: Tuning): string {
 		</div>`;
 }
 
+/**
+ * Your pace against the one that lasts.
+ *
+ * The sidebar had every figure except the comparison between two of them,
+ * which is the question the panel is built around: at this rate, do I finish
+ * the period? Two numbers side by side answer it without a sentence.
+ */
+function pace(p: Projection): string {
+	if (p.burnPerDay === undefined && p.sustainableDailyBurn === undefined) {
+		return '';
+	}
+	const hot = p.burnPerDay !== undefined && p.sustainableDailyBurn !== undefined
+		&& p.burnPerDay > p.sustainableDailyBurn;
+	// A pair, so a missing half is a dash rather than a single figure with
+	// nothing to compare it to.
+	const cell = (v: string, k: string, tone = '') =>
+		`<div class="pc ${tone}"><span class="pv">${v}</span><span class="pk">${k}</span></div>`;
+	return `<div class="sec pair">
+		${cell(p.burnPerDay === undefined ? '&mdash;' : fmtCredits(p.burnPerDay),
+			'your pace', hot ? 't-over' : '')}
+		${cell(p.sustainableDailyBurn === undefined ? '&mdash;' : fmtCredits(p.sustainableDailyBurn),
+			'sustainable')}
+	</div>`;
+}
+
 export function renderCompact(input: CompactInput): string {
 	const tuning = input.tuning ?? defaults();
 	const p = input.projection;
@@ -88,9 +116,13 @@ export function renderCompact(input: CompactInput): string {
 		: `${p.percentRemaining !== undefined
 			? figure(String(Math.round(p.percentRemaining)), '% left this month')
 			: figure(fmtDays(p.daysToReset), 'days to reset')}
-		   ${meter(p)}
-		   ${today(p, tuning)}`;
+		   ${meter(p)}`;
 
+	// Thirty columns in three hundred pixels is about eight pixels each, which
+	// the narrow layout already renders and the harness already measures.
+	const period = p?.resetDate !== undefined
+		? periodBars(input.rollups, input.creditsPerNanoAiu, periodStartFrom(p.resetDate))
+		: '';
 	const week = weekBars(input.rollups, input.creditsPerNanoAiu);
 	const warning = (input.warnings ?? [])[0];
 
@@ -101,6 +133,9 @@ export function renderCompact(input: CompactInput): string {
 <style>${STYLES}</style></head>
 <body>
 	${head}
+	${period ? `<div class="sec">${period}</div>` : ''}
+	${p ? pace(p) : ''}
+	${p ? today(p, tuning) : ''}
 	${week ? `<div class="sec">${week}</div>` : ''}
 	${warning ? `<div class="warn">${escapeHtml(warning)}</div>` : ''}
 	<a class="more" href="command:tokenPie.showReport">Open the full report</a>
@@ -136,6 +171,33 @@ const STYLES = `
 	        line-height: 1.5;
 	        background: var(--vscode-inputValidation-warningBackground, rgba(255,190,0,0.1));
 	        border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(255,190,0,0.4)); }
+	/* Two figures, because one rate means nothing without the other. */
+	.pair { display: flex; gap: 18px; }
+	.pc { display: flex; flex-direction: column; gap: 2px; }
+	.pv { font-size: 1.05rem; font-weight: 600; line-height: 1.1; }
+	.pc.t-over .pv { color: var(--vscode-errorForeground, #f14c4c); }
+	.pk { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em;
+	      color: var(--vscode-descriptionForeground); }
+
+	/* The period strip, borrowed from the panel. Shorter here: the column has
+	   less height to spend and the shape reads at any height. */
+	.pd-head { display: flex; justify-content: space-between; align-items: baseline;
+	           gap: 8px; font-size: 0.68rem; text-transform: uppercase;
+	           letter-spacing: 0.07em; color: var(--vscode-descriptionForeground);
+	           margin-bottom: 7px; }
+	.pd-peak { letter-spacing: 0; text-transform: none; font-size: 0.66rem; }
+	.pd-plot { display: flex; align-items: flex-end; gap: 1px; height: 30px; }
+	.pd-col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end;
+	          background: rgba(128, 128, 128, 0.1);
+	          background: color-mix(in srgb,
+	              var(--vscode-editorWidget-border, rgba(128,128,128,0.22)) 45%, transparent);
+	          border-radius: 1px; }
+	.pd-fill { display: block; width: 100%; border-radius: 1px;
+	           background: var(--vscode-charts-blue, #4a9eff); }
+	.pd-today { outline: 1px solid var(--vscode-charts-blue, #4a9eff); outline-offset: 1px; }
+	.pd-axis { display: flex; justify-content: space-between; margin-top: 5px;
+	           font-size: 0.64rem; color: var(--vscode-descriptionForeground); }
+
 	.more { display: block; margin-top: 16px; font-size: 0.78rem;
 	        color: var(--vscode-textLink-foreground, #4a9eff); }
 
