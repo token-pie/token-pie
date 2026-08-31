@@ -11,16 +11,16 @@
   filled, coloured, rounded square: pointed at the activity bar it renders as a
   solid block, because there is nothing for the tint to do.
 
-  Three colours cannot survive that, but the composition can. The logo is one
-  slice taking the right half with two smaller ones beside it, so this is the
-  same circle cut the same way: the half filled, the rest outlined, and the
-  divider where the other two meet. It was a ring with a quarter cut out of it,
-  which is a different pie from the one on the listing page.
+  Three colours cannot survive that, but the three sections can. The logo is a
+  circle cut by a vertical diameter and one radius to the upper left, so that
+  is what this draws: the same two cuts, no fill anywhere. Filling a section
+  was an attempt to carry the logo's weight across, and it read as two thin
+  slivers beside a solid lump rather than as three parts of one circle.
 -->
 <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
      fill="none" stroke="currentColor" stroke-width="1.6"
      stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="9"/>
-  <path d="M12 3 A9 9 0 0 1 12 21 Z" fill="currentColor" stroke="none"/>
+  <path d="M12 3 L12 21"/>
   <path d="M12 12 L3.4 9.7"/>
 </svg>

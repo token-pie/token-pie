@@ -147,13 +147,18 @@ and says plainly when it has not. Nothing is taken from a published price list.
 While it works, the status bar says so rather than going blank:
 
 ```
-$(sync~spin) usage             reading local usage
-$(sync~spin) history 24/61     reading chat transcripts
-$(sync~spin) allowance         asking GitHub what is left
+↻ usage             reading local usage
+↻ history 24/61     reading chat transcripts
+↻ allowance         asking GitHub what is left
 ```
 
+The mark at the front is an icon, not a character: a ring that turns while it
+reads, a pie once it has an answer, a warning triangle if something breaks.
+They are drawn here as `↻ ◑ ⚠` because a page cannot show the real ones.
+
 While it is working the item is not clickable — there is no report to open yet.
-If anything goes wrong the mark becomes `$(warning)` and clicking opens the log.
+If anything goes wrong the mark becomes the warning triangle and clicking opens
+the log.
 
 The item appears the moment the extension activates, before any file or network
 access, and the work behind it yields to the editor between each unit. Nothing
@@ -162,10 +167,10 @@ is ever chained behind the network call.
 **Status bar**, once it settles:
 
 ```
-$(pie-chart) 98% left this month · 12% used today    on track
-$(pie-chart) 6.2d left · 88% used today              tight, yellow background
-$(pie-chart) 2.1d left · 140% used today             will run out first, red
-$(pie-chart) 5.0d to reset                           already used up, red
+◑ 98% left this month · 12% used today    on track
+◑ 6.2d left · 88% used today              tight, yellow background
+◑ 2.1d left · 140% used today             will run out first, red
+◑ 5.0d to reset                           already used up, red
 ```
 
 Two horizons: the month, and today against a daily budget. The month is named
