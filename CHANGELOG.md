@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.14 - 2026-08-31
+
+### Fixed
+
+- the pace counts what was billed, not what was measured
+
+
 ## 0.5.13 - 2026-08-31
 
 ### Fixed
