@@ -78,8 +78,16 @@ check('no history yet', project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), [], 
 // A single burst on one day must not project a rate.
 check('too little history', project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), roll(50, 1), 1e-9, NOW).verdict, 'no-rate');
 p = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'), [], 1e-9, NOW);
-// 100 remaining over the 5.5 days until reset.
-check('sustainable burn still offered', Math.round(p.sustainableDailyBurn), 18);
+// 100 remaining over the six days it has to cover: the 26th through the 31st,
+// since the allowance refills on the 1st. Whole days, not the 5.5 the clock
+// says. Dividing by a fraction of a day reported 1,055 credits with eight
+// hours to go as 3,201 a day, and ran to infinity as the reset approached.
+check('sustainable burn still offered', Math.round(p.sustainableDailyBurn), 17);
+// The figure the tile shows on the last day is everything that is left, since
+// nothing carries over: a rate per day, on the one day there is.
+const lastDay = project(ent(1055, 1500, '2026-08-27T00:00:00.000Z'), [], 1e-9, NOW);
+check('the last day is not an extrapolation',
+  Math.round(lastDay.sustainableDailyBurn), 1055);
 
 console.log('\nsub-day horizon renders as hours');
 // 5 day keys spanning 4.5 days to noon, 100 credits => 22.22/day; 5 remaining

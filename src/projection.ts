@@ -169,6 +169,14 @@ export function project(
 			sustainableDailyBurn: 0
 		};
 	}
+	// Whole days, the same count the day figure covers. This divided by
+	// `daysToReset`, which is fractional: with eight hours to go it read 1,055
+	// remaining as 3,201 credits/day, a daily rate for a day that has eight
+	// hours in it. The figure ran to infinity as the reset approached, so it
+	// shouted loudest exactly where it meant least, and nothing could ever
+	// outpace it there.
+	const cover = daysToCover(now, entitlement.resetDate);
+
 	const base: Projection = {
 		verdict: 'no-rate',
 		quotaId: snapshot.name,
@@ -178,8 +186,7 @@ export function project(
 		creditsUsed: snapshot.creditsUsed,
 		resetDate: entitlement.resetDate,
 		daysToReset,
-		sustainableDailyBurn:
-			daysToReset && daysToReset > 0 ? remaining / daysToReset : undefined
+		sustainableDailyBurn: cover !== undefined ? remaining / cover : undefined
 	};
 
 	const pct = tuning.projection.dailyBudgetPercent;
@@ -193,7 +200,6 @@ export function project(
 	//
 	// Adding today's spend back puts the denominator where it stood at
 	// midnight, so spending exactly that reads as exactly 100%.
-	const cover = daysToCover(now, entitlement.resetDate);
 	const paced = base.remaining !== undefined && cover !== undefined
 		? (base.remaining + todayCredits) / cover
 		: undefined;
