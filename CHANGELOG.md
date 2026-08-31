@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.8 - 2026-08-31
+
+### Fixed
+
+- the sidebar view declares its own icon
+
+
 ## 0.5.7 - 2026-08-31
 
 ### Fixed
