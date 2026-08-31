@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.4 - 2026-08-31
+
+### Fixed
+
+- warnings wrap, and stop printing the Windows username
+- the log promised identifiers were removed and then printed them
+
+
 ## 0.5.3 - 2026-08-31
 
 ### Fixed
