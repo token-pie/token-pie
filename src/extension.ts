@@ -1095,14 +1095,16 @@ async function checkQuota(): Promise<void> {
 				  `remaining figure. See the output channel.`
 		);
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		output.appendLine(`FAILED: ${message}`);
+		// Redacted like the refresh path above: an auth or proxy failure names
+		// the file it could not read, and this log is written to be shared.
+		const safe = redactPaths(err instanceof Error ? err.message : String(err));
+		output.appendLine(`FAILED: ${safe}`);
 		if (err instanceof QuotaError) {
 			output.appendLine('');
 			output.appendLine('If this is an auth failure, the endpoint may require the Copilot');
 			output.appendLine('token rather than the plain GitHub session token.');
 		}
-		void vscode.window.showErrorMessage(`Token Pie: quota check failed -- ${message}`);
+		void vscode.window.showErrorMessage(`Token Pie: quota check failed -- ${safe}`);
 	}
 }
 
@@ -1155,7 +1157,7 @@ function doctor(): void {
 				}
 				output.appendLine(`    columns: ${[...entry.schema.columns].join(', ')}`);
 			} else {
-				output.appendLine(`  schema detection failed: ${entry.error}`);
+				output.appendLine(`  schema detection failed: ${redactPaths(entry.error ?? 'unknown')}`);
 			}
 		}
 	} else {
