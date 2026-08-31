@@ -94,6 +94,54 @@ const strayImages = files
   .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f) && !declaredImages.has(f));
 check('no images the manifest does not name', strayImages.length === 0, strayImages.join(', '));
 
+/**
+ * Well-formed enough for the renderer to draw it.
+ *
+ * A double hyphen inside an XML comment is illegal, and an editing note in the
+ * activity glyph's own header carried one. The file stopped parsing, VS Code
+ * drew nothing where the icon goes, and every check here passed: the icon was
+ * named by the manifest, was the right size, and shipped where it should. An
+ * unparseable file is a well-formed package containing a blank icon.
+ *
+ * Deliberately not a general XML parser -- these are hand-written glyphs, and
+ * what needs catching is a file a browser will refuse outright.
+ */
+function xmlFault(src) {
+  const stack = [];
+  let i = 0;
+  for (;;) {
+    const lt = src.indexOf('<', i);
+    if (lt < 0) { break; }
+    if (src.startsWith('<!--', lt)) {
+      const end = src.indexOf('-->', lt + 4);
+      if (end < 0) { return 'a comment that never closes'; }
+      if (src.slice(lt + 4, end).includes('--')) {
+        return 'a double hyphen inside a comment';
+      }
+      i = end + 3;
+      continue;
+    }
+    const end = src.indexOf('>', lt);
+    if (end < 0) { return 'a tag that never closes'; }
+    if (!src.startsWith('<?', lt) && !src.startsWith('<!', lt)) {
+      const body = src.slice(lt + 1, end).trim();
+      if (body.startsWith('/')) {
+        const name = body.slice(1).trim();
+        if (stack.pop() !== name) { return `</${name}> closes nothing`; }
+      } else if (!body.endsWith('/')) {
+        stack.push(body.split(/[\s/]/)[0]);
+      }
+    }
+    i = end + 1;
+  }
+  return stack.length > 0 ? `<${stack[stack.length - 1]}> is never closed` : '';
+}
+
+for (const f of files.filter(f => f.endsWith('.svg'))) {
+  const fault = xmlFault(fs.readFileSync(f, 'utf8'));
+  check(`${path.basename(f)} parses, so something is drawn`, fault === '', fault);
+}
+
 // A block-list keeps losing this race: it was two filenames, then any image,
 // and a stray probe .html still walked through. `.vscodeignore` excludes known
 // directories, so anything new dropped in the repo root ships by default.

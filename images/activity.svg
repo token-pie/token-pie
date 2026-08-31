@@ -1,7 +1,11 @@
 <!--
   The activity-bar glyph, which is not the marketplace icon.
 
-  VS Code requires this one to be 24x24, centred, and "a single color" -- it
+  Note for anyone editing this comment: a double hyphen cannot appear inside
+  an XML comment. One did, the file stopped parsing, and the activity bar drew
+  nothing at all. Preflight checks that now.
+
+  VS Code requires this one to be 24x24, centred, and "a single color". It
   tints the whole thing to the active or inactive foreground, so it has to be
   monochrome, transparent, and drawn in currentColor. The marketplace icon is a
   filled, coloured, rounded square: pointed at the activity bar it renders as a
