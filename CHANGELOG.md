@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0 - 2026-08-31
+
+Every figure now reads the same source GitHub bills from. Copilot stopped
+writing cost onto its chat spans on 30 August, and four views that measured
+spans reported the absence as fact while the month, which reads GitHub, kept
+falling.
+
+### Fixed
+
+- today's spend is differenced from GitHub's running total, so it moves
+  whenever the month does -- agent mode, the CLI, another machine, github.com
+- your pace counts what was billed over the days the period has run, not what
+  this machine happened to trace
+- the week and period charts draw billed days where GitHub can answer for one,
+  and keep measured figures for the days it cannot
+- the sustainable figure counts whole days, so the last day of a period no
+  longer reads as thousands of credits a day
+- figures under a day count hours everywhere, including the status bar tooltip
+- the activity bar glyph is the listing's pie, and parses
+
+
 ## 0.5.16 - 2026-08-31
 
 - maintenance only; nothing user-facing changed.
