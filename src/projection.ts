@@ -121,7 +121,16 @@ export function project(
 	rollups: Rollup[],
 	creditsPerNanoAiu: number,
 	now = Date.now(),
-	tuning: Tuning = defaults()
+	tuning: Tuning = defaults(),
+	/**
+	 * Today's spend as GitHub counts it, when the caller can difference it.
+	 *
+	 * Preferred over the measured figure, because it is the same source the
+	 * month is read from: the two cannot disagree about the same day. The
+	 * measured sum stays as the fallback for a first day with no baseline, and
+	 * for anyone whose endpoint reports no running total.
+	 */
+	usedToday?: number
 ): Projection {
 	if (!entitlement) {
 		return { verdict: 'unknown', unknownReason: 'not-signed-in' };
@@ -146,9 +155,14 @@ export function project(
 	// or not there is an allowance left to measure it against, and leaving it
 	// out took the whole figure off the card at the moment it mattered most.
 	const todayKey = dayKeyOf(now);
-	const todayCredits = rollups
+	const measuredToday = rollups
 		.filter(r => r.source !== 'reported' && r.day === todayKey)
 		.reduce((n, r) => n + r.nanoAiu, 0) * creditsPerNanoAiu;
+	// GitHub's figure wins when there is one. Spans see only what Copilot
+	// chooses to write cost onto, and it stopped writing any on 30 August
+	// while the month kept moving -- so the day read 0% beside a month that
+	// had fallen five points. Same source for both, or they will diverge again.
+	const todayCredits = usedToday ?? measuredToday;
 
 	// Whole days, the same count the day figure covers. Sustainable burn once
 	// divided by `daysToReset`, which is fractional: with eight hours to go it

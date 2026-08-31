@@ -152,6 +152,24 @@ interface Persisted {
 	 * touched in the window, only to find each turn already counted.
 	 */
 	backfilledFiles: Record<string, { mtimeMs: number; size: number }>;
+	/**
+	 * The period total as GitHub reported it at the first refresh of this day.
+	 *
+	 * Today's spend was measured from local spans while the month came from
+	 * GitHub, so the two answered to different sources. When Copilot stopped
+	 * writing cost onto its spans, the month kept falling and the day sat at
+	 * zero -- one number working and the one beside it reporting an empty
+	 * table as though it were a measurement.
+	 *
+	 * Differencing GitHub's own running total against this baseline makes the
+	 * day the same measurement as the month, so whatever moves one moves the
+	 * other: agent mode, the CLI, another machine, github.com.
+	 *
+	 * Optional, and no version bump: a store written before this exists loads
+	 * with it absent and takes its baseline on the next refresh. Bumping the
+	 * version discards every rollup, which is a steep price for one number.
+	 */
+	quotaDay?: { day: string; creditsUsed: number; at: number };
 }
 
 export interface DepthStats {
@@ -404,6 +422,31 @@ export class RollupStore {
 	markBackfilledFile(file: string, mtimeMs: number, size: number): void {
 		(this.data.backfilledFiles ??= {})[file] = { mtimeMs, size };
 		this.dirty = true;
+	}
+
+	/**
+	 * Today's spend according to GitHub, by differencing its running total.
+	 *
+	 * Takes a baseline on the first call of each local day and returns the
+	 * distance travelled since. `undefined` when there is nothing to difference
+	 * against yet -- the caller falls back to measured spans rather than
+	 * printing a zero it cannot stand behind.
+	 *
+	 * A total lower than the baseline means the period rolled over between
+	 * calls, so the baseline is retaken rather than reporting a negative day.
+	 */
+	usedToday(day: string, creditsUsed: number | undefined, now: number):
+		{ credits: number; since: number } | undefined {
+		if (creditsUsed === undefined || !Number.isFinite(creditsUsed)) {
+			return undefined;
+		}
+		const held = this.data.quotaDay;
+		if (held === undefined || held.day !== day || creditsUsed < held.creditsUsed) {
+			this.data.quotaDay = { day, creditsUsed, at: now };
+			this.dirty = true;
+			return { credits: 0, since: now };
+		}
+		return { credits: creditsUsed - held.creditsUsed, since: held.at };
 	}
 
 	/**

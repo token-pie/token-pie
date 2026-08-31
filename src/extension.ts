@@ -685,12 +685,23 @@ async function refreshEntitlement(): Promise<void> {
 
 function recomputeProjection(): void {
 	const t = tuning().tuning;
+	const now = Date.now();
+	// The day is differenced from the same running total the month is read
+	// from. Reading it from local spans instead meant Copilot could stop
+	// writing cost -- as it did on 30 August -- and leave the day sitting at
+	// zero beside a month that had fallen five points.
+	const d = new Date(now);
+	const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+		`-${String(d.getDate()).padStart(2, '0')}`;
+	const used = store.usedToday(
+		day, entitlement ? governingSnapshot(entitlement)?.creditsUsed : undefined, now);
 	projection = project(
 		entitlement,
 		store.since(t.history.days),
 		creditsPerNanoAiu(),
-		Date.now(),
-		t
+		now,
+		t,
+		used?.credits
 	);
 }
 

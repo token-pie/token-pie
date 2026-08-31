@@ -14,6 +14,9 @@
  */
 process.env.TZ = 'UTC';
 
+const fs = await import('node:fs');
+const os = await import('node:os');
+const path = await import('node:path');
 const { project, statusLabel, barLabel, dayLabel, dayPressure } = await import('../out/projection.js');
 const { defaults } = await import('../out/tuning.js');
 
@@ -233,6 +236,52 @@ console.log('\nyesterday is not today, and a floor is not a measurement');
   const floored = project(ent(100, 1500, '2026-09-01T00:00:00.000Z'),
     [onDay(50e9, dayKey(NOW), 'reported'), onDay(9e9)], 1e-9, NOW);
   check('and only what was measured', floored.todayCredits, 9);
+}
+
+/*
+ * The day and the month must answer to the same source.
+ *
+ * They did not: the month came from GitHub's running total and the day from
+ * locally measured spans. On 30 August Copilot stopped writing cost onto its
+ * spans -- helper calls and embeddings kept flowing, model requests carried
+ * nothing -- and the panel showed a month falling five points beside "0% used
+ * today". Neither number was lying; they were reading different things.
+ */
+console.log('\nthe day is differenced from the month');
+{
+  const measured = [onDay(9e9)];
+  const fromQuota = project(ent(1000, 1500, '2026-09-01T00:00:00.000Z'),
+    measured, 1e-9, NOW, defaults(), 75);
+  check('GitHub\'s figure is the day', fromQuota.todayCredits, 75);
+
+  const noQuota = project(ent(1000, 1500, '2026-09-01T00:00:00.000Z'),
+    measured, 1e-9, NOW, defaults(), undefined);
+  check('and the spans are the fallback', noQuota.todayCredits, 9);
+
+  // The case that started it: nothing measured all day, and the month moved.
+  const blind = project(ent(1000, 1500, '2026-09-01T00:00:00.000Z'),
+    [], 1e-9, NOW, defaults(), 75);
+  check('an empty span table no longer reads as a quiet day', blind.todayCredits, 75);
+}
+
+console.log('\nand the baseline it is differenced against');
+{
+  const { RollupStore } = await import('../out/store.js');
+  const file = path.join(os.tmpdir(), `tp-usedtoday-${process.pid}.json`);
+  const store = new RollupStore(file);
+  // First sighting of the day sets the mark; nothing has been spent since it.
+  check('the first reading of a day is zero', store.usedToday('2026-08-31', 400, NOW).credits, 0);
+  check('and the distance from it is the day',
+    store.usedToday('2026-08-31', 475, NOW).credits, 75);
+  // A new day starts again from wherever the total now stands.
+  check('a new day takes a new mark', store.usedToday('2026-09-01', 475, NOW).credits, 0);
+  // The period refilled between calls, so the total fell. Reporting -300 for
+  // the day would be worse than reporting nothing.
+  check('a period rollover is not a negative day',
+    store.usedToday('2026-09-01', 175, NOW).credits, 0);
+  check('no figure from GitHub means no figure here',
+    store.usedToday('2026-09-01', undefined, NOW), undefined);
+  fs.rmSync(file, { force: true });
 }
 
 console.log(failures === 0 ? '\nAll projection checks passed.\n' : `\n${failures} failed.\n`);
