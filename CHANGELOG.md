@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.9 - 2026-08-31
+
+### Fixed
+
+- the footer holds its width while it reads
+
+
 ## 0.5.8 - 2026-08-31
 
 ### Fixed
