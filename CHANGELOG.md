@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.11 - 2026-08-31
+
+### Fixed
+
+- the tooltip counted days when the figure was hours
+
+
 ## 0.5.10 - 2026-08-31
 
 ### Fixed
