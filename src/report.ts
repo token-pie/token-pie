@@ -48,14 +48,40 @@ export function fmtCreditsWith(credits: number): string {
 	return `${n} ${n === '1.00' ? 'credit' : 'credits'}`;
 }
 
+/** Hours, never zero: a period with "0h" left is one that already ended. */
+function hoursLeft(days: number): number {
+	return Math.max(1, Math.round(days * 24));
+}
+
+/**
+ * The figure alone, in whatever unit is legible at this size.
+ *
+ * Under a day it counts hours, so "days" is not a unit the caller may assume.
+ * The tile read "13h days" on the last day of a period: the figure carried a
+ * unit of its own and the label under it carried a different one. Pair it with
+ * dayUnit() wherever the unit is drawn separately, or use fmtDaysWith().
+ */
 export function fmtDays(days: number | undefined): string {
 	if (days === undefined) {
 		return '?';
 	}
 	if (days < 1) {
-		return `${Math.max(1, Math.round(days * 24))}h`;
+		return String(hoursLeft(days));
 	}
 	return days < 10 ? days.toFixed(1) : String(Math.round(days));
+}
+
+/** The unit fmtDays() just used, singular when the figure is exactly one. */
+export function dayUnit(days: number | undefined): string {
+	if (days === undefined || days >= 1) {
+		return 'days';
+	}
+	return hoursLeft(days) === 1 ? 'hour' : 'hours';
+}
+
+/** The figure with its unit spelled out, for prose rather than a tile. */
+export function fmtDaysWith(days: number | undefined): string {
+	return `${fmtDays(days)} ${dayUnit(days)}`;
 }
 
 export function creditsOf(nanoAiu: number, creditsPerNanoAiu: number): number {
@@ -81,6 +107,25 @@ function severityVar(p: Projection): string {
 		case 'exhausted':
 		case 'will-exhaust': return 'var(--vscode-charts-red, #f14c4c)';
 		case 'tight': return 'var(--vscode-charts-yellow, #cca700)';
+		default: return 'var(--vscode-charts-blue, #4a9eff)';
+	}
+}
+
+/**
+ * The same severity, for text rather than fill.
+ *
+ * charts-yellow is a fill: as a 40px hero it measured 2.17:1 on light, under
+ * the 3:1 that large text needs, and the theme's own warning foreground is
+ * only 2.93:1 there. No single yellow clears the bar in both themes, because
+ * the one that reads on white is invisible on near-black. Orange does: 4.0:1
+ * on both, in each theme's own value for it. Red comes from errorForeground,
+ * the colour a theme contrast-checks against its editor background.
+ */
+function severityTextVar(p: Projection): string {
+	switch (p.verdict) {
+		case 'exhausted':
+		case 'will-exhaust': return 'var(--vscode-errorForeground, #f14c4c)';
+		case 'tight': return 'var(--vscode-charts-orange, #bf6a02)';
 		default: return 'var(--vscode-charts-blue, #4a9eff)';
 	}
 }
@@ -187,7 +232,7 @@ function paceTiles(p: Projection): string {
 			fmtCredits(p.burnPerDay),
 			'credits/day',
 			'your pace',
-			`Credits per day, measured over ${fmtDays(p.daysObserved)} days of elapsed ` +
+			`Credits per day, measured over ${fmtDaysWith(p.daysObserved)} of elapsed ` +
 			'time with idle days included.',
 			overPace ? 'hot' : undefined
 		));
@@ -201,7 +246,7 @@ function paceTiles(p: Projection): string {
 		));
 	}
 	if (p.daysToReset !== undefined) {
-		tiles.push(tile(fmtDays(p.daysToReset), 'days', 'until reset'));
+		tiles.push(tile(fmtDays(p.daysToReset), dayUnit(p.daysToReset), 'until reset'));
 	}
 	return tiles.length ? `<div class="tiles">${tiles.join('')}</div>` : '';
 }
@@ -1062,7 +1107,7 @@ ${STYLES}
 	</header>
 	${historyNote(input.history, days)}
 
-	<section class="verdict" style="--hue:${severityVar(p)}">
+	<section class="verdict" style="--hue:${severityVar(p)};--hue-text:${severityTextVar(p)}">
 		<div class="verdict-cols">
 		<div class="verdict-main">
 		<!-- The hero sits against the bar it describes. A sentence used to
@@ -1389,7 +1434,8 @@ function heroFigure(p: Projection, totalCredits: number): string {
 			return `<div class="hero">0<span class="unit">credits left</span></div>`;
 		case 'will-exhaust':
 		case 'tight':
-			return `<div class="hero">${fmtDays(p.daysToExhaust)}<span class="unit">days left</span></div>`;
+			return `<div class="hero">${fmtDays(p.daysToExhaust)}` +
+				`<span class="unit">${dayUnit(p.daysToExhaust)} left</span></div>`;
 		case 'ok':
 		case 'no-rate':
 			return p.percentRemaining !== undefined
@@ -1731,7 +1777,14 @@ const STYLES = `
 	             background: var(--vscode-inputValidation-errorBackground, rgba(241,76,76,0.1));
 	             border-color: var(--vscode-inputValidation-errorBorder, rgba(241,76,76,0.4)); }
 
-	.hero { font-size: 2.5rem; font-weight: 600; line-height: 1; color: var(--hue); flex: none; }
+	/* --hue-text, not --hue: the fill colour and the text colour part company
+	   at the amber end, where the fill is legible and the text is not. Even
+	   the theme's own warning foreground measured 2.93:1 at this size on
+	   light, so it is pulled toward the editor's foreground -- darker on a
+	   light theme, lighter on a dark one, and still recognisably the status
+	   colour. The plain declaration stays first as the fallback. */
+	.hero { font-size: 2.5rem; font-weight: 600; line-height: 1; flex: none;
+	        color: var(--hue-text, var(--hue)); }
 	.hero .unit { font-size: 1.15rem; font-weight: 500; margin-left: 7px;
 	              color: var(--vscode-descriptionForeground); }
 	.sentence { margin: 0; font-size: 0.9rem; flex: 1 1 260px; min-width: 240px; }
@@ -1767,7 +1820,10 @@ const STYLES = `
 	                 color: var(--vscode-descriptionForeground); }
 	.tile .k { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
 	           color: var(--vscode-descriptionForeground); margin-top: 1px; }
-	.tile.hot .v { color: var(--vscode-charts-red, #f14c4c); }
+	/* Same reason as .over above, and the fourth time: as 20px text charts-red
+	   measured 4.29:1 dark and 3.36:1 light, against the 4.5:1 it needs. The
+	   first fixture with a pace over budget found it. */
+	.tile.hot .v { color: var(--vscode-errorForeground, #f14c4c); }
 
 	/* <details> keeps the lower-ranked findings one click away without script. */
 	/* 8px between bordered containers read as one glued block. Prose above the

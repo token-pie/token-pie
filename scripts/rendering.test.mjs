@@ -29,7 +29,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
-import { renderReport } from '../out/report.js';
+import { renderReport, fmtDays, dayUnit, fmtDaysWith } from '../out/report.js';
 import { project } from '../out/projection.js';
 import { renderCompact } from '../out/sidebar.js';
 import { defaults } from '../out/tuning.js';
@@ -82,6 +82,9 @@ const DELIBERATELY_TIGHT = new Map([
   // The sidebar's figure, its bar and its footnote, which are one reading each
   // in the way the meter's three parts are.
   ['div.fig->div.line', "the sidebar figure and the line explaining it"],
+  // With no budget set there is no pressure to colour it with, so the pair
+  // carries no tone class at all -- a state no fixture had entered.
+  ['div.fig->div.line.dim', 'the same pair, with no budget to pace against'],
   ['div.fig.t-near->div.line.dim', 'the same pair, coloured by the day\'s pressure'],
   ['div.fig.t-over->div.line.dim', 'and the same pair over budget'],
   ['div.line->div.bar', 'the caption labels the bar beneath it'],
@@ -490,13 +493,68 @@ const pages = {
   check('with no script in it', /<script/.test(pages.sidebar), false);
 }
 
+/*
+ * The last day of a period, when the figure stops being a number of days.
+ *
+ * Under a day the figure counts hours, and every caller drew "days" beneath
+ * it regardless -- the tile read "13h days", the hero "13h days left", and the
+ * pace hint "measured over 13h days of elapsed time". Three sites, one cause:
+ * the figure carried a unit of its own and the label carried another. No
+ * fixture had ever been inside the final day, so all three rendered green.
+ */
+{
+  const reset = new Date(Date.now() + 0.54 * 86400000);
+  const shape = {
+    verdict: 'tight', quotaId: 'premium_interactions', entitlement: 1500,
+    remaining: 210, percentRemaining: 14, creditsUsed: 1290, burnPerDay: 640,
+    daysObserved: 0.5, daysToExhaust: 0.33, daysToReset: 0.54,
+    sustainableDailyBurn: 389, todayCredits: 210, todayBudget: 15,
+    resetDate: reset.toISOString().slice(0, 10)
+  };
+  pages.lastHours = renderReport({
+    rollups: [rollup({ nanoAiu: 640e9 })], creditsPerNanoAiu: 1e-9, dbCount: 1,
+    lastRefresh: new Date(), costCoverage: 1, warnings: [], prices: {}, depth: {},
+    projection: shape
+  });
+
+  check('the tile names hours when hours is what it counts',
+    /<div class="v">13<span class="unit">hours<\/span>/.test(pages.lastHours), true);
+  check('and the hero does too',
+    /<span class="unit">hours left<\/span>/.test(pages.lastHours), true);
+  check('and the pace hint reads as a sentence',
+    /over 12 hours of elapsed/.test(pages.lastHours), true);
+  // The bug itself, in the shape it shipped: an hour figure with a day unit.
+  check('no figure carries one unit under another',
+    /\dh\s*(<[^>]*>)?\s*days/.test(pages.lastHours), false);
+
+  // The sidebar draws the same pair, and reaches it only when the account has
+  // no percentage to show -- a branch no fixture had entered either.
+  const noPercent = { ...shape, percentRemaining: undefined };
+  pages.lastHoursSidebar = renderCompact({
+    rollups: [rollup({ nanoAiu: 640e9 })], creditsPerNanoAiu: 1e-9,
+    tuning: defaults(), projection: noPercent, warnings: []
+  });
+  check('the sidebar figure agrees with its own unit',
+    /<span class="u">hours to reset<\/span>/.test(pages.lastHoursSidebar), true);
+  check('and the line above it keeps the short form',
+    /resets in 13h/.test(pages.lastHoursSidebar), true);
+
+  // Singular, because "1 hours" is the kind of thing that gets screenshotted.
+  check('an hour is an hour', `${fmtDays(1 / 24)} ${dayUnit(1 / 24)}`, '1 hour');
+  check('two are hours', fmtDaysWith(2 / 24), '2 hours');
+  check('a day and a half is days', fmtDaysWith(1.5), '1.5 days');
+  check('and nothing known is still days', fmtDaysWith(undefined), '? days');
+  // Zero hours left is a period that has already reset, so it floors at one.
+  check('the last minutes are still an hour', fmtDaysWith(0.001), '1 hour');
+}
+
 for (const [name, html] of Object.entries(pages)) {
   for (const theme of ['dark', 'light']) {
     console.log(`\n${name} (${theme})`);
     const { rows, contrast, overflow } = await measure(
       html, path.join(dir, `${name}-${theme}.html`), theme);
 
-    check('something was measured', rows.length > (name === 'sidebar' ? 8 : 20), true);
+    check('something was measured', rows.length > (/sidebar/i.test(name) ? 8 : 20), true);
     const cramped = rows.filter(r => r.gap < MIN_GAP
       && !DELIBERATELY_TIGHT.has(`${r.from}->${r.to}`)
       && !TIGHT_REPEATS.some(([a, b]) => a.test(r.from) && b.test(r.to)));

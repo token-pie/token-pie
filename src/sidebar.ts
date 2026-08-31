@@ -1,10 +1,12 @@
 import { Rollup } from './store';
-// fmtDays from projection, not report: report's leaves the unit to the tile
-// that follows it, and there are no tiles here.
-import { Projection, dayPressure, fmtDays } from './projection';
+// Two formatters, because the two shapes differ: the inline line reads
+// "resets in 13h" and wants the unit attached, while the figure draws the
+// number and its unit as separate elements and takes report's pair.
+import { Projection, dayPressure, fmtDays as fmtDaysInline } from './projection';
 import { Tuning, defaults } from './tuning';
 import {
-	weekBars, periodBars, fmtCredits, fmtCreditsWith, escapeHtml, creditsOf
+	weekBars, periodBars, fmtCredits, fmtCreditsWith, fmtDays, dayUnit, escapeHtml,
+	creditsOf
 } from './report';
 import { periodStartFrom } from './reconcile';
 import { sum } from './store';
@@ -48,7 +50,7 @@ function meter(p: Projection): string {
 		<div class="bar${over ? ' bar-over' : ''}"><span style="width:${(frac * 100).toFixed(1)}%"></span></div>
 		<div class="line dim">${
 			over ? 'nothing left' : `${fmtCreditsWith(p.remaining)} left`}${
-			p.daysToReset !== undefined ? ` &middot; resets in ${fmtDays(p.daysToReset)}` : ''}</div>`;
+			p.daysToReset !== undefined ? ` &middot; resets in ${fmtDaysInline(p.daysToReset)}` : ''}</div>`;
 }
 
 /**
@@ -115,7 +117,7 @@ export function renderCompact(input: CompactInput): string {
 		   ${measured > 0 ? `<div class="line">${fmtCreditsWith(measured)} measured here so far</div>` : ''}`
 		: `${p.percentRemaining !== undefined
 			? figure(String(Math.round(p.percentRemaining)), '% left this month')
-			: figure(fmtDays(p.daysToReset), 'days to reset')}
+			: figure(fmtDays(p.daysToReset), `${dayUnit(p.daysToReset)} to reset`)}
 		   ${meter(p)}`;
 
 	// Thirty columns in three hundred pixels is about eight pixels each, which
@@ -158,7 +160,11 @@ const STYLES = `
 	/* The state is the figure's own colour here: there is no card to tint and
 	   no bar of its own to carry it, and these are large enough for the 3:1
 	   that size of text needs. */
-	.t-near .n { color: var(--vscode-editorWarning-foreground, #cca700); }
+	/* Orange, not the warning yellow, which measured 3.11:1 on light -- over
+	   the 3:1 large-text bar by a hair, and the same state reads orange in the
+	   panel's hero, where yellow could not clear it at all. One colour for one
+	   meaning, at 4.0:1 in both themes. */
+	.t-near .n { color: var(--vscode-charts-orange, #bf6a02); }
 	.t-over .n { color: var(--vscode-errorForeground, #f14c4c); }
 	.line { font-size: 0.78rem; line-height: 1.5; }
 	.dim { color: var(--vscode-descriptionForeground); }
