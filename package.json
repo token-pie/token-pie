@@ -144,6 +144,25 @@
           "group": "navigation@1"
         }
       ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tokenPie",
+          "title": "Token Pie",
+          "icon": "images/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "tokenPie": [
+        {
+          "type": "webview",
+          "id": "tokenPie.summary",
+          "name": "Usage",
+          "icon": "images/icon.svg"
+        }
+      ]
     }
   },
   "scripts": {

@@ -26,6 +26,10 @@ CLAUDE.md
 
 # The icon source, kept in the repo for regeneration but not shipped.
 images/*.svg
+# ...but the activity-bar container names this one, and a container with no
+# icon renders as a blank strip. Preflight proves every icon the manifest
+# points at is actually in the package, having once caught this exact thing.
+!images/icon.svg
 
 # Screenshots are referenced from the repository by absolute URL (vsce rewrites
 # them), so shipping copies inside the package is dead weight. The icon stays:

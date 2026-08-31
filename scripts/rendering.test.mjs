@@ -31,6 +31,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { renderReport } from '../out/report.js';
 import { project } from '../out/projection.js';
+import { renderCompact } from '../out/sidebar.js';
 import { defaults } from '../out/tuning.js';
 import { renderSpecs } from '../out/specs.js';
 import { parse } from '../out/ratecard.js';
@@ -78,6 +79,13 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.meter->div.meter-foot', 'and the footnote labels the same bar'],
   ['div.v->div.k', "a tile's figure and its unit are one reading"],
   ['div.pd-plot->div.pd-axis', 'an axis belongs against the plot it scales'],
+  // The sidebar's figure, its bar and its footnote, which are one reading each
+  // in the way the meter's three parts are.
+  ['div.fig->div.line', "the sidebar figure and the line explaining it"],
+  ['div.fig.t-near->div.line.dim', 'the same pair, coloured by the day\'s pressure'],
+  ['div.fig.t-over->div.line.dim', 'and the same pair over budget'],
+  ['div.line->div.bar', 'the caption labels the bar beneath it'],
+  ['div.bar->div.line.dim', 'and the footnote labels the same bar'],
 ]);
 
 /**
@@ -441,13 +449,45 @@ const pages = {
     (pages.exhausted.match(/class="k">/g) || []).length, 3);
 }
 
+/*
+ * The sidebar, which is the panel's content at a third of its width.
+ *
+ * Measured here for the reason every other fixture is: spacing and contrast
+ * are properties of what renders, and a view nobody renders is a view nobody
+ * checks. The narrow pass matters most of all for this one -- it is narrow by
+ * definition, not by accident.
+ */
+{
+  const now = Date.now();
+  const d = new Date(now);
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` +
+              `-${String(d.getDate()).padStart(2, '0')}`;
+  const rollups = [rollup({ day, nanoAiu: 13e9 })];
+  const t = defaults();
+  t.projection.dailyBudgetPercent = 1;          // amber, the risky colour
+  const ent = { snapshots: [{ name: 'q', entitlement: 1500, remaining: 1092,
+    remainingExact: 1092, percentRemaining: 72.8, hasQuota: true, unlimited: false }],
+    resetDate: new Date(now + 1.7 * 86400000).toISOString() };
+  pages.sidebar = renderCompact({
+    rollups, creditsPerNanoAiu: 1e-9, tuning: t,
+    projection: project(ent, rollups, 1e-9, now, t)
+  });
+  check('the sidebar carries both figures',
+    /% left this month/.test(pages.sidebar) && /used today/.test(pages.sidebar), true);
+  check('and the week', /class="week"/.test(pages.sidebar), true);
+  check('and a way back to the panel',
+    /href="command:tokenPie.showReport"/.test(pages.sidebar), true);
+  // Same guarantee the panel makes, and the reason the link is a command URI.
+  check('with no script in it', /<script/.test(pages.sidebar), false);
+}
+
 for (const [name, html] of Object.entries(pages)) {
   for (const theme of ['dark', 'light']) {
     console.log(`\n${name} (${theme})`);
     const { rows, contrast, overflow } = await measure(
       html, path.join(dir, `${name}-${theme}.html`), theme);
 
-    check('something was measured', rows.length > 20, true);
+    check('something was measured', rows.length > (name === 'sidebar' ? 8 : 20), true);
     const cramped = rows.filter(r => r.gap < MIN_GAP
       && !DELIBERATELY_TIGHT.has(`${r.from}->${r.to}`)
       && !TIGHT_REPEATS.some(([a, b]) => a.test(r.from) && b.test(r.to)));

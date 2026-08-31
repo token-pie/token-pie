@@ -361,7 +361,7 @@ export function statusLabel(p: Projection): string {
 	}
 }
 
-function fmtDays(days: number | undefined): string {
+export function fmtDays(days: number | undefined): string {
 	if (days === undefined) {
 		return '?';
 	}

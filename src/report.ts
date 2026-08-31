@@ -32,7 +32,7 @@ function fmtTokens(n: number): string {
 	return fmtInt(n);
 }
 
-function fmtCredits(credits: number): string {
+export function fmtCredits(credits: number): string {
 	return credits >= 100 ? fmtInt(credits) : credits.toFixed(2);
 }
 
@@ -43,12 +43,12 @@ function fmtCredits(credits: number): string {
  * -- which reads as two different units to anyone who has not just read the
  * source. One word, everywhere.
  */
-function fmtCreditsWith(credits: number): string {
+export function fmtCreditsWith(credits: number): string {
 	const n = fmtCredits(credits);
 	return `${n} ${n === '1.00' ? 'credit' : 'credits'}`;
 }
 
-function fmtDays(days: number | undefined): string {
+export function fmtDays(days: number | undefined): string {
 	if (days === undefined) {
 		return '?';
 	}
@@ -1482,7 +1482,7 @@ function periodBars(
 	</div>`;
 }
 
-function weekBars(rollups: Rollup[], creditsPerNanoAiu: number, now = new Date()): string {
+export function weekBars(rollups: Rollup[], creditsPerNanoAiu: number, now = new Date()): string {
 	// Monday of the current week, in local time: the day strings are local days.
 	const monday = new Date(now);
 	monday.setHours(0, 0, 0, 0);

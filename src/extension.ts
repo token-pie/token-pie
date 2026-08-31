@@ -11,6 +11,7 @@ import { ReadingStore, toReading, reconcile, periodCoverage } from './reconcile'
 import { userDirs, readTurns, clearTurnCache, Turn } from './sessions';
 import { project, statusLabel, barLabel, dayPressure, Projection } from './projection';
 import { Progress, phaseLabel } from './progress';
+import { renderCompact } from './sidebar';
 import { Entitlement } from './entitlement';
 import { RollupStore } from './store';
 import { KNOWN_SCHEMA_VERSION, num } from './schema';
@@ -61,6 +62,15 @@ export function activate(context: vscode.ExtensionContext): void {
 	statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	statusBar.command = 'tokenPie.showReport';
 	context.subscriptions.push(statusBar, output);
+
+	sidebar = new Sidebar();
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(Sidebar.viewId, sidebar,
+			// Kept alive while hidden: rebuilding it on every reveal would
+			// re-render from the same cached state anyway, and losing the scroll
+			// position of the week is a worse trade than a few kilobytes.
+			{ webviewOptions: { retainContextWhenHidden: true } })
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('tokenPie.setup', () => setup()),
@@ -836,7 +846,49 @@ function repaint(): void {
 	if (consolePanel) {
 		consolePanel.webview.html = buildSpecsHtml();
 	}
+	sidebar?.repaint();
 }
+
+/**
+ * The compact view in the activity bar.
+ *
+ * A webview view rather than a tree: the panel's figures are a meter and a
+ * chart, and a tree of label-value rows would be a worse rendering of both.
+ *
+ * `enableCommandUris` rather than a script. The link back to the full report
+ * is the only interactive thing here, and a `command:` href needs no script at
+ * all -- which keeps the same guarantee the panel makes.
+ */
+class Sidebar implements vscode.WebviewViewProvider {
+	static readonly viewId = 'tokenPie.summary';
+	private view?: vscode.WebviewView;
+
+	resolveWebviewView(view: vscode.WebviewView): void {
+		this.view = view;
+		view.webview.options = { enableScripts: false, enableCommandUris: true };
+		this.repaint();
+		view.onDidDispose(() => { this.view = undefined; });
+		// Rendered from cached state, so a view revealed after a refresh shows
+		// what the panel shows rather than waiting for the next cycle.
+		view.onDidChangeVisibility(() => { if (view.visible) { this.repaint(); } });
+	}
+
+	repaint(): void {
+		if (!this.view) {
+			return;
+		}
+		const t = tuning().tuning;
+		this.view.webview.html = renderCompact({
+			rollups: store.since(t.history.days),
+			creditsPerNanoAiu: creditsPerNanoAiu(),
+			projection,
+			tuning: t,
+			warnings: [...lastErrors, ...(lastResult?.notices ?? [])]
+		});
+	}
+}
+
+let sidebar: Sidebar | undefined;
 
 function showReport(context: vscode.ExtensionContext): void {
 	if (panel) {

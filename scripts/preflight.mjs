@@ -100,7 +100,12 @@ check('no images the manifest does not name', strayImages.length === 0, strayIma
 // Inverted for good: these are the only things allowed out.
 const allowed = [
   /^package\.json$/, /^readme\.md$/i, /^changelog\.md$/i, /^license[^/]*$/i,
-  /^out\/[a-z]+\.js$/, new RegExp(`^${icon.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+  /^out\/[a-z]+\.js$/,
+  // Every image the manifest names, not just the marketplace icon: the
+  // activity-bar container names its own, and allowing only the first meant
+  // adding a view failed here rather than in the check above that already
+  // knew about both.
+  ...[...declaredImages].map(f => new RegExp(`^${f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)),
   // The published price table. Shipped so the comparison against measured
   // rates works offline and on first run, before any weekly fetch.
   /^rate-card\.json$/

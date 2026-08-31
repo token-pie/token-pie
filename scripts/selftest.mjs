@@ -382,9 +382,15 @@ check('no script tags in webview', /<script/i.test(html), false);
   // ours; before this they were printed side by side with nothing saying why
   // they differ. Dated from today so the assertion does not expire.
   const today = new Date().toISOString().slice(0, 10);
-  const nextMonth = new Date();
-  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
-  const reset = nextMonth.toISOString().slice(0, 10);
+  // Thirty days out, not setUTCMonth(+1).
+  //
+  // On the 31st there is no 31st of the following month, so the month bump
+  // rolls forward to the 1st of the month after -- which puts the period start
+  // a day in the FUTURE, and periodCoverage withholds a verdict about a period
+  // that has not begun. Six assertions here failed on the 31st of the month and
+  // on no other day. periodStartFrom does calendar arithmetic precisely to
+  // avoid this, and has a test for it; the fixture feeding it did not.
+  const reset = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const dated = (r) => ({ ...r, day: today });
   const withQuota = (creditsUsed) => renderReport({
     rollups: [dated(priced), dated(unpriced)], creditsPerNanoAiu: 1e-9, dbCount: 1,
@@ -394,9 +400,15 @@ check('no script tags in webview', /<script/i.test(html), false);
       remaining: 1500 - creditsUsed, creditsUsed, resetDate: reset
     },
     // A verdict about where spend went depends on how much of the period this
-    // machine was watching, so a fixture asserting one has to say. Recording
-    // from the period start is what "we saw all of it" means.
-    history: { traceStartDay: today, recoveredMessages: 0 },
+    // machine was watching, so a fixture asserting one has to say. Well before
+    // the period start, not "today": the period began a day or so ago, so
+    // recording from today covers a third of it and the honest verdict is that
+    // nothing can be concluded -- which is the right answer to the wrong
+    // question for a test about reconciliation.
+    history: {
+      traceStartDay: new Date(Date.now() - 40 * 86400000).toISOString().slice(0, 10),
+      recoveredMessages: 0
+    },
     prices: {}, depth: {}
   });
 
