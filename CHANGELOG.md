@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.7 - 2026-08-31
+
+### Fixed
+
+- three sections in the glyph, and no icon syntax on the listing
+
+
 ## 0.5.6 - 2026-08-31
 
 ### Fixed
