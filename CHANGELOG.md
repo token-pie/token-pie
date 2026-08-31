@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.5 - 2026-08-31
+
+### Fixed
+
+- on the last day the figure counts hours, not days
+
+
 ## 0.5.4 - 2026-08-31
 
 ### Fixed
