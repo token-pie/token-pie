@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.13 - 2026-08-31
+
+### Fixed
+
+- the day is differenced from the month, not measured separately
+
+
 ## 0.5.12 - 2026-08-31
 
 ### Fixed
