@@ -15,7 +15,7 @@ import { renderCompact } from './sidebar';
 import { Entitlement } from './entitlement';
 import { RollupStore } from './store';
 import { KNOWN_SCHEMA_VERSION, num } from './schema';
-import { renderReport, creditsByDay } from './report';
+import { renderReport, creditsByDay, fmtDaysWith } from './report';
 import { Tuning, KnobReading, read } from './tuning';
 import { renderSpecs } from './specs';
 import { LoadedCard, load as loadCard, refresh as refreshCard, isDue } from './ratecard';
@@ -630,9 +630,11 @@ function buildTooltip(
 		);
 	}
 	if (p.burnPerDay !== undefined) {
-		md.appendMarkdown(
-			`Your pace: **${fmt(p.burnPerDay)} credits/day** over ${fmt(p.daysObserved ?? 0)} days  \n`
-		);
+		// The window is stated only when it is known. `?? 0` printed "over 0.0
+		// days", which is a measurement nobody took.
+		const over = p.daysObserved !== undefined
+			? ` over ${fmtDaysWith(p.daysObserved)}` : '';
+		md.appendMarkdown(`Your pace: **${fmt(p.burnPerDay)} credits/day**${over}  \n`);
 	}
 	if (p.sustainableDailyBurn !== undefined) {
 		md.appendMarkdown(
@@ -640,7 +642,10 @@ function buildTooltip(
 		);
 	}
 	if (p.daysToReset !== undefined) {
-		md.appendMarkdown(`Quota resets in **${fmt(p.daysToReset)} days**  \n`);
+		// Not `fmt(...) days`: under a day the figure counts hours, and this
+		// line read "resets in 0.3 days" while the panel beside it said eight
+		// hours. One formatter for the figure and its unit, as everywhere else.
+		md.appendMarkdown(`Quota resets in **${fmtDaysWith(p.daysToReset)}**  \n`);
 	}
 	// A coloured status bar with no stated cause is a puzzle, and the two
 	// horizons share one background -- so say which of them turned it.
