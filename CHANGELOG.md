@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 - 2026-08-31
+
+### Added
+
+- a compact view in the activity bar, beside the tab
+
+### Fixed
+
+- a tintable glyph for the activity bar, and three more figures in it
+
+
 ## 0.4.3 - 2026-08-30
 
 Documentation only. The extension is unchanged from 0.4.2.
