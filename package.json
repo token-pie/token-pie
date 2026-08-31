@@ -93,7 +93,8 @@
         "tokenPie.rateCard.url": {
           "type": "string",
           "default": "https://raw.githubusercontent.com/token-pie/token-pie/main/rate-card.json",
-          "markdownDescription": "Where the weekly refresh reads published prices from. Point this at your own file if you are on negotiated or enterprise pricing; the format is the bundled `rate-card.json`. A response that does not parse as a complete rate card is discarded rather than partly applied."
+          "scope": "application",
+          "markdownDescription": "Where the weekly refresh reads published prices from. Point this at your own file if you are on negotiated or enterprise pricing; the format is the bundled `rate-card.json`. A response that does not parse as a complete rate card is discarded rather than partly applied. Settable in user settings only: the refresh runs unattended on a timer, so a workspace that could repoint it would be choosing a host for you."
         },
         "tokenPie.rateCard.models": {
           "type": [

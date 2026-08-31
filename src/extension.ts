@@ -416,13 +416,13 @@ function autoPurge(): void {
 			vacuum: 'auto'
 		});
 	} catch (err) {
-		output.appendLine(`[purge] failed: ${err instanceof Error ? err.message : String(err)}`);
+		output.appendLine(`[purge] failed: ${redactPaths(err instanceof Error ? err.message : String(err))}`);
 		return;
 	}
 
 	for (const r of results) {
 		if (r.error) {
-			output.appendLine(`[purge] ${r.db}: ${r.error}`);
+			output.appendLine(`[purge] ${redactPaths(r.db)}: ${redactPaths(r.error)}`);
 		} else if (r.attributeRows > 0 || r.eventRows > 0) {
 			output.appendLine(
 				`[purge] ${r.attributeRows} attrs, ${r.eventRows} events, ` +
@@ -960,8 +960,8 @@ async function purgeContent(): Promise<void> {
 	for (const r of results) {
 		output.appendLine(
 			r.error
-				? `[purge] FAILED ${r.db}: ${r.error}`
-				: `[purge] ${r.db}: ${r.attributeRows} attrs, ${r.eventRows} events, ${(r.bytesFreed / 1024).toFixed(1)} KB`
+				? `[purge] FAILED ${redactPaths(r.db)}: ${redactPaths(r.error)}`
+				: `[purge] ${redactPaths(r.db)}: ${r.attributeRows} attrs, ${r.eventRows} events, ${(r.bytesFreed / 1024).toFixed(1)} KB`
 		);
 	}
 
@@ -998,9 +998,7 @@ async function checkQuota(): Promise<void> {
 		// and the status bar kept asking for a check that had already run.
 		let e = await fetchEntitlement(true, false);
 		if (!hasCopilotAccess(e)) {
-			output.appendLine(
-				`account "${e.login ?? '?'}" has no Copilot access -- asking which account to use`
-			);
+			output.appendLine('this account has no Copilot access -- asking which account to use');
 			e = await fetchEntitlement(true, true);
 		}
 
@@ -1010,20 +1008,24 @@ async function checkQuota(): Promise<void> {
 		entitlement = e;
 		recomputeProjection();
 		updateStatusBar();
-		output.appendLine(`account            ${e.login ?? '(absent)'}`);
+		// The name is never printed. This block sits under a heading that
+		// promises identifiers were removed, and the log exists to be pasted
+		// into an issue; whether an account came back is the diagnostic, who
+		// it belongs to is not.
+		output.appendLine(`account            ${e.login ? '(signed in)' : '(absent)'}`);
 		output.appendLine(`access_type_sku    ${e.accessTypeSku ?? '(absent)'}`);
 		output.appendLine(`chat_enabled       ${e.chatEnabled ?? '(absent)'}`);
 		output.appendLine(`plan               ${e.plan ?? '(absent)'}`);
 		output.appendLine(`quota_reset_date   ${e.resetDate ?? '(absent)'}`);
 		output.appendLine(`token_based_billing ${e.tokenBasedBilling ?? '(absent)'}`);
-		output.appendLine(`organizations      ${e.organizations.join(', ') || '(none)'}`);
+		output.appendLine(`organizations      ${e.organizations.length} (names removed)`);
 		output.appendLine('');
 
 		if (!hasCopilotAccess(e)) {
 			// Distinguish "wrong account" from "endpoint has no quota data". Only
 			// the second says anything about whether the idea works.
 			output.appendLine(
-				`INCONCLUSIVE: account "${e.login ?? '?'}" has no Copilot access ` +
+				`INCONCLUSIVE: this account has no Copilot access ` +
 				`(access_type_sku=${e.accessTypeSku}, chat_enabled=${e.chatEnabled}).`
 			);
 			output.appendLine('Re-run and pick the account that actually has Copilot.');
@@ -1132,10 +1134,10 @@ function doctor(): void {
 		output.appendLine(
 			`  ${db.channel}/${db.profile}  ${(db.sizeBytes / 1024 / 1024).toFixed(2)} MB  modified ${new Date(db.mtime).toISOString()}`
 		);
-		output.appendLine(`    ${db.path}`);
+		output.appendLine(`    ${redactPaths(db.path)}`);
 	}
 	if (dbs.length === 0) {
-		output.appendLine(`  (also checked tmpdir fallback: ${fallbackDbPath()})`);
+		output.appendLine(`  (also checked tmpdir fallback: ${redactPaths(fallbackDbPath())})`);
 	}
 	output.appendLine('');
 
