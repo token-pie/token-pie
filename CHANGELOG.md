@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 - 2026-08-31
+
+### Fixed
+
+- a failed refresh left the views showing the last good render
+
+
 ## 0.5.0 - 2026-08-31
 
 ### Added
