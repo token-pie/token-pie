@@ -46,6 +46,15 @@ let progress: Progress = { phase: 'idle' };
  */
 let lastErrors: string[] = [];
 /**
+ * Findings, redacted the way errors already were.
+ *
+ * These are rendered in the panel and the sidebar and they quote the database
+ * path, so on Windows the untouched text carried `C:\\Users\\<username>` into a
+ * warning people screenshot. `lastErrors` had been redacted since it existed;
+ * notices arrived later and did not inherit it.
+ */
+let lastNotices: string[] = [];
+/**
  * The refresh in flight, if any.
  *
  * The pipeline yields to the event loop, so without this the 120-second timer
@@ -332,6 +341,7 @@ async function runRefresh(interactive: boolean): Promise<void> {
 		await refreshEntitlement();
 
 		lastErrors = result.errors.map(redactPaths);
+		lastNotices = result.notices.map(redactPaths);
 		setProgress({ phase: 'ready' });
 		recomputeProjection();
 		updateStatusBar();
@@ -675,8 +685,8 @@ function buildHtml(): string {
 	if (lastResult?.errors.length) {
 		warnings.push(...lastResult.errors);
 	}
-	if (lastResult?.notices.length) {
-		warnings.push(...lastResult.notices);
+	if (lastNotices.length) {
+		warnings.push(...lastNotices);
 	}
 	// Only warn about content that is actually substantial. With
 	// maxAttributeSizeChars set to 1 the keys still exist but hold a single
@@ -826,7 +836,7 @@ function buildSpecsHtml(): string {
 			spansCounted: lastResult?.spansCounted ?? 0,
 			costSpans: lastResult?.costSpans ?? 0,
 			recoveredMessages: lastResult?.backfill?.turnsCounted ?? 0,
-			errors: [...(lastResult?.errors ?? []), ...(lastResult?.notices ?? [])]
+			errors: [...lastErrors, ...lastNotices]
 		},
 		lastRefresh
 	});
@@ -894,7 +904,7 @@ class Sidebar implements vscode.WebviewViewProvider {
 			creditsPerNanoAiu: creditsPerNanoAiu(),
 			projection,
 			tuning: t,
-			warnings: [...lastErrors, ...(lastResult?.notices ?? [])]
+			warnings: [...lastErrors, ...lastNotices]
 		});
 	}
 }

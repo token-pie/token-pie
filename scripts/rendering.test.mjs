@@ -432,8 +432,13 @@ const pages = {
   pages.exhausted = renderReport({
     rollups: [rollup({ day: '2026-08-03', source: 'reported', nanoAiu: 20.48e9 })],
     creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
-    warnings: ['No billable spans found. Looked for chat; the database holds ' +
-      'embeddings (21), execute_tool (15), invoke_agent (11).'],
+    // The path is the point: it is one unbreakable word, and the overflow it
+    // caused in a 300px column was invisible to a fixture that only ever
+    // carried a short sentence.
+    warnings: ['No billable spans found in ' +
+      '~\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\agent-traces.db. ' +
+      'Looked for chat; the database holds embeddings (21), execute_tool (15), ' +
+      'invoke_agent (11). Credit figures come from chat transcripts, not measurement.'],
     prices: {}, depth: {},
     projection: { verdict: 'exhausted', quotaId: 'premium_interactions',
       entitlement: 10000, remaining: 0, percentRemaining: 0, creditsUsed: 19114,
@@ -472,7 +477,9 @@ const pages = {
     resetDate: new Date(now + 1.7 * 86400000).toISOString() };
   pages.sidebar = renderCompact({
     rollups, creditsPerNanoAiu: 1e-9, tuning: t,
-    projection: project(ent, rollups, 1e-9, now, t)
+    projection: project(ent, rollups, 1e-9, now, t),
+    warnings: ['No billable spans found in ' +
+      '~\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\agent-traces.db.']
   });
   check('the sidebar carries both figures',
     /% left this month/.test(pages.sidebar) && /used today/.test(pages.sidebar), true);
@@ -513,6 +520,25 @@ for (const [name, html] of Object.entries(pages)) {
 // A sidebar was tried and reverted -- the tables are too dense for a column
 // that narrow -- but an editor group can still be split thin, and a page that
 // scrolls sideways is unusable at any width.
+/*
+ * The sidebar, at the width it actually has.
+ *
+ * Measuring it in the default pass proved nothing about overflow: a page only
+ * scrolls sideways when something is wider than its viewport, and at 900px
+ * nothing in a 300px design is. A path in a warning ran clean out of the
+ * column in VS Code while this suite was green.
+ */
+console.log('\nsidebar at its real width (300px)');
+{
+  const { rows, overflow, body } = await measure(
+    pages.sidebar, path.join(dir, 'sidebar-narrow.html'), 'dark', 300);
+  check('nothing pushes the column sideways',
+    overflow.map(o => `${o.what} +${o.over}px`).join(', '), '');
+  check('so it does not scroll horizontally', body.scroll, body.client);
+  check('and it still lays out', rows.length > 8, true);
+  console.log(`        ${rows.length} adjacent pairs at ${body.client}px`);
+}
+
 console.log('\npanel in a narrow editor split (320px)');
 {
   const { rows, overflow, body } = await measure(

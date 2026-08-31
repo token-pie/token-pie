@@ -1952,7 +1952,10 @@ const STYLES = `
 	details.detail[open] > summary { border-radius: 7px 7px 0 0; }
 	.detail-body { padding: 2px 15px 14px; }
 
+	/* Same reason as the evidence line above: a warning quotes paths, and a path
+	   is a single unbreakable word to a line-breaker. */
 	.warn { margin: 12px 0; padding: 8px 11px; border-radius: 5px; font-size: 0.8rem;
+	        overflow-wrap: anywhere;
 	        background: var(--vscode-inputValidation-warningBackground, rgba(255,190,0,0.1));
 	        border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(255,190,0,0.4)); }
 	.history { margin: 0 0 14px; }

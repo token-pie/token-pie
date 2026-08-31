@@ -167,8 +167,10 @@ const STYLES = `
 	.bar span { display: block; height: 100%; border-radius: 3px;
 	            background: var(--vscode-charts-blue, #4a9eff); }
 	.bar-over span { background: var(--vscode-charts-red, #f14c4c); }
+	/* A file path is one word, and this column is 300px. Without this the text
+	   sets on a single line and runs out of the sidebar. */
 	.warn { margin-top: 12px; padding: 7px 9px; border-radius: 4px; font-size: 0.74rem;
-	        line-height: 1.5;
+	        line-height: 1.5; overflow-wrap: anywhere;
 	        background: var(--vscode-inputValidation-warningBackground, rgba(255,190,0,0.1));
 	        border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(255,190,0,0.4)); }
 	/* Two figures, because one rate means nothing without the other. */
