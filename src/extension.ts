@@ -353,6 +353,12 @@ async function runRefresh(interactive: boolean): Promise<void> {
 		lastErrors = [safe];
 		setProgress({ phase: 'failed' });
 		updateStatusBar();
+		// The views carry the warnings, and a failure is when there is one worth
+		// carrying. Without this the status bar turned broken while the panel and
+		// the sidebar went on showing the last good render, saying nothing --
+		// which is the worst of the three states to be in, because the surface
+		// with the detail is the one that stays silent.
+		repaint();
 		output.appendLine(`[${new Date().toISOString()}] refresh failed: ${safe}`);
 		if (interactive) {
 			void vscode.window.showErrorMessage(`Token Pie: ${safe}`);
@@ -361,10 +367,15 @@ async function runRefresh(interactive: boolean): Promise<void> {
 }
 
 /**
- * Announce a phase and repaint straight away.
+ * Announce a phase on the status bar.
  *
  * The point of this is that a slow start looks like progress rather than a
- * hang. It is called from inside the pipeline between units of work.
+ * hang. It is called from inside the pipeline between units of work, which is
+ * why it touches only the status bar: re-rendering two webviews between every
+ * unit would cost more than the progress is worth. The views are repainted
+ * once, when the pass ends.
+ *
+ * It used to say it repainted. It never did.
  */
 function setProgress(p: Progress): void {
 	progress = p;
