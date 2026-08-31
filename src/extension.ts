@@ -494,10 +494,19 @@ function updateStatusBar(): void {
 	// reported symptom for the latter was that the button had vanished.
 	const busy = phaseLabel(progress);
 	if (busy) {
-		statusBar.text = label(MARK.busy, busy);
+		// The phase used to be the text, and the text was four widths in two
+		// seconds: "usage", "history 24/61", "allowance", then the figure. The
+		// strip is packed, so every item beside it moved each time. Once there
+		// is a figure the figure stays and only the mark spins -- both marks
+		// are one codicon, so nothing reflows. The phase moves to the tooltip,
+		// which is where a detail that changes three times a refresh belongs.
+		const settled = projection !== undefined && projection.verdict !== 'unknown';
+		statusBar.text = label(MARK.busy, settled ? barLabel(projection!) : busy);
 		statusBar.tooltip =
 			`Token Pie is reading your usage (${busy}). The editor stays usable; ` +
-			'the report opens once this finishes.';
+			(settled
+				? 'the figures stand from the last complete reading until it finishes.'
+				: 'the report opens once this finishes.');
 		statusBar.backgroundColor = undefined;
 		// Nothing to open yet, so the click does nothing rather than showing a
 		// half-built report and looking broken.
