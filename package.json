@@ -72,7 +72,7 @@
         },
         "tokenPie.creditsPerNanoAiu": {
           "type": "number",
-          "default": 1e-9,
+          "default": 1e-09,
           "markdownDescription": "Conversion from `copilot_usage_nano_aiu` to AI Credits. **Calibrate against your GitHub billing dashboard before trusting absolute figures.**"
         },
         "tokenPie.statusBar.enabled": {
@@ -160,6 +160,7 @@
         {
           "type": "webview",
           "id": "tokenPie.summary",
+          "icon": "images/activity.svg",
           "name": "Usage"
         }
       ]
