@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.12 - 2026-08-31
+
+### Fixed
+
+- the sustainable line names the span it is averaged over
+
+
 ## 0.5.11 - 2026-08-31
 
 ### Fixed
