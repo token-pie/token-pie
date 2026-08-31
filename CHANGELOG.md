@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.6 - 2026-08-31
+
+### Fixed
+
+- the activity glyph is the listing's pie, cut the same way
+- the glyph did not parse, so the activity bar drew nothing
+
+
 ## 0.5.5 - 2026-08-31
 
 ### Fixed
