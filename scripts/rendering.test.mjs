@@ -89,10 +89,6 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.fig.t-near->div.line.dim', 'the same pair, coloured by the day\'s pressure'],
   ['div.fig.t-over->div.line.dim', 'and the same pair over budget'],
   ['div.line->div.bar', 'the caption labels the bar beneath it'],
-  // A model, its two figures and the bar drawing them are one reading, in the
-  // way the meter's three parts are.
-  ['div.mname->div.pair', 'the model names the figures under it'],
-  ['div.pair->div.bar.mbar', 'and the bar is those figures, drawn'],
   ['span.pv->span.pk', "a pace figure and its label are one reading"],
   ['div.pd-head->div.pd-plot', 'the caption labels the strip beneath it'],
   ['div.bar->div.line.dim', 'and the footnote labels the same bar'],
@@ -106,7 +102,10 @@ const DELIBERATELY_TIGHT = new Map([
  * them without naming every combination.
  */
 const TIGHT_REPEATS = [
-  [/^div\.wk-row/, /^div\.wk-row/, 'the rows of one week chart are one figure']
+  [/^div\.wk-row/, /^div\.wk-row/, 'the rows of one week chart are one figure'],
+  // Consecutive lines of one list, spaced by line-height rather than by a box
+  // gap -- the same relationship the week's rows have.
+  [/^div\.mrow/, /^div\.mrow/, 'the lines of the models list are one block']
 ];
 
 let failures = 0;

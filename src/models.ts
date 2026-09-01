@@ -349,12 +349,15 @@ export function renderModels(view: ModelsView): string {
 /**
  * The sidebar's reduction: the cheapest, and the one you actually spend on.
  *
- * Written first as two lines of prose, which is not the language the rest of
- * the column speaks: everything else here is a figure with a small-caps label
- * under it, and a bar when one number needs to be read against another. So
- * this is the same -- input and output as their own figures, and a bar per
- * model scaled to the dearer of the two, which shows the gap in the one
- * column it is measured in rather than blending them into a multiple.
+ * No bar. Every other bar in this column means spend against a quota -- the
+ * meter, the day, the week -- so drawing a price ratio in the same vocabulary
+ * says a model is consuming something, which it is not until you send it
+ * anything. A ratio between two published prices is a fact about a price
+ * list, and the two figures state it without a graphic pretending to measure.
+ *
+ * One line per model: the name, its role, and the two rates set right so the
+ * digits line up under each other and the comparison is a glance down a
+ * column rather than an arithmetic exercise.
  */
 export function compactModels(view: ModelsView, rollups: Rollup[],
 	creditsPerNanoAiu: number): string {
@@ -377,32 +380,20 @@ export function compactModels(view: ModelsView, rollups: Rollup[],
 	const mine = heaviest && priced.find(r =>
 		(r.id ?? r.name).toLowerCase() === heaviest!.name.toLowerCase());
 
-	const shown = mine && mine !== cheapest ? [cheapest, mine] : [cheapest];
-	const roles = new Map<ModelRow, string>([[cheapest, 'cheapest']]);
+	const rows: [ModelRow, string][] = [[cheapest, 'cheapest']];
 	if (mine && mine !== cheapest) {
-		roles.set(mine, 'you use most');
+		rows.push([mine, 'you use most']);
 	}
-	// Scaled to the dearer output price on show, so the shorter bar is the
-	// cheaper model and the ratio between them is the thing being said.
-	const dearest = Math.max(...shown.map(r => r.rates!.output));
 
-	const block = (r: ModelRow) => `<div class="mrow">
-		<div class="mname">${escapeHtml(r.name)}
-			<span class="mrole">${escapeHtml(roles.get(r) ?? '')}</span></div>
-		<div class="pair">
-			<div class="pc"><span class="pv">${num(r.rates!.input)}</span>
-				<span class="pk">in</span></div>
-			<div class="pc"><span class="pv">${num(r.rates!.output)}</span>
-				<span class="pk">out</span></div>
-		</div>
-		${shown.length > 1
-			? `<div class="bar mbar"><span style="width:${
-				Math.max(3, Math.round((r.rates!.output / dearest) * 100))}%"></span></div>`
-			: ''}
+	const line = ([r, role]: [ModelRow, string]) => `<div class="mrow">
+		<span class="mname">${escapeHtml(r.name)}</span>
+		<span class="mrole">${escapeHtml(role)}</span>
+		<span class="mrate">${num(r.rates!.input)}<span class="msep">/</span>${
+			num(r.rates!.output)}</span>
 	</div>`;
 
 	return `<div class="sec models">
-		<div class="wk-head">Models<span class="wk-total">credits per 1M</span></div>
-		${shown.map(block).join('')}
+		<div class="wk-head">Models<span class="wk-total">in / out per 1M</span></div>
+		${rows.map(line).join('')}
 	</div>`;
 }

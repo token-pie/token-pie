@@ -47,7 +47,8 @@ Seven rows stand and the rest fold into a `details`, because a list of thirty
 models is a reference table, not a decision aid.
 
 The sidebar carries a two-line reduction: the cheapest available and the model
-you spend most on, each with its own input and output figures.
+you spend most on, one line each -- name, role, and the two rates set right so
+the digits of one sit under the digits of the other.
 
 ## Invariants
 
@@ -95,7 +96,13 @@ data the view did not itself produce.
    periods they apply to — so it printed a warning on every render. A warning
    that is always on is a warning nobody reads. What is worth saying is that a
    fetch is not happening.
-8. **The API's silence is a state.** If `selectChatModels` returns nothing —
+8. **No bar for a price.** The sidebar draws no bar in this block. Every other
+   bar in that column is spend against a quota -- the meter, the day, the week
+   -- so a price ratio drawn the same way says a model is consuming something,
+   which it has not until you send it anything. A ratio between two published
+   prices is a fact about a price list, and two figures state it without a
+   graphic pretending to measure.
+9. **The API's silence is a state.** If `selectChatModels` returns nothing —
    no consent, older VS Code, no Copilot — the view renders the card's models
    with an explicit "this is the published list, not your list" banner. It
    never renders an empty table.
