@@ -289,6 +289,35 @@ console.log('\nwhat a model is for');
   if (long) check('and the long-context variant does not repeat it', long.note, undefined);
 }
 
+console.log('\nAuto is a picker, not a model');
+{
+  // The editor lists Auto alongside the models, so it belongs on a page about
+  // what you can pick. It has no price of its own -- it chooses a model per
+  // message and you are billed at that model's rate -- so it used to be tagged
+  // "not published", which is a claim about the rate card being behind and one
+  // that can never come true.
+  const v = view({ available: [model('auto', 'Auto'),
+    model('gpt-5.6-luna', 'GPT-5.6 Luna')] });
+  const auto = v.rows.find(r => r.name === 'Auto');
+  check('Auto is on the list', auto !== undefined, true);
+  check('and is not a model the card has failed to price', auto?.state, 'routed');
+  check('and carries no rates of its own', auto?.rates, undefined);
+
+  const html = renderModels(v);
+  check('the row does not blame the card', /Auto<span class="tag unpriced"/.test(html), false);
+  check('it says what Auto does instead',
+    /Auto<span class="tag routed">picks for you<\/span>/.test(html), true);
+  // Something with no price must never win the cheapest mark: Auto at a blank
+  // price is not free, it is the price of whatever it chose.
+  check('and is never marked cheapest', auto?.cheapestInput, undefined);
+  check('the cheapest mark goes to a real model',
+    v.rows.find(r => r.cheapestInput)?.name, 'GPT-5.6 Luna');
+  // The same classifier attribution uses, so the two cannot drift.
+  const prefixed = view({ available: [model('copilot/auto', 'Auto')] });
+  check('and a vendor-prefixed id is the same picker',
+    prefixed.rows.find(r => r.name === 'Auto')?.state, 'routed');
+}
+
 console.log('\nthe descriptions ride the card');
 {
   // They live beside the prices, so refreshing the card refreshes them. The

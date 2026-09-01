@@ -24,6 +24,7 @@
  */
 
 import { RateCard, lookup } from './ratecard';
+import { isAutoModelId } from './selection';
 import { Rollup, groupBy, sum } from './store';
 import { PriceStats } from './pricing';
 import { escapeHtml, fmtCreditsWith, fmtInt, creditsOf } from './report';
@@ -68,9 +69,10 @@ export interface ModelRow {
 	 * offered but absent from the card, usually a release the card has not
 	 * caught up with. `published` is the card's own list, shown when the editor
 	 * never told us what this account can pick -- it claims nothing about
-	 * availability, which is the point.
+	 * availability, which is the point. `routed` is Auto, which the editor
+	 * offers alongside the models but which is a picker, not one of them.
 	 */
-	state: 'offered' | 'gone' | 'unpriced' | 'published';
+	state: 'offered' | 'gone' | 'unpriced' | 'published' | 'routed';
 	cheapestInput?: boolean;
 	cheapestOutput?: boolean;
 }
@@ -188,6 +190,18 @@ export function modelsView(input: ModelsInput): ModelsView {
 	}
 
 	for (const m of listed) {
+		// Auto is on the list of things you can pick, so it belongs here, but it
+		// is not a model and has no price of its own: it chooses one per message
+		// and you are billed at that model's rate. It used to be tagged "not
+		// published", which says the card is behind and will never come true.
+		if (isAutoModelId(m.id)) {
+			rows.push({
+				name: m.name, id: m.id, variant: 'default', state: 'routed',
+				note: 'Picks a model for each message. You are billed at the rate of '
+					+ 'whichever one it picks, so its cost is that model\'s cost.'
+			});
+			continue;
+		}
 		const def = ratesFor(card, m.id, 'default');
 		const long = ratesFor(card, m.id, 'long');
 		const { measured, shortfall } = measureOf(m.id);
@@ -305,6 +319,7 @@ export function renderModels(view: ModelsView): string {
 		// figures nowhere: a row missing prices still has four price columns,
 		// and what belongs in them is a dash.
 		const tag = r.state === 'gone' ? '<span class="tag gone">not offered</span>'
+			: r.state === 'routed' ? '<span class="tag routed">picks for you</span>'
 			: r.state === 'unpriced' ? '<span class="tag unpriced">not published</span>'
 			: r.variant === 'long' ? '<span class="tag">long context</span>'
 			: '';

@@ -25,6 +25,18 @@ export type Selection = 'auto' | 'manual' | 'mixed' | 'unknown';
 
 const AUTO_MODEL_ID = /(^|\/)auto$/i;
 
+/**
+ * Whether an id names the picker rather than a model.
+ *
+ * Exported so the models table classifies Auto the same way attribution does.
+ * The table had it as a model the rate card had not caught up with, which is
+ * a claim about the card; Auto has no price because it is not a thing that is
+ * priced.
+ */
+export function isAutoModelId(id: string): boolean {
+	return AUTO_MODEL_ID.test(id);
+}
+
 interface SlimRequest {
 	modelId?: string;
 	resolvedModel?: string;

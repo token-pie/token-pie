@@ -2061,6 +2061,9 @@ const STYLES = `
 	   file that has not caught up. */
 	.tag.gone { color: var(--vscode-errorForeground, #f85149); }
 	.tag.unpriced { color: var(--vscode-descriptionForeground); }
+	/* Auto is not a state of the card, so it does not borrow the card's
+	   colours. Same weight as the long-context tag: a fact about the row. */
+	.tag.routed { color: var(--vscode-descriptionForeground); }
 	.models td.model .tag { margin-left: 8px; }
 	.models .foot { font-size: 0.78rem; color: var(--vscode-descriptionForeground);
 	                margin: 10px 0 0; line-height: 1.6; }
