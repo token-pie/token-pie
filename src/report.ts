@@ -2026,7 +2026,15 @@ const STYLES = `
 	   with the rest of the table's rules below. */
 	.tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
 	       color: var(--vscode-descriptionForeground); margin-left: 6px; }
-	.tag.gone { color: var(--vscode-charts-orange, #bf6a02); }
+	/* errorForeground and descriptionForeground, both of which a theme contrast
+	   checks against its editor background. charts-orange is a fill and at
+	   9px it is the sixth thing in this file that would have been read as
+	   text. The two states are told apart by their words as much as their
+	   colour, since one is a fact about your account and the other about a
+	   file that has not caught up. */
+	.tag.gone { color: var(--vscode-errorForeground, #f85149); }
+	.tag.unpriced { color: var(--vscode-descriptionForeground); }
+	.models td.model .tag { margin-left: 8px; }
 	.models .foot { font-size: 0.78rem; color: var(--vscode-descriptionForeground);
 	                margin: 10px 0 0; line-height: 1.6; }
 	tr.gone td.model { color: var(--vscode-descriptionForeground); }
@@ -2050,6 +2058,8 @@ const STYLES = `
 	.models th { padding-top: 0; padding-bottom: 9px; white-space: nowrap;
 	             overflow: hidden; text-overflow: ellipsis; }
 	.models th:first-child, .models td:first-child { padding-left: 10px; }
+	/* The last column ran to the edge of the panel with nothing behind it. */
+	.models th:last-child, .models td:last-child { padding-right: 12px; }
 	.models td { border-bottom: none; }
 	.models tbody tr:nth-child(odd) {
 	    background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.06)); }

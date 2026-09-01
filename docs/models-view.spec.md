@@ -54,9 +54,13 @@ you spend most on, each with its own input and output figures.
 These are the things a test must be able to *fail*. Each is checkable against
 data the view did not itself produce.
 
-1. **No blank money.** Every listed model shows a price or an explicit "not in
-   the published card" — never an empty cell, a dash, or a zero standing in
-   for absence.
+1. **No blank money, and no hijacked rows.** Every listed model shows a price
+   in each money column or a dash in it — never a zero standing in for
+   absence. Why a row has no prices is said with a label beside its name
+   (**not published**, **not offered**), not by a sentence spanning the money
+   columns: a row missing prices still has four price columns, and a colspan
+   across them breaks the geometry of the one row a reader is already
+   puzzled by.
 2. **The cheapest is marked, per column.** Exactly one row carries the mark in
    each of input and output, and every row that ties for cheapest carries it
    too. Input and output are marked independently: a model can be cheapest to

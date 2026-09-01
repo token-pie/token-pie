@@ -52,8 +52,13 @@ console.log('no blank money');
   check('every row is priced or says why not',
     offered.every(r => r.rates !== undefined || r.state === 'unpriced'), true);
   const html = renderModels(v);
-  check('and the unpriced one says so on the page',
-    /not in the published card/.test(html), true);
+  check('and the unpriced one is labelled beside its name',
+    /Unreleased<span class="tag unpriced">not published<\/span>/.test(html), true);
+  // The label sits with the name; the money columns still exist and hold a
+  // dash apiece. A colspan sentence across them broke the row's geometry and
+  // left the figures nowhere.
+  check('and its money columns are still four dashes',
+    (html.match(/<td class="num dim">&mdash;<\/td>/g) || []).length >= 4, true);
   check('never a bare zero in a money column', /<td class="num">0<\/td>/.test(html), false);
 }
 
@@ -112,7 +117,7 @@ console.log('\navailability is not inferred from usage');
   const gone = v.rows.find(r => r.state === 'gone');
   check('a model you used but cannot pick is still listed', gone?.name, 'claude-opus-4-8');
   check('and the page says what happened to it',
-    /no longer offered/.test(renderModels(v)), true);
+    /class="tag gone">not offered</.test(renderModels(v)), true);
   check('it sorts below what you can actually use',
     v.rows.indexOf(gone) > 0, true);
 }

@@ -277,19 +277,22 @@ export function renderModels(view: ModelsView): string {
 		return '';
 	}
 	const row = (r: ModelRow) => {
-		const label = r.state === 'gone'
-			? `${escapeHtml(r.name)} <span class="tag gone">no longer offered</span>`
-			: r.variant === 'long'
-				? `${escapeHtml(r.name)} <span class="tag">long context</span>`
-				: escapeHtml(r.name);
+		// The state belongs beside the name, where a reader looks to identify
+		// the row. It used to take the four money columns as one colspan
+		// sentence, which broke the column geometry for that row and left the
+		// figures nowhere: a row missing prices still has four price columns,
+		// and what belongs in them is a dash.
+		const tag = r.state === 'gone' ? '<span class="tag gone">not offered</span>'
+			: r.state === 'unpriced' ? '<span class="tag unpriced">not published</span>'
+			: r.variant === 'long' ? '<span class="tag">long context</span>'
+			: '';
 		const yours = r.measured !== undefined
 			? `<td class="num">${fmtCredits(r.measured)}</td>`
 			: `<td class="num dim gate">${escapeHtml(r.shortfall ?? '')}</td>`;
-		const money = r.state === 'unpriced'
-			? '<td class="dim" colspan="4">not in the published card</td>'
-			: cell(r, 'input', r.cheapestInput) + cell(r, 'output', r.cheapestOutput)
-			  + cell(r, 'cacheRead') + cell(r, 'cacheWrite');
-		return `<tr class="${r.state}"><td class="model">${label}</td>${money}${yours}</tr>`;
+		const money = cell(r, 'input', r.cheapestInput) + cell(r, 'output', r.cheapestOutput)
+			+ cell(r, 'cacheRead') + cell(r, 'cacheWrite');
+		return `<tr class="${r.state}">` +
+			`<td class="model">${escapeHtml(r.name)}${tag}</td>${money}${yours}</tr>`;
 	};
 
 	const cols = `<colgroup>
