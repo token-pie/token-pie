@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.0 - 2026-09-01
+
+The calendar bar under the pace tiles is back. On the first day of a billing
+period it drew only the hours so far -- one column, which it judged too few to
+be a chart -- and suppressed itself, leaving a hole in the card where it had
+been the day before. It healed itself on day three, so it was set to do this
+every month.
+
+It now frames the whole period, from the start to the reset, with the days it
+has not reached yet drawn empty and today outlined. The same rule the week
+chart follows: a quiet period still has its days. It also stops growing a
+column a morning, so spend stays where you last saw it instead of sliding
+left each day.
+
+### Fixed
+
+- **report:** the period chart no longer vanishes on a fresh period
+
+
 ## 0.9.0 - 2026-09-01
 
 Each model in the "what you can pick" table now opens a one-line description
@@ -13,19 +32,9 @@ beside them are the comparison, and a sentence that did the comparing would be
 a recommendation dressed as a price list. The lines live in the price card
 beside the figures, so the existing refresh keeps them current.
 
-Also fixes a chart that went missing this morning: on the first day of a
-billing period the calendar bar under the pace tiles suppressed itself, and
-the verdict card was left with a hole where it had been the day before. It
-now frames the whole period from the start to the reset, the days not yet
-reached drawn empty -- the same rule the week chart already followed.
-
 ### Added
 
 - **models:** say what each model is for, in the vendor's words
-
-### Fixed
-
-- **report:** the period chart no longer vanishes on a fresh period
 
 
 ## 0.8.2 - 2026-09-01
