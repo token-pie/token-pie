@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2 - 2026-09-01
+
+### Fixed
+
+- the columns line up with their headings
+
+
 ## 0.7.1 - 2026-09-01
 
 ### Fixed
