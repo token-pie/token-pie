@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 - 2026-09-01
+
+### Added
+
+- what you can pick, and what each one costs
+
+
 ## 0.6.0 - 2026-08-31
 
 Every figure now reads the same source GitHub bills from. Copilot stopped
