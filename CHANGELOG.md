@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.8 - 2026-09-01
+
+### Fixed
+
+- the sidebar names the unit, not just the scale
+
+
 ## 0.7.7 - 2026-09-01
 
 ### Fixed
