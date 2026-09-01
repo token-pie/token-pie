@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 - 2026-09-01
+
+### Fixed
+
+- the models table reads as a table, and folds
+
+
 ## 0.7.0 - 2026-09-01
 
 ### Added
