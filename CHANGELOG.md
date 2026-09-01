@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.5 - 2026-09-01
+
+### Fixed
+
+- the sidebar block speaks the column's own language
+
+
 ## 0.7.4 - 2026-09-01
 
 ### Fixed
