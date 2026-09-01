@@ -330,6 +330,9 @@ export function renderModels(view: ModelsView): string {
 
 	return `<section class="models">
 		<h2>What you can pick</h2>
+		<p class="unit">Prices are <strong>credits per 1M tokens</strong>, from the
+			published card. Your own figure is credits per message, measured from
+			what you were billed.</p>
 		${view.banner ? `<p class="note">${escapeHtml(view.banner)}</p>` : ''}
 		${view.stale ? `<p class="note">${escapeHtml(view.stale)}</p>` : ''}
 		${table(shown, true)}
@@ -337,9 +340,7 @@ export function renderModels(view: ModelsView): string {
 			<summary>${fmtInt(rest.length)} more</summary>
 			<div class="detail-body">${table(rest, false)}</div>
 		</details>` : ''}
-		<p class="foot">Credits per 1M tokens, from the published card.
-			Your cost per message is measured from what you were billed.
-			${view.notOffered > 0
+		<p class="foot">${view.notOffered > 0
 				? `${fmtInt(view.notOffered)} further model${view.notOffered === 1 ? '' : 's'}
 				   are published but not offered to this account.`
 				: ''}</p>
@@ -400,7 +401,8 @@ export function compactModels(view: ModelsView, rollups: Rollup[],
 	</div>`;
 
 	return `<div class="sec models">
-		<div class="wk-head">Models<span class="wk-total">in / out credits per 1M</span></div>
+		<div class="wk-head">Models</div>
+		<div class="munit">in / out, credits per 1M tokens</div>
 		${rows.map(line).join('')}
 	</div>`;
 }

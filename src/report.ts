@@ -2037,6 +2037,11 @@ const STYLES = `
 	.models td.model .tag { margin-left: 8px; }
 	.models .foot { font-size: 0.78rem; color: var(--vscode-descriptionForeground);
 	                margin: 10px 0 0; line-height: 1.6; }
+	/* The unit belongs where the figures are read, not only in a footer under
+	   twenty rows: "20" and "120" are 20 and 120 of something until it is said. */
+	.models .unit { font-size: 0.8rem; color: var(--vscode-descriptionForeground);
+	                margin: 0 0 12px; line-height: 1.6; }
+	.models .unit strong { color: var(--vscode-foreground); font-weight: 600; }
 	tr.gone td.model { color: var(--vscode-descriptionForeground); }
 
 	/* The table was a wall: twenty-odd rows of six columns, every border drawn,

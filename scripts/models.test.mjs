@@ -197,7 +197,12 @@ console.log('\nan unread card admits it');
 console.log('\nthe unit is stated, once');
 {
   const html = renderModels(view({ available: [model('gpt-5.6-luna', 'GPT-5.6 Luna')] }));
-  check('per 1M tokens, on the page', /Credits per 1M tokens/.test(html), true);
+  // Under the heading, where the figures are read -- not only in a footer
+  // twenty rows below them.
+  check('the unit is stated above the table',
+    /credits per 1M tokens<\/strong>/.test(html), true);
+  check('and before the first figure',
+    html.indexOf('credits per 1M tokens') < html.indexOf('<table'), true);
   check('and never per 1k', /per 1k/.test(html), false);
   // Luna is 20 credits per 1M. Printed as 0.02 it would be per 1k, which is
   // the same number in a different unit and unreadable beside the tooltips.
@@ -216,8 +221,10 @@ console.log('\nthe sidebar reduction');
   check('with input and output kept apart', /class="msep">\/</.test(side), true);
   // Without the noun these are 20 and 120 of something: the panel says
   // credits in its footer and the sidebar has no footer to say it in.
-  check('and the unit named, not merely the scale',
-    /credits per 1M/.test(side), true);
+  // "per 1M" names the scale and not the thing being counted, and the sidebar
+  // has no footer to say it in.
+  check('and the unit named in full, not merely the scale',
+    /credits per 1M tokens/.test(side), true);
   // Every other bar in this column is spend against a quota. A price ratio
   // drawn in that vocabulary says a model is consuming something it has not
   // consumed, so the block draws no bar at all.

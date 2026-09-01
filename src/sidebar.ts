@@ -191,7 +191,11 @@ const STYLES = `
 	         font-variant-numeric: tabular-nums; font-weight: 600; }
 	.msep { color: var(--vscode-descriptionForeground); font-weight: 400;
 	        margin: 0 3px; }
-	.models .wk-head { margin-bottom: 4px; }
+	.models .wk-head { margin-bottom: 2px; }
+	/* Its own line: at 300px the unit cannot share the heading with the word
+	   Models, and "per 1M" without the noun says the scale but not the thing. */
+	.munit { font-size: 0.68rem; color: var(--vscode-descriptionForeground);
+	         margin-bottom: 8px; }
 	.t-near .n { color: var(--vscode-charts-orange, #bf6a02); }
 	.t-over .n { color: var(--vscode-errorForeground, #f14c4c); }
 	.line { font-size: 0.78rem; line-height: 1.5; }

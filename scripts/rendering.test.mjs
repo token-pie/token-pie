@@ -91,6 +91,7 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.line->div.bar', 'the caption labels the bar beneath it'],
   // A model and what it is to you are one reading, set as two lines because
   // 300px will not hold them side by side.
+  ['div.wk-head->div.munit', 'the caption states the heading unit'],
   ['div.mname->div.mrole.best', 'the model and its role are one reading'],
   ['div.mname->div.mrole.yours', 'and the same for the one you use most'],
   ['span.pv->span.pk', "a pace figure and its label are one reading"],
