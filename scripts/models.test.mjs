@@ -214,6 +214,10 @@ console.log('\nthe sidebar reduction');
   check('it names the cheapest', /GPT-5.6 Luna/.test(side), true);
   check('and what you actually spend on', /Claude Sonnet 5/.test(side), true);
   check('with input and output kept apart', /class="msep">\/</.test(side), true);
+  // Without the noun these are 20 and 120 of something: the panel says
+  // credits in its footer and the sidebar has no footer to say it in.
+  check('and the unit named, not merely the scale',
+    /credits per 1M/.test(side), true);
   // Every other bar in this column is spend against a quota. A price ratio
   // drawn in that vocabulary says a model is consuming something it has not
   // consumed, so the block draws no bar at all.

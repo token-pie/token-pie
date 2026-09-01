@@ -400,7 +400,7 @@ export function compactModels(view: ModelsView, rollups: Rollup[],
 	</div>`;
 
 	return `<div class="sec models">
-		<div class="wk-head">Models<span class="wk-total">in / out per 1M</span></div>
+		<div class="wk-head">Models<span class="wk-total">in / out credits per 1M</span></div>
 		${rows.map(line).join('')}
 	</div>`;
 }
