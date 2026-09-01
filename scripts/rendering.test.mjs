@@ -30,6 +30,7 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { renderReport, fmtDays, dayUnit, fmtDaysWith } from '../out/report.js';
+import { modelsView, renderModels } from '../out/models.js';
 import { project } from '../out/projection.js';
 import { renderCompact } from '../out/sidebar.js';
 import { defaults } from '../out/tuning.js';
@@ -315,6 +316,24 @@ const rollup = (over = {}) => ({
   missNanoAiu: 12e9, ...over
 });
 
+/*
+ * The models table, measured like everything else on the panel.
+ *
+ * It marks the cheapest figure in a column with a chart colour, which is the
+ * fourth thing in this file to try that -- so it renders here in both themes
+ * and at 320px rather than being eyeballed. The fixture carries an unpriced
+ * model on purpose: that row is a colspan, which is the shape that once set
+ * the width of a whole table.
+ */
+const modelsHtml = renderModels(modelsView({
+  card: bundled, rollups: [], prices: {}, creditsPerNanoAiu: 1e-9, minObservations: 6,
+  available: [
+    { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', maxInputTokens: 128000 },
+    { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', maxInputTokens: 200000 },
+    { id: 'some-new-model', name: 'Unpriced Preview', maxInputTokens: 64000 }
+  ]
+}));
+
 const pages = {
   console: renderSpecs({
     rollups: [rollup(), rollup({ model: 'gpt-5.6-luna', requests: 3 })],
@@ -331,7 +350,8 @@ const pages = {
     warnings: [], prices: {}, depth: {},
     projection: { verdict: 'ok', quotaId: 'premium_interactions', entitlement: 1500,
       remaining: 1450, percentRemaining: 96.7, creditsUsed: 50, burnPerDay: 5,
-      daysToReset: 20, sustainableDailyBurn: 72 }
+      daysToReset: 20, sustainableDailyBurn: 72 },
+    modelsHtml
   }),
   // The same panel with the notes the ordinary one has nothing to say.
   //

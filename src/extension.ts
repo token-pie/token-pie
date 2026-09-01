@@ -7,7 +7,7 @@ import { clearWorkspaceCache } from './workspaces';
 import { clearSelectionCache } from './selection';
 import { purgeAll, PurgeResult } from './purge';
 import { fetchEntitlement, governingSnapshot, hasCopilotAccess, QuotaError } from './quota';
-import { ReadingStore, toReading, reconcile, periodCoverage } from './reconcile';
+import { ReadingStore, toReading, reconcile, periodCoverage, periodStartFrom } from './reconcile';
 import { userDirs, readTurns, clearTurnCache, Turn } from './sessions';
 import { project, statusLabel, barLabel, dayPressure, Projection } from './projection';
 import { Progress, phaseLabel } from './progress';
@@ -16,6 +16,7 @@ import { Entitlement } from './entitlement';
 import { RollupStore } from './store';
 import { KNOWN_SCHEMA_VERSION, num } from './schema';
 import { renderReport, creditsByDay, fmtDaysWith } from './report';
+import { modelsView, renderModels, compactModels, AvailableModel } from './models';
 import { Tuning, KnobReading, read } from './tuning';
 import { renderSpecs } from './specs';
 import { LoadedCard, load as loadCard, refresh as refreshCard, isDue } from './ratecard';
@@ -62,6 +63,14 @@ let lastNotices: string[] = [];
  * through it. Two passes then raced each other's writes.
  */
 let inFlight: Promise<void> | undefined;
+/**
+ * What the editor says this account can pick.
+ *
+ * `undefined` until asked, and asking is what may prompt for consent -- so it
+ * is asked when someone opens the report, never at activation. A background
+ * poll that raises a consent dialog out of nowhere is not a background poll.
+ */
+let availableModels: AvailableModel[] | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
 	extensionContext = context;
@@ -674,6 +683,48 @@ function fmt(n: number): string {
 }
 
 /** Refresh the entitlement without prompting anyone to sign in. */
+/**
+ * Ask the editor which models this account may pick.
+ *
+ * The only source for it. Failure is not an error state: an older editor, a
+ * refused consent prompt and a signed-out Copilot all land here, and the view
+ * has a state for "nobody told us" that says so rather than guessing.
+ */
+async function loadModels(): Promise<void> {
+	try {
+		const found = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+		availableModels = found.map(m => ({
+			id: m.id, name: m.name, family: m.family, maxInputTokens: m.maxInputTokens
+		}));
+	} catch {
+		availableModels = undefined;
+	}
+}
+
+/** The models section, or nothing when there is no card to price it from. */
+function modelsSection(compact: boolean): string {
+	const c = currentCard().card;
+	if (!c) {
+		return '';
+	}
+	const t = tuning().tuning;
+	const rollups = store.since(t.history.days);
+	const view = modelsView({
+		available: availableModels,
+		card: c,
+		rollups,
+		prices: store.priceStats(),
+		creditsPerNanoAiu: creditsPerNanoAiu(),
+		minObservations: t.pricing.minObservations,
+		periodStart: projection?.resetDate
+			? periodStartFrom(projection.resetDate)
+			: undefined
+	});
+	return compact
+		? compactModels(view, rollups, creditsPerNanoAiu())
+		: renderModels(view);
+}
+
 async function refreshEntitlement(): Promise<void> {
 	try {
 		entitlement = await fetchEntitlement(false);
@@ -758,6 +809,7 @@ function buildHtml(): string {
 		// The charts read spans, which stop carrying cost the moment Copilot
 		// stops writing it. Billed days override them wherever one exists.
 		billedDays: store.billed(),
+		modelsHtml: modelsSection(false),
 		warnings,
 		projection,
 		prices: store.priceStats(),
@@ -940,6 +992,7 @@ class Sidebar implements vscode.WebviewViewProvider {
 			projection,
 			tuning: t,
 			billedDays: store.billed(),
+			modelsHtml: modelsSection(true),
 			warnings: [...lastErrors, ...lastNotices]
 		});
 	}
@@ -948,6 +1001,12 @@ class Sidebar implements vscode.WebviewViewProvider {
 let sidebar: Sidebar | undefined;
 
 function showReport(context: vscode.ExtensionContext): void {
+	// Asked here and nowhere else: this is a user opening a view, which is the
+	// only moment a consent prompt is not a surprise. The first render may go
+	// out before the answer arrives, so the repaint below is what shows it.
+	if (availableModels === undefined) {
+		void loadModels().then(() => repaint());
+	}
 	if (panel) {
 		panel.reveal();
 		panel.webview.html = buildHtml();

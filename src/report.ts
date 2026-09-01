@@ -987,6 +987,14 @@ export interface ReportInput {
 	 * is every day that ended before this record began.
 	 */
 	billedDays?: Map<string, number>;
+	/**
+	 * The models section, rendered by its own module.
+	 *
+	 * Passed in rather than built here: it needs the rate card and the editor's
+	 * model list, and having report.ts reach for either would make the two
+	 * modules import each other.
+	 */
+	modelsHtml?: string;
 	warnings: string[];
 	projection: Projection | undefined;
 	prices: Record<string, PriceStats>;
@@ -1134,6 +1142,8 @@ ${STYLES}
 		</div>
 		</div>
 	</section>
+
+	${input.modelsHtml ?? ''}
 
 	${warnings}
 
@@ -1997,6 +2007,29 @@ const STYLES = `
 	   Adjacent margins collapse, so .note + .card still gets its 20px. */
 	.note { font-size: 0.83rem; margin: 12px 0; line-height: 1.6; text-wrap: pretty; }
 	.rate-card { padding: 0; margin-top: 6px; }
+
+	/* The cheapest figure in its column, which is the only mark on the page:
+	   no badge says "recommended", because cheapest is not best and this view
+	   has no way to know whether the cheap one could do the work.
+
+	   textLink, not charts-blue: as 13px text the chart colour measured
+	   3.59:1 on light against the 4.5:1 body text needs. That is the fifth
+	   time a fill has been used as text in this file, and the first fixture
+	   that rendered this table found it immediately. */
+	td.best { font-weight: 600; color: var(--vscode-textLink-foreground, #4daafc); }
+
+	/* Six columns do not fit a split editor, so the table scrolls inside the
+	   .tw wrapper like every other wide table here rather than taking the page
+	   with it: at 320px it ran 54px past the viewport and the panel went
+	   sideways. A backtick in this comment ends the stylesheet, which is a
+	   template literal -- hence the bare class name. */
+	.models table { min-width: 430px; }
+	.tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+	       color: var(--vscode-descriptionForeground); margin-left: 6px; }
+	.tag.gone { color: var(--vscode-charts-orange, #bf6a02); }
+	.models .foot { font-size: 0.78rem; color: var(--vscode-descriptionForeground);
+	                margin: 8px 0 0; line-height: 1.6; }
+	tr.gone td.model { color: var(--vscode-descriptionForeground); }
 
 	table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 	th, td { text-align: left; padding: 5px 10px 5px 0; font-size: 0.83rem;

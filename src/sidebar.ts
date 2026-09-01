@@ -33,6 +33,8 @@ export interface CompactInput {
 	warnings?: string[];
 	/** Billed credits per local day, where GitHub could answer for one. */
 	billedDays?: Map<string, number>;
+	/** The models reduction, rendered by its own module. */
+	modelsHtml?: string;
 }
 
 /** A figure and its unit, the sidebar's only heading. */
@@ -142,6 +144,7 @@ export function renderCompact(input: CompactInput): string {
 	${p ? pace(p) : ''}
 	${p ? today(p, tuning) : ''}
 	${week ? `<div class="sec">${week}</div>` : ''}
+	${input.modelsHtml ?? ''}
 	${warning ? `<div class="warn">${escapeHtml(warning)}</div>` : ''}
 	<a class="more" href="command:tokenPie.showReport">Open the full report</a>
 </body></html>`;
