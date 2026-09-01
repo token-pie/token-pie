@@ -2073,7 +2073,18 @@ const STYLES = `
 	.models table.fold tbody tr:nth-child(odd) { background: none; }
 	.models table.fold tbody tr:nth-child(even) {
 	    background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.06)); }
-	.models td.model { font-weight: 500; white-space: nowrap; }
+	/* Wraps. A Foundry-prefixed id is 50 characters and the column is 29% of
+	   the panel, so nowrap sent it straight through the INPUT column and the
+	   tag landed on top of a price. overflow-wrap anywhere, because an id is one
+	   word to a line-breaker: there is no space in it to break at. break-word
+	   rather than anywhere, so the hyphens and slashes an id already has are
+	   used first: anywhere split gpt-4o-mini-2024-07-18 after the 07-.
+	   (No backticks in this file's comments -- the stylesheet is a template
+	   literal.) */
+	.models td.model { font-weight: 500; white-space: normal;
+	                   overflow-wrap: break-word; line-height: 1.45; }
+	/* The tag keeps its own line rather than being torn across two. */
+	.models td.model .tag { white-space: nowrap; }
 	.models td.dim { font-size: 0.78rem; }
 	/* The gate text is prose in a numeric column; sized down and right-set so
 	   the column still scans as one edge. */

@@ -71,6 +71,21 @@ Your measured burn rate against what is actually left on your account, projected
 at the reset date. *Your pace* beside *sustainable pace* is the comparison that
 decides whether you finish the period — 12.50 against 551 credits a day here.
 
+**What you can pick, and what it costs.**
+
+![The models table: published prices per model, the cheapest marked in input and output separately, and your own measured cost per message](https://raw.githubusercontent.com/token-pie/token-pie/main/images/model-chart.png)
+
+Every other view here is built from what you have already spent, so a model you
+have not used appears nowhere — no help at all when an account comes back from a
+reset with a different menu. This one lists what your editor says you can
+actually pick, priced from the published card, cheapest first. **The cheapest is
+marked in input and output separately**, because a model can be cheap to send to
+and dear to hear back from — Luna at 20 in and 120 out against Sonnet 5 at 200
+and 1,000. Your own **cost per message** sits beside the published rates once
+enough messages have been billed to measure it, and says how many it still needs
+when it cannot. A model you have used but can no longer pick is listed as **not
+offered** rather than quietly dropped.
+
 **Without opening anything.**
 
 ![The status bar item and its hover: both horizons, your pace, and when the allowance resets](https://raw.githubusercontent.com/token-pie/token-pie/main/images/usage-tracker.png)
