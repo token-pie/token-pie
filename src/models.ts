@@ -104,7 +104,7 @@ export interface ModelsInput {
 const STALE_AFTER_MS = 28 * 24 * 60 * 60 * 1000;
 
 /** How many rows stand before the rest fold away. */
-const VISIBLE_ROWS = 7;
+const VISIBLE_ROWS = 10;
 
 /** Card figures are credits per 1k; the page states everything per 1M. */
 function ratesFor(card: RateCard, id: string, variant: 'default' | 'long'): Rates | undefined {

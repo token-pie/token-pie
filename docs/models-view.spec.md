@@ -43,8 +43,9 @@ order the decision is made in.
 A model with a **long-context variant** shows both rows, marked, because the
 card holds both and the long tier is roughly double.
 
-Seven rows stand and the rest fold into a `details`, because a list of thirty
-models is a reference table, not a decision aid.
+Ten rows stand and the rest fold into a `details`, because a list of thirty
+models is a reference table, not a decision aid. It was seven; ten is what a
+reader asked for, and the number is one constant.
 
 The sidebar carries a two-line reduction: the cheapest available and the model
 you spend most on, one line each -- name, role, and the two rates set right so

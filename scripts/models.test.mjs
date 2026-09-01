@@ -170,6 +170,22 @@ console.log('\nthe long tier is a row, not a footnote');
   check('a model without one gets no second row', single.rows.length, 1);
 }
 
+console.log('\nthe list folds after ten');
+{
+  // Twelve models, so the fold has to appear and has to say how many are in
+  // it. The count is the thing that goes wrong when the constant moves and
+  // the summary is written by hand.
+  const many = ['gpt-5.6-luna', 'gpt-5-mini', 'gemini-3.6-flash', 'gemini-3.7-flash',
+    'gpt-5.4-mini', 'kimi-k2.7-code', 'claude-haiku-4.5', 'gemini-3.5-flash',
+    'gpt-5.3-codex', 'grok-4.5', 'claude-sonnet-5', 'gpt-5.6-terra'];
+  const v = view({ available: many.map(id => model(id)) });
+  const html = renderModels(v);
+  const standing = (html.split('<details')[0].match(/<tr class=/g) || []).length;
+  check('ten rows stand above the fold', standing, 10);
+  check('and the rest are counted in the summary',
+    new RegExp(`<summary>${v.rows.length - 10} more</summary>`).test(html), true);
+}
+
 console.log('\nan unread card admits it');
 {
   // The first rule here flagged a card whose prices took effect before the
