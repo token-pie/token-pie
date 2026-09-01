@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3 - 2026-09-01
+
+### Fixed
+
+- a row missing prices still has price columns
+
+
 ## 0.7.2 - 2026-09-01
 
 ### Fixed
