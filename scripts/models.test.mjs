@@ -151,15 +151,28 @@ console.log('\nthe long tier is a row, not a footnote');
   check('a model without one gets no second row', single.rows.length, 1);
 }
 
-console.log('\na stale card admits it');
+console.log('\nan unread card admits it');
 {
+  // The first rule here flagged a card whose prices took effect before the
+  // billing period started -- which is nearly always true, since prices are
+  // set before the periods they apply to. It printed a warning on every
+  // render, which is the fastest way to teach someone to ignore warnings.
+  //
+  // What is worth saying is that the card has not been *read* in a long time:
+  // that is a fetch not happening, not a price being old.
+  const readAt = Date.parse(card.retrieved);
   const fresh = view({ available: [model('gpt-5.6-luna', 'GPT-5.6 Luna')],
-    periodStart: Date.parse('2026-01-01') });
-  check('a card newer than the period is not flagged', fresh.stale, undefined);
+    now: readAt + 3 * 86400000 });
+  check('a card read this week says nothing', fresh.stale, undefined);
 
   const old = view({ available: [model('gpt-5.6-luna', 'GPT-5.6 Luna')],
-    periodStart: Date.parse('2027-01-01') });
-  check('one older than it is', /took effect/.test(old.stale ?? ''), true);
+    now: readAt + 40 * 86400000 });
+  check('one unread for a month says so', /last read 40 days ago/.test(old.stale ?? ''), true);
+
+  // The boundary: four missed weekly fetches, not three.
+  const edge = view({ available: [model('gpt-5.6-luna', 'GPT-5.6 Luna')],
+    now: readAt + 27 * 86400000 });
+  check('and it holds its tongue until then', edge.stale, undefined);
 }
 
 console.log('\nthe unit is stated, once');

@@ -170,6 +170,9 @@ const STYLES = `
 	   the 3:1 large-text bar by a hair, and the same state reads orange in the
 	   panel's hero, where yellow could not clear it at all. One colour for one
 	   meaning, at 4.0:1 in both themes. */
+	/* Two readings, not one paragraph: without a gap the cheapest model and the
+	   one you actually use ran together as four lines of the same block. */
+	.models .line + .line { margin-top: 9px; }
 	.t-near .n { color: var(--vscode-charts-orange, #bf6a02); }
 	.t-over .n { color: var(--vscode-errorForeground, #f14c4c); }
 	.line { font-size: 0.78rem; line-height: 1.5; }

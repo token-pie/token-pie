@@ -91,7 +91,20 @@ export interface ModelsInput {
 	minObservations: number;
 	/** Start of the current billing period, to date the card against. */
 	periodStart?: number;
+	/** Injected so the staleness rule is testable without waiting a month. */
+	now?: number;
 }
+
+/**
+ * When an unrefreshed card is worth mentioning.
+ *
+ * Four times the weekly refresh: one missed fetch is a network blip, a month
+ * of them is a setting that is off or a host that cannot be reached.
+ */
+const STALE_AFTER_MS = 28 * 24 * 60 * 60 * 1000;
+
+/** How many rows stand before the rest fold away. */
+const VISIBLE_ROWS = 7;
 
 /** Card figures are credits per 1k; the page states everything per 1M. */
 function ratesFor(card: RateCard, id: string, variant: 'default' | 'long'): Rates | undefined {
@@ -207,10 +220,15 @@ export function modelsView(input: ModelsInput): ModelsView {
 			.filter(m => !offeredNames.has(m.name.toLowerCase()))
 			.map(m => m.name)).size;
 
-	const effective = Date.parse(card.effective ?? '');
-	const stale = input.periodStart !== undefined && Number.isFinite(effective)
-		&& effective < input.periodStart
-		? `These prices took effect ${card.effective}, before this billing period began.`
+	// Prices almost always predate the period they apply to, so flagging that
+	// put a warning on every render. What is worth saying is that the card
+	// itself has not been read in a long time, which is a fetch that is not
+	// happening rather than a price that is old.
+	const read = Date.parse(card.retrieved ?? '');
+	const age = Number.isFinite(read) ? (input.now ?? Date.now()) - read : 0;
+	const stale = age > STALE_AFTER_MS
+		? `These prices were last read ${Math.round(age / 86_400_000)} days ago. `
+		  + 'Run Token Pie: Refresh Published Prices if they look wrong.'
 		: undefined;
 
 	return {
@@ -258,7 +276,7 @@ export function renderModels(view: ModelsView): string {
 	if (view.rows.length === 0) {
 		return '';
 	}
-	const rows = view.rows.map(r => {
+	const row = (r: ModelRow) => {
 		const label = r.state === 'gone'
 			? `${escapeHtml(r.name)} <span class="tag gone">no longer offered</span>`
 			: r.variant === 'long'
@@ -267,25 +285,36 @@ export function renderModels(view: ModelsView): string {
 		const yours = r.measured !== undefined
 			? `<td class="num">${fmtCredits(r.measured)}</td>`
 			: `<td class="dim">${escapeHtml(r.shortfall ?? '')}</td>`;
-		const unpriced = r.state === 'unpriced'
+		const money = r.state === 'unpriced'
 			? '<td class="dim" colspan="4">not in the published card</td>'
 			: cell(r, 'input', r.cheapestInput) + cell(r, 'output', r.cheapestOutput)
 			  + cell(r, 'cacheRead') + cell(r, 'cacheWrite');
-		return `<tr class="${r.state}"><td class="model">${label}</td>${unpriced}${yours}</tr>`;
-	}).join('');
+		return `<tr class="${r.state}"><td class="model">${label}</td>${money}${yours}</tr>`;
+	};
+
+	const head = `<thead><tr>
+			<th>MODEL</th><th class="num">INPUT</th><th class="num">OUTPUT</th>
+			<th class="num">CACHE READ</th><th class="num">CACHE WRITE</th>
+			<th class="num">YOUR COST/MESSAGE</th>
+		</tr></thead>`;
+	const table = (rows: ModelRow[]) =>
+		`<div class="tw"><table>${head}<tbody>${rows.map(row).join('')}</tbody></table></div>`;
+
+	// Cheapest first, so the rows that fold away are the ones a decision
+	// rarely reaches for. The same `details` the findings use, rather than a
+	// second collapsing mechanism with its own arrow and its own bugs.
+	const shown = view.rows.slice(0, VISIBLE_ROWS);
+	const rest = view.rows.slice(VISIBLE_ROWS);
 
 	return `<section class="models">
 		<h2>What you can pick</h2>
 		${view.banner ? `<p class="note">${escapeHtml(view.banner)}</p>` : ''}
 		${view.stale ? `<p class="note">${escapeHtml(view.stale)}</p>` : ''}
-		<div class="tw"><table>
-			<thead><tr>
-				<th>MODEL</th><th class="num">INPUT</th><th class="num">OUTPUT</th>
-				<th class="num">CACHE READ</th><th class="num">CACHE WRITE</th>
-				<th class="num">YOUR COST/MESSAGE</th>
-			</tr></thead>
-			<tbody>${rows}</tbody>
-		</table></div>
+		${table(shown)}
+		${rest.length > 0 ? `<details class="detail models-rest">
+			<summary>${fmtInt(rest.length)} more</summary>
+			<div class="detail-body">${table(rest)}</div>
+		</details>` : ''}
 		<p class="foot">Credits per 1M tokens, from the published card.
 			Your cost per message is measured from what you were billed.
 			${view.notOffered > 0

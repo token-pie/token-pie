@@ -1,6 +1,7 @@
 # Models view — specification
 
-Status: **draft, awaiting sign-off**. Nothing is built yet.
+Status: **built**, first shipped in 0.7.0. Amendments made during the build
+are recorded where they belong rather than appended, with the reasoning kept.
 
 ## The decision it serves
 
@@ -36,15 +37,17 @@ order the decision is made in.
 | model | LM API | display name; the id in a tooltip |
 | input / output | card | credits per 1M tokens |
 | cache read / write | card | credits per 1M tokens |
-| vs cheapest | derived | multiple of the cheapest **listed** model on a blended basis |
 | your cost/message | rollups + solved | only when the gate is met; otherwise the reason |
 | context | LM API | max input tokens, when reported |
 
 A model with a **long-context variant** shows both rows, marked, because the
 card holds both and the long tier is roughly double.
 
-The sidebar carries a three-line reduction: cheapest available, the model you
-spend most on, and the multiple between them.
+Seven rows stand and the rest fold into a `details`, because a list of thirty
+models is a reference table, not a decision aid.
+
+The sidebar carries a two-line reduction: the cheapest available and the model
+you spend most on, each with its own input and output figures.
 
 ## Invariants
 
@@ -54,9 +57,15 @@ data the view did not itself produce.
 1. **No blank money.** Every listed model shows a price or an explicit "not in
    the published card" — never an empty cell, a dash, or a zero standing in
    for absence.
-2. **The multiple is anchored.** `vs cheapest` is exactly `1×` for exactly one
-   row, and `≥ 1×` for every other. If two models tie for cheapest, both read
-   `1×`.
+2. **The cheapest is marked, per column.** Exactly one row carries the mark in
+   each of input and output, and every row that ties for cheapest carries it
+   too. Input and output are marked independently: a model can be cheapest to
+   send to and dearest to hear back from.
+
+   Originally a single blended `vs cheapest` multiple. Dropped: blending needs
+   an input:output ratio, that ratio is a property of your prompts rather than
+   of the models, and inventing one puts a made-up number in the column the
+   decision is read from.
 3. **Measurement is gated, and says so.** `your cost/message` appears only for
    models with at least `pricing.minObservations` billed messages. Below that
    the cell states the shortfall ("needs 6, has 1"), never `0.00`.
@@ -68,9 +77,14 @@ data the view did not itself produce.
    offered — is excluded from the table and counted in a footnote.
 6. **One unit on the page.** All money is credits per 1M tokens, stated in the
    header. No per-1k figures, no dollars.
-7. **A stale card admits it.** If the card's `effective` date is older than the
-   current billing period's start, the view says the prices predate the period
-   it is advising on.
+7. **An unread card admits it.** If the card has not been *fetched* in over
+   four weeks, the view says so and names the command that refreshes it.
+
+   This was first written as "flag a card whose prices took effect before the
+   period began", which is nearly always true — prices are set before the
+   periods they apply to — so it printed a warning on every render. A warning
+   that is always on is a warning nobody reads. What is worth saying is that a
+   fetch is not happening.
 8. **The API's silence is a state.** If `selectChatModels` returns nothing —
    no consent, older VS Code, no Copilot — the view renders the card's models
    with an explicit "this is the published list, not your list" banner. It
@@ -81,7 +95,7 @@ data the view did not itself produce.
 Every bug this month came from a state no fixture had ever drawn. These are
 the ones this view can reach, and each needs a fixture *before* the code:
 
-- an account with **one** model available (multiple column degenerates)
+- an account with **one** model available (it is cheapest of itself)
 - a model available but absent from the card (new release, card not refreshed)
 - a model in the card and in your history but **no longer offered** (the
   frontier case)
@@ -89,7 +103,8 @@ the ones this view can reach, and each needs a fixture *before* the code:
 - exactly `minObservations - 1` messages on one model (the boundary)
 - a model with a long-context variant priced at a different multiple
 - the LM API unavailable or returning an empty list
-- a card whose `effective` date is after the period start
+- a card unread for over four weeks, and one unread for twenty-seven days
+  (the boundary either side)
 
 ## Non-goals
 
@@ -103,13 +118,24 @@ the ones this view can reach, and each needs a fixture *before* the code:
 
 ## Open questions
 
-1. **Does listing models require consent?** `vscode.lm.selectChatModels` may
-   prompt on first use. If it does, the view must work without it (invariant
-   8) and the prompt must be triggered by the user opening the view, never at
-   activation.
-2. **Blended multiple, or per-column?** A single `vs cheapest` number needs an
-   input:output ratio to blend on. Options: your own measured ratio (honest,
-   varies), a fixed 10:1 (stable, arbitrary), or drop the column and let the
-   reader compare input and output separately.
-3. **Where does it live?** A third webview, a section on the existing panel, or
-   a tab on the specs page.
+1. **Does listing models require consent?** *Settled:* it may prompt, so the
+   call is made when someone opens the report and never at activation or on
+   the refresh timer. Invariant 8 covers the refusal.
+2. **Blended multiple, or per-column?** *Settled:* per-column, and see
+   invariant 2 for why.
+3. **Where does it live?** *Settled:* a section on the main panel directly
+   after the verdict card, and in the sidebar after the weekly burn chart.
+
+## What the invariants caught
+
+Written before the code, and four of them failed on the first run rather than
+after you saw them:
+
+- the published list was not rendered when the editor says nothing (invariant 8)
+- the cheapest mark used a chart colour measuring 3.59:1 as 13px text, the
+  fifth fill-as-text in `report.ts`
+- the six-column table pushed the panel 54px sideways at 320px
+- a backtick inside a CSS comment terminated the stylesheet's template literal
+
+The staleness rule was itself wrong on first contact with real data, and is
+rewritten above with the reason left in place.

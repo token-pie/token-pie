@@ -2022,14 +2022,37 @@ const STYLES = `
 	   .tw wrapper like every other wide table here rather than taking the page
 	   with it: at 320px it ran 54px past the viewport and the panel went
 	   sideways. A backtick in this comment ends the stylesheet, which is a
-	   template literal -- hence the bare class name. */
-	.models table { min-width: 430px; }
+	   template literal -- hence the bare class name. The width itself is set
+	   with the rest of the table's rules below. */
 	.tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
 	       color: var(--vscode-descriptionForeground); margin-left: 6px; }
 	.tag.gone { color: var(--vscode-charts-orange, #bf6a02); }
 	.models .foot { font-size: 0.78rem; color: var(--vscode-descriptionForeground);
-	                margin: 8px 0 0; line-height: 1.6; }
+	                margin: 10px 0 0; line-height: 1.6; }
 	tr.gone td.model { color: var(--vscode-descriptionForeground); }
+
+	/* The table was a wall: twenty-odd rows of six columns, every border drawn,
+	   the model name the same weight as the figures beside it. The rules
+	   between rows go in favour of a banded background, the name carries the
+	   weight, and the money sits in a tighter block so the eye runs down a
+	   column rather than across a grid. */
+	.models { margin-top: 26px; }
+	.models table { min-width: 430px; }
+	.models th { padding-bottom: 8px; white-space: nowrap; }
+	.models td { border-bottom: none; padding: 7px 0 7px 14px; }
+	.models td:first-child { padding-left: 10px; }
+	.models tbody tr:nth-child(odd) {
+	    background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.06)); }
+	.models td.model { font-weight: 500; white-space: nowrap; }
+	.models td.num { padding-right: 2px; }
+	.models td.dim { font-size: 0.78rem; }
+	/* An absent price is not zero and not a gap to skip: dimmed to the weight
+	   of punctuation so the column still reads as a column. */
+	.models td.dim:not([colspan]) { opacity: 0.45; }
+	.models-rest { margin-top: 10px; }
+	.models-rest > summary { font-size: 0.8rem; font-weight: 500;
+	    color: var(--vscode-descriptionForeground); padding: 9px 14px; }
+	.models-rest .detail-body { padding: 0 0 6px; }
 
 	table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 	th, td { text-align: left; padding: 5px 10px 5px 0; font-size: 0.83rem;
