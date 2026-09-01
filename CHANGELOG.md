@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.8.0 - 2026-09-01
+
+A new section on the panel and in the sidebar: **what you can pick, and what
+each one costs**. Every other view here is built from what you have already
+spent, so a model you have not used yet appeared nowhere -- the wrong shape
+for a decision made before spending, and no help at all when an account comes
+back from a reset with different models on the menu.
+
+### Added
+
+- a models table after the verdict card: published prices per model, the
+  cheapest marked in each of input and output separately, and your own measured
+  credits per message beside them
+- a model you have used but can no longer pick is listed as **not offered**
+  rather than quietly dropped
+- a model the editor offers that the price card does not know is listed as
+  **not published** rather than omitted
+- long-context tiers are their own rows, at the price the card publishes for
+  them
+- seven rows stand and the rest fold away, because thirty models is a
+  reference table rather than a decision aid
+- the sidebar carries the cheapest model and the one you spend most on
+
+### Fixed
+
+- prices are stated as credits per 1M tokens where the figures are read, not
+  in a footer below them
+- the gate says "not yet billed" or "2 of 6 billed" instead of describing
+  itself
+- the model list is asked for when you open the report, never at activation,
+  so a consent prompt cannot arrive out of nowhere
+
+
 ## 0.7.9 - 2026-09-01
 
 ### Fixed
