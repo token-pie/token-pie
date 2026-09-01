@@ -10,12 +10,22 @@ up.
 
 Descriptive only. Nothing here ranks the models or suggests one -- the prices
 beside them are the comparison, and a sentence that did the comparing would be
-a recommendation dressed as a price list. The lines are kept by hand and do
-not refresh with the prices, which the footer says.
+a recommendation dressed as a price list. The lines live in the price card
+beside the figures, so the existing refresh keeps them current.
+
+Also fixes a chart that went missing this morning: on the first day of a
+billing period the calendar bar under the pace tiles suppressed itself, and
+the verdict card was left with a hole where it had been the day before. It
+now frames the whole period from the start to the reset, the days not yet
+reached drawn empty -- the same rule the week chart already followed.
 
 ### Added
 
 - **models:** say what each model is for, in the vendor's words
+
+### Fixed
+
+- **report:** the period chart no longer vanishes on a fresh period
 
 
 ## 0.8.2 - 2026-09-01
