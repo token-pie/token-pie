@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4 - 2026-09-01
+
+### Fixed
+
+- the cost column says what it means
+
+
 ## 0.7.3 - 2026-09-01
 
 ### Fixed
