@@ -213,7 +213,12 @@ console.log('\nthe sidebar reduction');
   const side = compactModels(v, [roll('claude-sonnet-5', { requests: 20, nanoAiu: 400e9 })], 1e-9);
   check('it names the cheapest', /GPT-5.6 Luna/.test(side), true);
   check('and what you actually spend on', /Claude Sonnet 5/.test(side), true);
-  check('with input and output kept apart', /in .*out/.test(side), true);
+  check('with input and output as their own figures',
+    /class="pk">in<\/span>/.test(side) && /class="pk">out<\/span>/.test(side), true);
+  // The bar compares output against output. Blending the two columns would
+  // need a ratio belonging to your prompts rather than to the models.
+  check('and a bar that compares within one column',
+    /class="bar mbar"/.test(side), true);
   // No blended multiple anywhere: the ratio it would need is a property of
   // your prompts, not of the models.
   check('and no invented multiple', /\dx|×/.test(side), false);

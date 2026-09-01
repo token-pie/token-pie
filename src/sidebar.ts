@@ -170,9 +170,24 @@ const STYLES = `
 	   the 3:1 large-text bar by a hair, and the same state reads orange in the
 	   panel's hero, where yellow could not clear it at all. One colour for one
 	   meaning, at 4.0:1 in both themes. */
-	/* Two readings, not one paragraph: without a gap the cheapest model and the
-	   one you actually use ran together as four lines of the same block. */
-	.models .line + .line { margin-top: 9px; }
+	/* The models block speaks the column's own language: a figure with a
+	   small-caps label under it, and a bar when one number is only meaningful
+	   against another. It was two lines of prose, which read as a footnote
+	   somebody had pasted in. */
+	.mrow + .mrow { margin-top: 14px; }
+	/* The section head is a heading, not part of the first row: seven pixels
+	   read as the two belonging together, which they do not. */
+	.models .wk-head { margin-bottom: 10px; }
+	.mname { font-size: 0.8rem; font-weight: 600; margin-bottom: 5px;
+	         display: flex; justify-content: space-between; align-items: baseline;
+	         gap: 8px; }
+	.mrole { font-size: 0.66rem; font-weight: 400; text-transform: uppercase;
+	         letter-spacing: 0.06em; color: var(--vscode-descriptionForeground);
+	         white-space: nowrap; }
+	/* Output price against the dearer of the two on show. The comparison lives
+	   inside one column: blending input and output would need a ratio that
+	   belongs to your prompts rather than to the models. */
+	.mbar { margin: 7px 0 0; height: 4px; }
 	.t-near .n { color: var(--vscode-charts-orange, #bf6a02); }
 	.t-over .n { color: var(--vscode-errorForeground, #f14c4c); }
 	.line { font-size: 0.78rem; line-height: 1.5; }

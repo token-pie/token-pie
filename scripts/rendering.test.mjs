@@ -30,7 +30,7 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { renderReport, fmtDays, dayUnit, fmtDaysWith } from '../out/report.js';
-import { modelsView, renderModels } from '../out/models.js';
+import { modelsView, renderModels, compactModels } from '../out/models.js';
 import { project } from '../out/projection.js';
 import { renderCompact } from '../out/sidebar.js';
 import { defaults } from '../out/tuning.js';
@@ -89,6 +89,10 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.fig.t-near->div.line.dim', 'the same pair, coloured by the day\'s pressure'],
   ['div.fig.t-over->div.line.dim', 'and the same pair over budget'],
   ['div.line->div.bar', 'the caption labels the bar beneath it'],
+  // A model, its two figures and the bar drawing them are one reading, in the
+  // way the meter's three parts are.
+  ['div.mname->div.pair', 'the model names the figures under it'],
+  ['div.pair->div.bar.mbar', 'and the bar is those figures, drawn'],
   ['span.pv->span.pk', "a pace figure and its label are one reading"],
   ['div.pd-head->div.pd-plot', 'the caption labels the strip beneath it'],
   ['div.bar->div.line.dim', 'and the footnote labels the same bar'],
@@ -498,8 +502,19 @@ const pages = {
   const ent = { snapshots: [{ name: 'q', entitlement: 1500, remaining: 1092,
     remainingExact: 1092, percentRemaining: 72.8, hasQuota: true, unlimited: false }],
     resetDate: new Date(now + 1.7 * 86400000).toISOString() };
+  // The models block is measured here too: it is the narrowest place it
+  // appears, and a role label sits hard against the right edge of a 300px
+  // column. Rendering it at 900px proves nothing about that.
+  const sideModels = compactModels(modelsView({
+    card: bundled, rollups, prices: {}, creditsPerNanoAiu: 1e-9, minObservations: 6,
+    available: [
+      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', maxInputTokens: 128000 },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', maxInputTokens: 200000 }
+    ]
+  }), rollups, 1e-9);
+
   pages.sidebar = renderCompact({
-    rollups, creditsPerNanoAiu: 1e-9, tuning: t,
+    rollups, creditsPerNanoAiu: 1e-9, tuning: t, modelsHtml: sideModels,
     projection: project(ent, rollups, 1e-9, now, t),
     warnings: ['No billable spans found in ' +
       '~\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\agent-traces.db.']
