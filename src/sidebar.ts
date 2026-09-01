@@ -8,7 +8,7 @@ import {
 	weekBars, periodBars, fmtCredits, fmtCreditsWith, fmtDays, dayUnit, escapeHtml,
 	creditsOf
 } from './report';
-import { periodStartFrom } from './reconcile';
+import { periodStartFrom, resetInstantFrom } from './reconcile';
 import { sum } from './store';
 
 /**
@@ -128,7 +128,7 @@ export function renderCompact(input: CompactInput): string {
 	// the narrow layout already renders and the harness already measures.
 	const period = p?.resetDate !== undefined
 		? periodBars(input.rollups, input.creditsPerNanoAiu, periodStartFrom(p.resetDate),
-			Date.now(), input.billedDays)
+			Date.now(), input.billedDays, resetInstantFrom(p.resetDate))
 		: '';
 	const week = weekBars(input.rollups, input.creditsPerNanoAiu, new Date(), input.billedDays);
 	const warning = (input.warnings ?? [])[0];

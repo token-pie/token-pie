@@ -31,7 +31,8 @@
 process.env.TZ = 'UTC';
 
 const { project } = await import('../out/projection.js');
-const { renderReport, weekBars, spendByDay } = await import('../out/report.js');
+const { renderReport, weekBars, periodBars, spendByDay } = await import('../out/report.js');
+const { periodStartFrom, resetInstantFrom } = await import('../out/reconcile.js');
 const { renderCompact } = await import('../out/sidebar.js');
 const { defaults } = await import('../out/tuning.js');
 
@@ -156,6 +157,46 @@ console.log('\nwhere the two disagree about one day');
 
   const bars = weekBars([], 1e-9, new Date(), new Map([[TODAY, 374]]));
   check('a week of billed days draws', /nothing yet/.test(bars), false);
+}
+
+/*
+ * The same rule as the week chart, which this one never got.
+ *
+ * The week draws seven tracks whether or not anything is in them, because a
+ * quiet week still has seven days. The period chart instead suppressed itself
+ * when it had fewer than three columns or nothing to plot -- so on the first
+ * morning of a billing period it vanished, leaving a hole in the verdict card
+ * where a chart had been the day before. It came back on day three. Nothing
+ * tested it, so nothing said.
+ */
+console.log('\nthe period chart does not vanish on a young or quiet period');
+{
+  const reset = '2026-10-01';
+  const start = periodStartFrom(reset);
+  const at = resetInstantFrom(reset);
+
+  // Day one: the period has happened for a few hours and holds nothing.
+  const dayOne = periodBars([], 1e-9, start, Date.parse('2026-09-01T09:00:00'),
+    new Map(), at);
+  check('day one still draws a chart', dayOne.length > 0, true);
+  check('and it frames the whole period, not the hours so far',
+    (dayOne.match(/pd-col/g) || []).length, 30);
+  check('with the days not yet reached drawn empty',
+    (dayOne.match(/pd-future/g) || []).length, 29);
+  // "busiest day 0.00" is a measurement of nothing; "nothing yet" is the
+  // absence of one, which is what this is.
+  check('and it says there is nothing in it yet', /nothing yet/.test(dayOne), true);
+
+  // Mid-period with real spend: the frame does not change, the fill does.
+  const spent = periodBars([], 1e-9, start, Date.parse('2026-09-10T09:00:00'),
+    new Map([['2026-09-03', 40]]), at);
+  check('a fortnight in, the frame is the same width',
+    (spent.match(/pd-col/g) || []).length, 30);
+  check('and the peak is named', /busiest day/.test(spent), true);
+  // The axis ends at the reset, not at today: a chart whose right edge moved
+  // every morning redrew the same spend in a different place each day.
+  check('and the axis ends at the period, not at today',
+    /Sep 30<\/span>/.test(spent), true);
 }
 
 /* --------------------------------------------- the figures, one by one --- */

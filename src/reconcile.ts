@@ -210,6 +210,18 @@ const dayMs = dayStartMs;
  * reset. Calendar arithmetic rather than 30 days so a period that begins on
  * the 31st does not drift.
  */
+/**
+ * The reset instant itself, parsed by the same rule as the period start.
+ *
+ * Split out so the two ends of a period cannot disagree about what a bare
+ * `YYYY-MM-DD` from GitHub means.
+ */
+export function resetInstantFrom(resetDate: string): number | undefined {
+	const iso = resetDate.includes('T') ? resetDate : `${resetDate}T00:00:00.000Z`;
+	const reset = new Date(iso);
+	return Number.isNaN(reset.getTime()) ? undefined : reset.getTime();
+}
+
 export function periodStartFrom(resetDate: string): number | undefined {
 	const iso = resetDate.includes('T') ? resetDate : `${resetDate}T00:00:00.000Z`;
 	const reset = new Date(iso);

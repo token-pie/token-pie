@@ -1,6 +1,6 @@
 import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum, dayStartMs } from './store';
 import { Projection } from './projection';
-import { PeriodCoverage, periodCoverage, conversionConfidence } from './reconcile';
+import { PeriodCoverage, periodCoverage, conversionConfidence, resetInstantFrom } from './reconcile';
 import { dayPressure } from './projection';
 import { bareModel, modelKey } from './ratecard';
 import { Tuning, defaults } from './tuning';
@@ -1132,7 +1132,8 @@ ${STYLES}
 		${allowanceMeter(p, tuning.history.days)}
 		${paceTiles(p)}
 		${periodBars(rollups, creditsPerNanoAiu, periodFit?.periodStart, Date.now(),
-			input.billedDays)}
+			input.billedDays,
+			p.resetDate !== undefined ? resetInstantFrom(p.resetDate) : undefined)}
 		</div>
 		<!-- Today over the week: two horizons, both narrower than the month,
 		     in the column that is already about time rather than totals. -->
@@ -1517,7 +1518,8 @@ export function periodBars(
 	creditsPerNanoAiu: number,
 	periodStart: number | undefined,
 	now = Date.now(),
-	billed?: Map<string, number>
+	billed?: Map<string, number>,
+	resetAt?: number
 ): string {
 	if (periodStart === undefined) {
 		return '';
@@ -1528,22 +1530,42 @@ export function periodBars(
 	start.setHours(0, 0, 0, 0);
 	const today = new Date(now);
 	today.setHours(0, 0, 0, 0);
-	const span = Math.round((today.getTime() - start.getTime()) / 86_400_000) + 1;
-	// Two columns is not a shape. Below that the meter and the week say it all.
-	if (!Number.isFinite(span) || span < 3 || span > 62) {
+
+	// The whole period, not the part of it that has happened.
+	//
+	// Drawing only the elapsed days made this chart vanish on the first day of
+	// a period -- one column is not a shape, so it was suppressed, and the
+	// verdict card was left with a hole where a chart had been the day before.
+	// It also grew a column a day, so the same spend moved every morning.
+	// The month is a fixed frame that fills up, which is what a reader already
+	// thinks they are looking at.
+	const last = resetAt !== undefined ? new Date(resetAt) : today;
+	last.setHours(0, 0, 0, 0);
+	if (resetAt !== undefined) {
+		// The reset instant belongs to the next period; the last day of this
+		// one is the day before it.
+		last.setDate(last.getDate() - 1);
+	}
+	const span = Math.round((last.getTime() - start.getTime()) / 86_400_000) + 1;
+	// A guard against a nonsense reset date, not a judgement about how much
+	// there is to show: a quiet period still has its days, exactly as a quiet
+	// week still has seven. Withholding the chart is what made the card look
+	// broken rather than empty.
+	if (!Number.isFinite(span) || span < 2 || span > 62) {
 		return '';
 	}
 
+	const todayKey = dayKeyLocal(today);
 	const days = Array.from({ length: span }, (_, i) => {
 		const d = new Date(start);
 		d.setDate(start.getDate() + i);
 		const key = dayKeyLocal(d);
-		return { key, day: d.getDate(), credits: spend.get(key) ?? 0, today: i === span - 1 };
+		return {
+			key, day: d.getDate(), credits: spend.get(key) ?? 0,
+			today: key === todayKey, future: key > todayKey
+		};
 	});
 	const peak = Math.max(...days.map(d => d.credits));
-	if (peak <= 0) {
-		return '';
-	}
 
 	const label = (d: Date) =>
 		d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -1551,19 +1573,21 @@ export function periodBars(
 	// cost nothing -- the difference between "quiet" and "absent" is the whole
 	// point of the chart.
 	const cols = days.map(d => `
-		<span class="pd-col${d.today ? ' pd-today' : ''}"
+		<span class="pd-col${d.today ? ' pd-today' : ''}${d.future ? ' pd-future' : ''}"
 		      title="${escapeHtml(d.key)}: ${fmtCredits(d.credits)} credits">
 			<span class="pd-fill" style="height:${
-				d.credits > 0 ? Math.max(2, (d.credits / peak) * 100).toFixed(1) : 0}%"></span>
+				peak > 0 && d.credits > 0
+					? Math.max(2, (d.credits / peak) * 100).toFixed(1) : 0}%"></span>
 		</span>`).join('');
 
 	return `
 	<div class="period">
 		<div class="pd-head">Since ${escapeHtml(label(start))}
-			<span class="pd-peak">busiest day ${fmtCreditsWith(peak)}</span></div>
+			<span class="pd-peak">${peak > 0
+				? `busiest day ${fmtCreditsWith(peak)}` : 'nothing yet'}</span></div>
 		<div class="pd-plot">${cols}</div>
 		<div class="pd-axis"><span>${escapeHtml(label(start))}</span>
-			<span>${escapeHtml(label(today))}</span></div>
+			<span>${escapeHtml(label(last))}</span></div>
 	</div>`;
 }
 
@@ -1740,6 +1764,9 @@ const STYLES = `
 	/* Days that have not happened yet are drawn so the week keeps its shape,
 	   but faintly: an empty Friday is not a quiet Friday. */
 	.wk-future { opacity: 0.45; }
+	/* Days the period has not reached. Drawn, because the frame is the month:
+	   an empty track is the difference between "not spent" and "not shown". */
+	.pd-future { opacity: 0.45; }
 
 	.verdict { padding: 14px 16px; border-radius: 8px;
 	           background: var(--vscode-editorWidget-background);
