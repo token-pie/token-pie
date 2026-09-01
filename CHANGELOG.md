@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0 - 2026-09-01
+
+Each model in the "what you can pick" table now opens a one-line description
+of what its vendor says it is for, paraphrased from GitHub's model comparison
+page. The table already answered what a model costs; what it is for was the
+other half of the question, and the half you had to leave the editor to look
+up.
+
+Descriptive only. Nothing here ranks the models or suggests one -- the prices
+beside them are the comparison, and a sentence that did the comparing would be
+a recommendation dressed as a price list. The lines are kept by hand and do
+not refresh with the prices, which the footer says.
+
+### Added
+
+- **models:** say what each model is for, in the vendor's words
+
+
 ## 0.8.2 - 2026-09-01
 
 ### Added
