@@ -40,8 +40,22 @@ order the decision is made in.
 | your cost/message | rollups + solved | only when the gate is met; otherwise the reason |
 | context | LM API | max input tokens, when reported |
 
+Each name opens a one-line description of what the vendor says the model is
+for, kept in the rate card beside its prices and paraphrased from GitHub's
+model comparison page. It expands in the row rather than floating over it: the
+table sits inside a sideways-scrolling wrapper, and an absolutely positioned
+panel inside one is clipped by it. The whole name is the control, not the
+marker alone -- at 300px a 13px target beside a wrapped model id is a miss.
+
+Those lines are hand-kept and have no machine-readable source, so they do not
+refresh with the prices. The footer says so, because a description that has
+quietly gone stale beside a price that has not is the kind of half-fresh page
+this project keeps shipping.
+
 A model with a **long-context variant** shows both rows, marked, because the
-card holds both and the long tier is roughly double.
+card holds both and the long tier is roughly double. Only the default row
+carries the description: the long tier is the same model at a different rate,
+and repeating its description under a second heading says there are two.
 
 Ten rows stand and the rest fold into a `details`, because a list of thirty
 models is a reference table, not a decision aid. It was seven; ten is what a
@@ -103,7 +117,15 @@ data the view did not itself produce.
    which it has not until you send it anything. A ratio between two published
    prices is a fact about a price list, and two figures state it without a
    graphic pretending to measure.
-9. **The API's silence is a state.** If `selectChatModels` returns nothing —
+9. **A description describes, and nothing else.** Every note in the card is
+   checkable prose: no ranking word (*recommended*, *better than*, *instead
+   of*, *you should*), no comparative against another model, no second person,
+   at most two sentences and 110 characters. This is the one place on the page
+   where free text sits beside a price, and the column next to it is what does
+   the comparing. A test reads every note in `rate-card.json` and fails on any
+   that advises -- which is the only way a line written by hand months from now
+   is held to the rule.
+10. **The API's silence is a state.** If `selectChatModels` returns nothing —
    no consent, older VS Code, no Copilot — the view renders the card's models
    with an explicit "this is the published list, not your list" banner. It
    never renders an empty table.
@@ -123,6 +145,11 @@ the ones this view can reach, and each needs a fixture *before* the code:
 - the LM API unavailable or returning an empty list
 - a card unread for over four weeks, and one unread for twenty-seven days
   (the boundary either side)
+- a model the card describes and one it does not (an empty bubble promises an
+  explanation that is not there, so a model with no note gets no marker)
+- every description open at once, at 320px and in both themes -- a closed
+  `details` measures as nothing, so its text would never be contrast-checked
+  and never collide with anything
 
 ## Non-goals
 
@@ -132,13 +159,15 @@ the ones this view can reach, and each needs a fixture *before* the code:
 - **No forecasting per model.** "You would have saved X by using Luna" needs a
   counterfactual token count this extension cannot honestly produce.
 - **No editorialising.** No "recommended" badge. Cheapest is not best, and the
-  view has no way to know whether Luna could have done the work.
+  view has no way to know whether Luna could have done the work. The
+  descriptions are held to the same line by invariant 9: they say what a model
+  is built for, never which one to pick.
 
 ## Open questions
 
 1. **Does listing models require consent?** *Settled:* it may prompt, so the
    call is made when someone opens the report and never at activation or on
-   the refresh timer. Invariant 8 covers the refusal.
+   the refresh timer. Invariant 10 covers the refusal.
 2. **Blended multiple, or per-column?** *Settled:* per-column, and see
    invariant 2 for why.
 3. **Where does it live?** *Settled:* a section on the main panel directly
@@ -157,3 +186,8 @@ after you saw them:
 
 The staleness rule was itself wrong on first contact with real data, and is
 rewritten above with the reason left in place.
+
+Invariant 9 caught the fold's own test, which counted standing rows by
+splitting the page at the first `details` on it. Once every row hid a
+description behind its own name, that probe stopped at row one and reported a
+fold after a single model -- green code, broken measurement.

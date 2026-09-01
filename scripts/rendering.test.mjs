@@ -340,7 +340,12 @@ const modelsHtml = renderModels(modelsView({
     { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', maxInputTokens: 200000 },
     { id: 'some-new-model', name: 'Unpriced Preview', maxInputTokens: 64000 }
   ]
-}));
+}))
+  // Every model row now hides a line of description behind its own name, and
+  // a closed `details` measures as nothing at all: the text inside it would
+  // never be contrast-checked and never collide with anything. Opened here so
+  // the state a reader actually looks at is the state under measurement.
+  .replaceAll('<details class="about">', '<details class="about" open>');
 
 const pages = {
   console: renderSpecs({

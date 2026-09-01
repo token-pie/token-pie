@@ -16,6 +16,16 @@
 export interface PublishedPrice {
 	name: string;
 	vendor: string;
+	/**
+	 * What the vendor says the model is for, in one line.
+	 *
+	 * Descriptive, never comparative: it says what a model is built for, not
+	 * which one to choose. Paraphrased from GitHub's model comparison page
+	 * rather than copied from it, hand-maintained, and no fresher than
+	 * `retrieved` -- there is no machine-readable source for it.
+	 */
+	note?: string;
+
 	/** GitHub lists a second, dearer row for long-context requests. */
 	variant: 'default' | 'long';
 	input: number;
@@ -62,6 +72,16 @@ export interface LoadedCard {
 export interface PublishedRate {
 	name: string;
 	vendor: string;
+	/**
+	 * What the vendor says the model is for, in one line.
+	 *
+	 * Descriptive, never comparative: it says what a model is built for, not
+	 * which one to choose. Paraphrased from GitHub's model comparison page
+	 * rather than copied from it, hand-maintained, and no fresher than
+	 * `retrieved` -- there is no machine-readable source for it.
+	 */
+	note?: string;
+
 	variant: 'default' | 'long';
 	input: number;
 	cached: number;
@@ -151,6 +171,7 @@ export function lookup(
 		name: row.name,
 		vendor: row.vendor,
 		variant: row.variant,
+		...(row.note !== undefined ? { note: row.note } : {}),
 		input: per1k(row.input),
 		cached: per1k(row.cachedInput),
 		...(row.cacheWrite !== undefined ? { cacheWrite: per1k(row.cacheWrite) } : {}),
@@ -202,6 +223,9 @@ export function parse(raw: unknown): RateCard | undefined {
 			(typeof r.cacheWrite !== 'number' || !Number.isFinite(r.cacheWrite) || r.cacheWrite < 0)) {
 			return undefined;
 		}
+		// A note is prose and optional, so a bad one is dropped rather than
+		// taking the card down with it: the prices are the point.
+		const note = typeof r.note === 'string' && r.note.length > 0 ? r.note : undefined;
 		out.push({
 			name: r.name,
 			vendor: r.vendor,
@@ -209,7 +233,8 @@ export function parse(raw: unknown): RateCard | undefined {
 			input: r.input as number,
 			cachedInput: r.cachedInput as number,
 			...(r.cacheWrite !== undefined ? { cacheWrite: r.cacheWrite as number } : {}),
-			output: r.output as number
+			output: r.output as number,
+			...(note !== undefined ? { note } : {})
 		});
 	}
 	const effective = typeof o.effective === 'string' && !Number.isNaN(Date.parse(o.effective))

@@ -29,6 +29,8 @@ if (!card) {
   process.exit(1);
 }
 
+const escapeHtml = t => t.replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const model = (id, name = id, over = {}) => ({ id, name, maxInputTokens: 128000, ...over });
 const roll = (id, over = {}) => ({
   day: '2026-09-01', model: id, workspace: 'w', operation: 'chat', selection: 'manual',
@@ -180,7 +182,10 @@ console.log('\nthe list folds after ten');
     'gpt-5.3-codex', 'grok-4.5', 'claude-sonnet-5', 'gpt-5.6-terra'];
   const v = view({ available: many.map(id => model(id)) });
   const html = renderModels(v);
-  const standing = (html.split('<details')[0].match(/<tr class=/g) || []).length;
+  // Split on the fold itself, not on the first `details` on the page: rows
+  // carry their own disclosure now, and the old probe stopped at row one.
+  const standing = (html.split('<details class="detail models-rest"')[0]
+    .match(/<tr class=/g) || []).length;
   check('ten rows stand above the fold', standing, 10);
   check('and the rest are counted in the summary',
     new RegExp(`<summary>${v.rows.length - 10} more</summary>`).test(html), true);
@@ -249,6 +254,81 @@ console.log('\nthe sidebar reduction');
   // No blended multiple anywhere: the ratio it would need is a property of
   // your prompts, not of the models.
   check('and no invented multiple', /\dx|×/.test(side), false);
+}
+
+console.log('\nwhat a model is for');
+{
+  // The card's own words, not ours, and shown where the name is read.
+  const v = view({ available: [model('gpt-5.6-luna', 'GPT-5.6 Luna')] });
+  const luna = v.rows.find(r => r.name === 'GPT-5.6 Luna' && r.variant === 'default');
+  check('the row carries the card\'s description', typeof luna?.note, 'string');
+  const html = renderModels(v);
+  check('and it renders under the name it describes',
+    html.includes(escapeHtml(luna.note)), true);
+  // Opened from the name, not from a floating panel: this table lives in a
+  // sideways-scrolling wrapper, which clips an absolutely positioned bubble.
+  check('as a disclosure in the cell', /<td class="model"><details class="about">/.test(html), true);
+  check('and not as the page\'s floating hint', /<td class="model"[^>]*>[^<]*<details class="hint"/.test(html), false);
+
+  // A model the card has never heard of has nothing to say about itself, and
+  // says nothing: an empty bubble is a promise of an explanation that is not
+  // there.
+  const bare = renderModels(view({ available: [model('some-unreleased-model', 'Unreleased')] }));
+  check('a model with no description gets no marker',
+    /Unreleased<span class="tag unpriced">not published<\/span><\/td>/.test(bare), true);
+
+  // The long-context row is the same model at a different price. Repeating
+  // the description under it says there are two models.
+  const wide = view({ available: [model('gpt-5.6-luna', 'GPT-5.6 Luna')] });
+  const long = wide.rows.find(r => r.name === 'GPT-5.6 Luna' && r.variant === 'long');
+  if (long) check('and the long-context variant does not repeat it', long.note, undefined);
+}
+
+console.log('\nthe descriptions describe, and nothing else');
+{
+  // The whole point of the column beside them is that the reader compares.
+  // A sentence that did the comparing would be a recommendation wearing a
+  // price list's clothes, and it would be ours, not the vendor's.
+  const notes = card.models.filter(m => m.note).map(m => [m.name, m.note]);
+  check('the card carries descriptions at all', notes.length > 0, true);
+
+  const banned = [
+    'recommend', 'instead of', 'better than', 'worse than', 'best choice',
+    'you should', 'should use', 'prefer ', 'avoid ', 'cheaper than',
+    'faster than', 'most powerful', 'the best', 'ideal choice', 'superior',
+    'outperform', 'we suggest', 'top pick', 'go with'
+  ];
+  const advisory = notes.filter(([, n]) =>
+    banned.some(b => n.toLowerCase().includes(b)));
+  check('none of them ranks or advises',
+    advisory.map(([m]) => m).join(', ') || 'none', 'none');
+
+  // Comparatives smuggle a ranking in without any of the words above.
+  const comparative = notes.filter(([, n]) => /\b\w+(er|est)\s+than\b|\bmore\s+\w+\s+than\b/i.test(n));
+  check('and none of them compares to another model',
+    comparative.map(([m]) => m).join(', ') || 'none', 'none');
+
+  // One or two lines, per the brief. Three sentences in a table cell is a
+  // paragraph, and the row it is in has five other columns to read.
+  const tooLong = notes.filter(([, n]) => n.length > 110);
+  check('each is one line', tooLong.map(([m]) => m).join(', ') || 'none', 'none');
+  const manySentences = notes.filter(([, n]) => (n.match(/[.!?](\s|$)/g) ?? []).length > 2);
+  check('and at most two sentences',
+    manySentences.map(([m]) => m).join(', ') || 'none', 'none');
+
+  // Second person is advice by grammar: "you can use this for X" tells the
+  // reader what to do with it. The line says what the model is for.
+  const secondPerson = notes.filter(([, n]) => /\byou\b|\byour\b/i.test(n));
+  check('and none addresses the reader',
+    secondPerson.map(([m]) => m).join(', ') || 'none', 'none');
+
+  // Where they came from, said in the file rather than remembered. Without
+  // this the next person to edit them has no idea what they may write.
+  const raw = JSON.parse(fs.readFileSync(new URL('../rate-card.json', import.meta.url)));
+  check('and the card records where they came from',
+    typeof raw.notesSource === 'string' && raw.notesSource.startsWith('https://'), true);
+  check('and that they are paraphrased and hand-kept',
+    /paraphrased/i.test(raw.$notesSource ?? '') && /hand/i.test(raw.$notesSource ?? ''), true);
 }
 
 console.log(failures ? `\n${failures} failed\n` : '\nall good\n');

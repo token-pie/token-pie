@@ -12,7 +12,8 @@
       "variant": "default",
       "input": 0.25,
       "cachedInput": 0.025,
-      "output": 2.0
+      "output": 2.0,
+      "note": "General coding and writing, tuned for fast completions."
     },
     {
       "name": "GPT-5.3-Codex",
@@ -20,7 +21,8 @@
       "variant": "default",
       "input": 1.75,
       "cachedInput": 0.175,
-      "output": 14.0
+      "output": 14.0,
+      "note": "Agentic coding work: multi-step edits across a repository."
     },
     {
       "name": "GPT-5.4",
@@ -28,7 +30,8 @@
       "variant": "default",
       "input": 2.5,
       "cachedInput": 0.25,
-      "output": 15.0
+      "output": 15.0,
+      "note": "Deep reasoning over long problems."
     },
     {
       "name": "GPT-5.4",
@@ -36,7 +39,8 @@
       "variant": "long",
       "input": 5.0,
       "cachedInput": 0.5,
-      "output": 22.5
+      "output": 22.5,
+      "note": "Deep reasoning over long problems."
     },
     {
       "name": "GPT-5.4 mini",
@@ -44,7 +48,8 @@
       "variant": "default",
       "input": 0.75,
       "cachedInput": 0.075,
-      "output": 4.5
+      "output": 4.5,
+      "note": "Everyday agent tasks at a smaller size."
     },
     {
       "name": "GPT-5.4 nano",
@@ -52,7 +57,8 @@
       "variant": "default",
       "input": 0.2,
       "cachedInput": 0.02,
-      "output": 1.25
+      "output": 1.25,
+      "note": "The smallest tier, for short mechanical edits."
     },
     {
       "name": "GPT-5.5",
@@ -60,7 +66,8 @@
       "variant": "default",
       "input": 5.0,
       "cachedInput": 0.5,
-      "output": 30.0
+      "output": 30.0,
+      "note": "Reasoning-heavy work across large contexts."
     },
     {
       "name": "GPT-5.5",
@@ -68,7 +75,8 @@
       "variant": "long",
       "input": 10.0,
       "cachedInput": 1.0,
-      "output": 45.0
+      "output": 45.0,
+      "note": "Reasoning-heavy work across large contexts."
     },
     {
       "name": "GPT-5.6 Luna",
@@ -77,7 +85,8 @@
       "input": 0.2,
       "cachedInput": 0.02,
       "cacheWrite": 0.25,
-      "output": 1.2
+      "output": 1.2,
+      "note": "Fast help with simple or repetitive tasks."
     },
     {
       "name": "GPT-5.6 Luna",
@@ -86,7 +95,8 @@
       "input": 0.4,
       "cachedInput": 0.04,
       "cacheWrite": 0.5,
-      "output": 1.8
+      "output": 1.8,
+      "note": "Fast help with simple or repetitive tasks."
     },
     {
       "name": "GPT-5.6 Sol",
@@ -95,7 +105,8 @@
       "input": 2.0,
       "cachedInput": 0.2,
       "cacheWrite": 2.5,
-      "output": 10.0
+      "output": 10.0,
+      "note": "Deep reasoning and debugging over large codebases."
     },
     {
       "name": "GPT-5.6 Sol",
@@ -104,7 +115,8 @@
       "input": 4.0,
       "cachedInput": 0.4,
       "cacheWrite": 5.0,
-      "output": 15.0
+      "output": 15.0,
+      "note": "Deep reasoning and debugging over large codebases."
     },
     {
       "name": "GPT-5.6 Terra",
@@ -113,7 +125,8 @@
       "input": 2.0,
       "cachedInput": 0.2,
       "cacheWrite": 2.5,
-      "output": 12.0
+      "output": 12.0,
+      "note": "General coding and agent tasks, balanced for everyday use."
     },
     {
       "name": "GPT-5.6 Terra",
@@ -122,7 +135,8 @@
       "input": 4.0,
       "cachedInput": 0.4,
       "cacheWrite": 5.0,
-      "output": 18.0
+      "output": 18.0,
+      "note": "General coding and agent tasks, balanced for everyday use."
     },
     {
       "name": "Claude Haiku 4.5",
@@ -131,7 +145,8 @@
       "input": 1.0,
       "cachedInput": 0.1,
       "cacheWrite": 1.25,
-      "output": 5.0
+      "output": 5.0,
+      "note": "Quick responses to lightweight tasks."
     },
     {
       "name": "Claude Sonnet 4",
@@ -140,7 +155,8 @@
       "input": 3.0,
       "cachedInput": 0.3,
       "cacheWrite": 3.75,
-      "output": 15.0
+      "output": 15.0,
+      "note": "General-purpose coding."
     },
     {
       "name": "Claude Sonnet 4.5",
@@ -149,7 +165,8 @@
       "input": 3.0,
       "cachedInput": 0.3,
       "cacheWrite": 3.75,
-      "output": 15.0
+      "output": 15.0,
+      "note": "General-purpose coding and agent tasks."
     },
     {
       "name": "Claude Sonnet 4.6",
@@ -158,7 +175,8 @@
       "input": 3.0,
       "cachedInput": 0.3,
       "cacheWrite": 3.75,
-      "output": 15.0
+      "output": 15.0,
+      "note": "General-purpose coding and agent tasks."
     },
     {
       "name": "Claude Sonnet 5",
@@ -167,7 +185,8 @@
       "input": 2.0,
       "cachedInput": 0.2,
       "cacheWrite": 2.5,
-      "output": 10.0
+      "output": 10.0,
+      "note": "General coding and agent tasks, including complex problems."
     },
     {
       "name": "Claude Opus 4.5",
@@ -176,7 +195,8 @@
       "input": 5.0,
       "cachedInput": 0.5,
       "cacheWrite": 6.25,
-      "output": 25.0
+      "output": 25.0,
+      "note": "Extended reasoning on hard problems."
     },
     {
       "name": "Claude Opus 4.6",
@@ -185,7 +205,8 @@
       "input": 5.0,
       "cachedInput": 0.5,
       "cacheWrite": 6.25,
-      "output": 25.0
+      "output": 25.0,
+      "note": "Extended reasoning on hard problems."
     },
     {
       "name": "Claude Opus 4.7",
@@ -194,7 +215,8 @@
       "input": 5.0,
       "cachedInput": 0.5,
       "cacheWrite": 6.25,
-      "output": 25.0
+      "output": 25.0,
+      "note": "Extended reasoning on hard problems."
     },
     {
       "name": "Claude Opus 4.8",
@@ -203,7 +225,8 @@
       "input": 5.0,
       "cachedInput": 0.5,
       "cacheWrite": 6.25,
-      "output": 25.0
+      "output": 25.0,
+      "note": "Extended reasoning on hard problems."
     },
     {
       "name": "Claude Opus 4.8 (fast mode)",
@@ -212,7 +235,8 @@
       "input": 10.0,
       "cachedInput": 1.0,
       "cacheWrite": 12.5,
-      "output": 50.0
+      "output": 50.0,
+      "note": "The same model with latency traded for depth."
     },
     {
       "name": "Claude Opus 5",
@@ -221,7 +245,8 @@
       "input": 5.0,
       "cachedInput": 0.5,
       "cacheWrite": 6.25,
-      "output": 25.0
+      "output": 25.0,
+      "note": "Extended reasoning on hard problems."
     },
     {
       "name": "Claude Fable 5",
@@ -230,7 +255,8 @@
       "input": 10.0,
       "cachedInput": 1.0,
       "cacheWrite": 12.5,
-      "output": 50.0
+      "output": 50.0,
+      "note": "Long-running agent work."
     },
     {
       "name": "Gemini 3.1 Pro",
@@ -238,7 +264,8 @@
       "variant": "default",
       "input": 2.0,
       "cachedInput": 0.2,
-      "output": 12.0
+      "output": 12.0,
+      "note": "Reasoning across long contexts."
     },
     {
       "name": "Gemini 3.1 Pro",
@@ -246,7 +273,8 @@
       "variant": "long",
       "input": 4.0,
       "cachedInput": 0.4,
-      "output": 18.0
+      "output": 18.0,
+      "note": "Reasoning across long contexts."
     },
     {
       "name": "Gemini 3.5 Flash",
@@ -254,7 +282,8 @@
       "variant": "default",
       "input": 1.5,
       "cachedInput": 0.15,
-      "output": 9.0
+      "output": 9.0,
+      "note": "Fast responses to lightweight tasks."
     },
     {
       "name": "Gemini 3.6 Flash",
@@ -262,7 +291,8 @@
       "variant": "default",
       "input": 0.75,
       "cachedInput": 0.075,
-      "output": 3.75
+      "output": 3.75,
+      "note": "Fast responses to lightweight tasks."
     },
     {
       "name": "Gemini 3.7 Flash",
@@ -270,7 +300,8 @@
       "variant": "default",
       "input": 0.75,
       "cachedInput": 0.075,
-      "output": 3.75
+      "output": 3.75,
+      "note": "Fast responses to lightweight tasks."
     },
     {
       "name": "Raptor mini",
@@ -278,7 +309,8 @@
       "variant": "default",
       "input": 0.25,
       "cachedInput": 0.025,
-      "output": 2.0
+      "output": 2.0,
+      "note": "General-purpose coding at a small size."
     },
     {
       "name": "MAI-Code-1-Flash",
@@ -286,7 +318,8 @@
       "variant": "default",
       "input": 0.75,
       "cachedInput": 0.075,
-      "output": 4.5
+      "output": 4.5,
+      "note": "General coding at a fast tier."
     },
     {
       "name": "MAI-Code-1.1-Flash",
@@ -294,7 +327,8 @@
       "variant": "default",
       "input": 0.2,
       "cachedInput": 0.02,
-      "output": 1.2
+      "output": 1.2,
+      "note": "General coding at a fast tier, with image understanding."
     },
     {
       "name": "Grok 4.5",
@@ -302,7 +336,8 @@
       "variant": "default",
       "input": 2.0,
       "cachedInput": 0.5,
-      "output": 6.0
+      "output": 6.0,
+      "note": "General-purpose coding."
     },
     {
       "name": "Grok 4.5",
@@ -310,7 +345,8 @@
       "variant": "long",
       "input": 4.0,
       "cachedInput": 1.0,
-      "output": 12.0
+      "output": 12.0,
+      "note": "General-purpose coding."
     },
     {
       "name": "Grok 4.6",
@@ -318,7 +354,8 @@
       "variant": "default",
       "input": 2.0,
       "cachedInput": 0.5,
-      "output": 6.0
+      "output": 6.0,
+      "note": "General-purpose coding."
     },
     {
       "name": "Grok 4.6",
@@ -326,7 +363,8 @@
       "variant": "long",
       "input": 4.0,
       "cachedInput": 1.0,
-      "output": 12.0
+      "output": 12.0,
+      "note": "General-purpose coding."
     },
     {
       "name": "Kimi K2.7 Code",
@@ -334,7 +372,8 @@
       "variant": "default",
       "input": 0.95,
       "cachedInput": 0.19,
-      "output": 4.0
+      "output": 4.0,
+      "note": "Code-focused work."
     },
     {
       "name": "Kimi K3",
@@ -342,7 +381,10 @@
       "variant": "default",
       "input": 3.0,
       "cachedInput": 0.3,
-      "output": 15.0
+      "output": 15.0,
+      "note": "Agentic coding work."
     }
-  ]
+  ],
+  "notesSource": "https://docs.github.com/en/copilot/reference/ai-models/model-comparison",
+  "$notesSource": "What each model is for, paraphrased from GitHub's model comparison page rather than copied from it. Descriptive only: a note says what a model is built for and never which one to pick. Hand-maintained, and no fresher than `retrieved` -- the page is HTML with no machine-readable form."
 }

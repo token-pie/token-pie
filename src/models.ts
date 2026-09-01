@@ -55,6 +55,17 @@ export interface ModelRow {
 	shortfall?: string;
 	context?: number;
 	/**
+	 * What the vendor says the model is for, one line, from the card.
+	 *
+	 * Descriptive only: it says what a model is built for, never which one to
+	 * pick. The row already carries two prices and a measurement, and those are
+	 * the comparison; a sentence that ranked models would be a recommendation
+	 * wearing a price list's clothes. Default rows only -- a long context variant
+	 * is the same model at a different rate, and repeating its description under
+	 * a second heading says there are two models.
+	 */
+	note?: string;
+	/**
 	 * `offered` is pickable now. `gone` is in your history and no longer on
 	 * offer, which is the state that cost someone a fortnight. `unpriced` is
 	 * offered but absent from the card, usually a release the card has not
@@ -123,6 +134,11 @@ function ratesFor(card: RateCard, id: string, variant: 'default' | 'long'): Rate
 	};
 }
 
+/** The card's one-line description, when it carries one for this model. */
+function noteFor(card: RateCard, id: string): string | undefined {
+	return lookup(card, id, 'default')?.note;
+}
+
 function same(a: Rates | undefined, b: Rates | undefined): boolean {
 	return a !== undefined && b !== undefined
 		&& a.input === b.input && a.output === b.output && a.cacheRead === b.cacheRead;
@@ -164,7 +180,10 @@ export function modelsView(input: ModelsInput): ModelsView {
 		for (const name of new Set(card.models.map(m => m.name))) {
 			const def = ratesFor(card, name, 'default');
 			const long = ratesFor(card, name, 'long');
-			rows.push({ name, variant: 'default', rates: def, state: 'published' });
+			rows.push({
+				name, variant: 'default', rates: def,
+				note: noteFor(card, name), state: 'published'
+			});
 			if (long && !same(long, def)) {
 				rows.push({ name, variant: 'long', rates: long, state: 'published' });
 			}
@@ -178,6 +197,7 @@ export function modelsView(input: ModelsInput): ModelsView {
 		rows.push({
 			name: m.name, id: m.id, variant: 'default', rates: def,
 			measured, shortfall, context: m.maxInputTokens,
+			note: noteFor(card, m.id),
 			state: def ? 'offered' : 'unpriced'
 		});
 		if (long && !same(long, def)) {
@@ -199,7 +219,7 @@ export function modelsView(input: ModelsInput): ModelsView {
 			const { measured, shortfall } = measureOf(id);
 			rows.push({
 				name: id, id, variant: 'default', rates: ratesFor(card, id, 'default'),
-				measured, shortfall, state: 'gone'
+				measured, shortfall, note: noteFor(card, id), state: 'gone'
 			});
 		}
 	}
@@ -303,8 +323,20 @@ export function renderModels(view: ModelsView): string {
 				: '<td class="num dim">&mdash;</td>';
 		const money = cell(r, 'input', r.cheapestInput) + cell(r, 'output', r.cheapestOutput)
 			+ cell(r, 'cacheRead') + cell(r, 'cacheWrite');
-		return `<tr class="${r.state}">` +
-			`<td class="model">${escapeHtml(r.name)}${tag}</td>${money}${yours}</tr>`;
+		// The description opens in the row rather than over it. Every other
+		// explanation on this page is a floating bubble, but this table lives in a
+		// div that scrolls sideways, and an absolutely positioned panel inside a
+		// scroll container is clipped by it -- the note would have opened into a
+		// box it could not be read out of. Expanding the cell moves the rows
+		// below it, which is honest and costs nothing.
+		const name = `${escapeHtml(r.name)}${tag}`;
+		const model = r.note
+			? `<td class="model"><details class="about">
+					<summary>${name}<span class="q" aria-hidden="true">i</span></summary>
+					<p class="about-body">${escapeHtml(r.note)}</p>
+				</details></td>`
+			: `<td class="model">${name}</td>`;
+		return `<tr class="${r.state}">${model}${money}${yours}</tr>`;
 	};
 
 	const cols = `<colgroup>
@@ -342,7 +374,11 @@ export function renderModels(view: ModelsView): string {
 		</details>` : ''}
 		<p class="foot">${view.notOffered > 0
 				? `${fmtInt(view.notOffered)} further model${view.notOffered === 1 ? '' : 's'}
-				   are published but not offered to this account.`
+				   are published but not offered to this account. `
+				: ''}${view.rows.some(r => r.note)
+				? `Open a model name for what its vendor says it is for, paraphrased
+				   from GitHub's model comparison page. Those lines are kept by hand
+				   and are not refreshed with the prices.`
 				: ''}</p>
 	</section>`;
 }
