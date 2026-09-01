@@ -26,7 +26,7 @@
 import { RateCard, lookup } from './ratecard';
 import { Rollup, groupBy, sum } from './store';
 import { PriceStats } from './pricing';
-import { escapeHtml, fmtCredits, fmtInt, creditsOf } from './report';
+import { escapeHtml, fmtCreditsWith, fmtInt, creditsOf } from './report';
 
 /** A model the editor says this account can pick. */
 export interface AvailableModel {
@@ -141,14 +141,19 @@ export function modelsView(input: ModelsInput): ModelsView {
 		const n = stats?.n ?? 0;
 		const totals = byModel.get(id);
 		if (n < minObservations || !totals) {
-			// The count, not a blank and never a zero: "needs 6, has 1" is an
-			// answer and an empty cell is not.
-			return { shortfall: `needs ${minObservations}, has ${fmtInt(n)}` };
+			// Still the count rather than a blank, but said the way a reader
+			// would say it. "needs 6, has 0" was the gate talking about itself
+			// in a column headed by what it was withholding.
+			return {
+				shortfall: n === 0
+					? 'not yet billed'
+					: `${fmtInt(n)} of ${minObservations} billed`
+			};
 		}
 		const t = sum([totals].flat() as Rollup[]);
 		return t.requests > 0
 			? { measured: creditsOf(t.nanoAiu, creditsPerNanoAiu) / t.requests }
-			: { shortfall: `needs ${minObservations}, has ${fmtInt(n)}` };
+			: { shortfall: 'not yet billed' };
 	};
 
 	// The editor said nothing, so the card's own list stands in. Every row is
@@ -286,9 +291,16 @@ export function renderModels(view: ModelsView): string {
 			: r.state === 'unpriced' ? '<span class="tag unpriced">not published</span>'
 			: r.variant === 'long' ? '<span class="tag">long context</span>'
 			: '';
+		// The unit travels with the figure: a bare 2.37 in a column headed
+		// "your cost/message" could be credits, dollars or messages. A long
+		// context variant is the same model billed at a different rate, so
+		// there is no separate measurement for it -- a dash, like any other
+		// column with nothing to say.
 		const yours = r.measured !== undefined
-			? `<td class="num">${fmtCredits(r.measured)}</td>`
-			: `<td class="num dim gate">${escapeHtml(r.shortfall ?? '')}</td>`;
+			? `<td class="num">${fmtCreditsWith(r.measured)}</td>`
+			: r.shortfall
+				? `<td class="num dim gate">${escapeHtml(r.shortfall)}</td>`
+				: '<td class="num dim">&mdash;</td>';
 		const money = cell(r, 'input', r.cheapestInput) + cell(r, 'output', r.cheapestOutput)
 			+ cell(r, 'cacheRead') + cell(r, 'cacheWrite');
 		return `<tr class="${r.state}">` +

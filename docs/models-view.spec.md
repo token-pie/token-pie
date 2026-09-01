@@ -70,9 +70,15 @@ data the view did not itself produce.
    an input:output ratio, that ratio is a property of your prompts rather than
    of the models, and inventing one puts a made-up number in the column the
    decision is read from.
-3. **Measurement is gated, and says so.** `your cost/message` appears only for
-   models with at least `pricing.minObservations` billed messages. Below that
-   the cell states the shortfall ("needs 6, has 1"), never `0.00`.
+3. **Measurement is gated, and says so in English.** `your cost/message`
+   appears only for models with at least `pricing.minObservations` billed
+   messages, and carries its unit — `2.38 credits`, never a bare `2.38` in a
+   column that could as easily be counting messages. Below the gate the cell
+   says `not yet billed` or `2 of 6 billed`; it is never `0.00`, and never the
+   gate talking about itself ("needs 6, has 1") in a column headed by what it
+   is withholding. A row with no measurement of its own — a long-context
+   variant, which is the same model at another rate — shows a dash rather than
+   nothing at all.
 4. **Availability is not inferred from usage.** A model in your rollups that
    the LM API does not offer is listed as *no longer available*, not silently
    dropped — that is precisely what happened when the frontier models went.

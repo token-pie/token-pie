@@ -93,7 +93,7 @@ console.log('\nmeasurement is gated, and says so');
     prices: { 'claude-sonnet-5': { n: 5 } }
   });
   check('below the gate there is no figure', thin.rows[0].measured, undefined);
-  check('and the shortfall is stated', thin.rows[0].shortfall, 'needs 6, has 5');
+  check('and the shortfall is stated in English', thin.rows[0].shortfall, '5 of 6 billed');
 
   // The boundary itself: exactly the gate.
   const met = view({
@@ -103,6 +103,20 @@ console.log('\nmeasurement is gated, and says so');
   });
   check('at the gate the figure appears', met.rows[0].measured, 5);
   check('and the shortfall goes', met.rows[0].shortfall, undefined);
+  // A figure with no unit in a column headed "your cost/message" could be
+  // credits, dollars or messages.
+  check('and it carries its unit', /5\.00 credits/.test(renderModels(met)), true);
+
+  // Nothing billed at all is not the same sentence as some-but-not-enough.
+  const none = view({ available: [model('claude-sonnet-5', 'Claude Sonnet 5')] });
+  check('nothing billed says so', none.rows[0].shortfall, 'not yet billed');
+
+  // A long-context variant is the same model at a different rate, so there is
+  // no separate measurement for it: a dash, not a blank.
+  const long = view({ available: [model('gpt-5.6-luna', 'GPT-5.6 Luna')] });
+  const html = renderModels(long);
+  check('and a variant with no measurement of its own shows a dash',
+    (html.match(/<td class="num dim">&mdash;<\/td>/g) || []).length >= 1, true);
 }
 
 console.log('\navailability is not inferred from usage');
