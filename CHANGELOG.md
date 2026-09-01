@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.6 - 2026-09-01
+
+### Fixed
+
+- no bar for a price
+
+
 ## 0.7.5 - 2026-09-01
 
 ### Fixed
