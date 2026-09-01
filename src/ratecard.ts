@@ -19,10 +19,8 @@ export interface PublishedPrice {
 	/**
 	 * What the vendor says the model is for, in one line.
 	 *
-	 * Descriptive, never comparative: it says what a model is built for, not
-	 * which one to choose. Paraphrased from GitHub's model comparison page
-	 * rather than copied from it, hand-maintained, and no fresher than
-	 * `retrieved` -- there is no machine-readable source for it.
+	 * Carried in the card beside the prices, so a refresh brings new
+	 * descriptions along with new figures.
 	 */
 	note?: string;
 
@@ -75,10 +73,8 @@ export interface PublishedRate {
 	/**
 	 * What the vendor says the model is for, in one line.
 	 *
-	 * Descriptive, never comparative: it says what a model is built for, not
-	 * which one to choose. Paraphrased from GitHub's model comparison page
-	 * rather than copied from it, hand-maintained, and no fresher than
-	 * `retrieved` -- there is no machine-readable source for it.
+	 * Carried in the card beside the prices, so a refresh brings new
+	 * descriptions along with new figures.
 	 */
 	note?: string;
 
@@ -176,6 +172,28 @@ export function lookup(
 		cached: per1k(row.cachedInput),
 		...(row.cacheWrite !== undefined ? { cacheWrite: per1k(row.cacheWrite) } : {}),
 		output: per1k(row.output)
+	};
+}
+
+/**
+ * Keep the descriptions a fetched card did not bring.
+ *
+ * Notes ride in the card beside the prices, so a source that publishes them
+ * refreshes them. A source that does not would otherwise blank every one of
+ * them the first time prices moved -- a fetch that improves the figures and
+ * loses the words. A note the fetched card does carry always wins.
+ */
+function withNotesFrom(card: RateCard, bundled: RateCard | undefined): RateCard {
+	if (!bundled || card === bundled) {
+		return card;
+	}
+	const held = new Map(bundled.models.map(m => [`${slug(m.name)}|${m.variant}`, m.note]));
+	return {
+		...card,
+		models: card.models.map(m => {
+			const kept = m.note ?? held.get(`${slug(m.name)}|${m.variant}`);
+			return kept !== undefined ? { ...m, note: kept } : m;
+		})
 	};
 }
 
@@ -479,7 +497,8 @@ export function load(options: {
 				.map(parse)
 				.filter((c): c is RateCard => c !== undefined);
 			if (stored.length > 0 && typeof raw.fetchedAt === 'number') {
-				const cards = merge(bundled ? [bundled, ...stored] : stored);
+				const cards = merge(bundled ? [bundled, ...stored] : stored)
+					.map(c => withNotesFrom(c, bundled));
 				const current = effectiveAt(cards, now) ?? cards[cards.length - 1];
 				// Origin describes the card in force, not the set it came from.
 				// With history kept, a fetch can leave the bundled snapshot still

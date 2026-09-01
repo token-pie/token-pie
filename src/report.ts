@@ -2092,30 +2092,35 @@ const STYLES = `
 	/* An absent price is not zero and not a gap to skip: dimmed to the weight
 	   of punctuation so the column still reads as a column. */
 	.models td.dim:not([colspan]) { opacity: 0.45; }
-	/* What a model is for, opened from its own name.
+	/* What a model is for, opened from a question mark beside its name.
 
-	   Not the .hint bubble the rest of the page uses: that panel is absolutely
-	   positioned, and this table sits inside a sideways-scrolling wrapper, which
-	   clips it. So the disclosure opens in the flow of the cell and the rows
-	   below it move down. The whole name is the control rather than the marker
-	   alone -- at 300px a 14px target beside a wrapped model id is a miss. */
-	.models .about > summary { list-style: none; cursor: pointer; }
-	.models .about > summary::-webkit-details-marker { display: none; }
-	.models .about > summary:focus-visible {
-	    outline: 1px solid var(--vscode-focusBorder, #0078d4); outline-offset: 2px; }
-	/* Sits on the name's line, and stays on it: a marker torn onto its own line
-	   under a wrapped id reads as a bullet for the next row. */
-	.models .about .q { display: inline-block; margin-left: 7px;
+	   Not the .hint bubble the rest of the page uses. That panel is absolutely
+	   positioned, and this table sits inside a sideways-scrolling wrapper:
+	   overflow-x on a box makes its overflow-y a scroll container too, so the
+	   panel is cut off at the cell's edge and the note opens into a box it
+	   cannot be read out of. Verified in a browser, not assumed.
+
+	   So the body opens in the flow and the rows below it move down. A details
+	   element set to inline puts the marker on the name's line; its block child
+	   breaks
+	   out of that inline box and takes the full width of the cell, which is the
+	   whole reason the body is a block and not a span. */
+	.models .about { display: inline; }
+	.models .about > summary { display: inline-block; list-style: none;
+	    cursor: pointer; margin-left: 7px; vertical-align: 1px;
 	    width: 13px; height: 13px; border-radius: 50%;
 	    font-size: 0.58rem; line-height: 12px; text-align: center;
-	    font-weight: 700; font-style: italic; white-space: nowrap;
+	    font-weight: 700; white-space: nowrap;
 	    color: var(--vscode-descriptionForeground);
 	    border: 1px solid var(--vscode-descriptionForeground); }
-	.models .about > summary:hover .q, .models .about[open] .q {
+	.models .about > summary::-webkit-details-marker { display: none; }
+	.models .about > summary:hover, .models .about[open] > summary {
 	    color: var(--vscode-foreground); border-color: var(--vscode-foreground); }
+	.models .about > summary:focus-visible {
+	    outline: 1px solid var(--vscode-focusBorder, #0078d4); outline-offset: 2px; }
 	/* Lighter than the name it hangs under, so an open row still reads as one
 	   row with a name at the top of it rather than as two lines of equal claim. */
-	.models .about-body { margin: 5px 0 1px; font-weight: 400;
+	.models .about-body { display: block; margin: 5px 0 1px; font-weight: 400;
 	    font-size: 0.75rem; line-height: 1.5;
 	    color: var(--vscode-descriptionForeground); }
 	.models-rest { margin-top: 10px; }

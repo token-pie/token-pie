@@ -57,12 +57,9 @@ export interface ModelRow {
 	/**
 	 * What the vendor says the model is for, one line, from the card.
 	 *
-	 * Descriptive only: it says what a model is built for, never which one to
-	 * pick. The row already carries two prices and a measurement, and those are
-	 * the comparison; a sentence that ranked models would be a recommendation
-	 * wearing a price list's clothes. Default rows only -- a long context variant
-	 * is the same model at a different rate, and repeating its description under
-	 * a second heading says there are two models.
+	 * Default rows only: a long context variant is the same model at a different
+	 * rate, and repeating its description under a second heading says there are
+	 * two models.
 	 */
 	note?: string;
 	/**
@@ -323,18 +320,21 @@ export function renderModels(view: ModelsView): string {
 				: '<td class="num dim">&mdash;</td>';
 		const money = cell(r, 'input', r.cheapestInput) + cell(r, 'output', r.cheapestOutput)
 			+ cell(r, 'cacheRead') + cell(r, 'cacheWrite');
-		// The description opens in the row rather than over it. Every other
-		// explanation on this page is a floating bubble, but this table lives in a
-		// div that scrolls sideways, and an absolutely positioned panel inside a
-		// scroll container is clipped by it -- the note would have opened into a
-		// box it could not be read out of. Expanding the cell moves the rows
-		// below it, which is honest and costs nothing.
+		// A question mark opens it, and only the question mark: the name beside
+		// it stays ordinary selectable text, because a Foundry-prefixed id is
+		// fifty characters and copying it is the other thing anyone does here.
+		//
+		// The body opens in the row rather than over it. Every other explanation
+		// on this page floats, but this table sits in a div that scrolls
+		// sideways, and overflow-x on a box makes overflow-y a scroll container
+		// too -- an absolutely positioned panel inside one is cut off at the
+		// cell's edge. The marker is a real details; the body is a block child of
+		// an inline box, so it breaks out to the full width of the cell.
 		const name = `${escapeHtml(r.name)}${tag}`;
 		const model = r.note
-			? `<td class="model"><details class="about">
-					<summary>${name}<span class="q" aria-hidden="true">i</span></summary>
-					<p class="about-body">${escapeHtml(r.note)}</p>
-				</details></td>`
+			? `<td class="model">${name}<details class="about">` +
+				`<summary title="What this model is for">?</summary>` +
+				`<p class="about-body">${escapeHtml(r.note)}</p></details></td>`
 			: `<td class="model">${name}</td>`;
 		return `<tr class="${r.state}">${model}${money}${yours}</tr>`;
 	};
@@ -376,9 +376,8 @@ export function renderModels(view: ModelsView): string {
 				? `${fmtInt(view.notOffered)} further model${view.notOffered === 1 ? '' : 's'}
 				   are published but not offered to this account. `
 				: ''}${view.rows.some(r => r.note)
-				? `Open a model name for what its vendor says it is for, paraphrased
-				   from GitHub's model comparison page. Those lines are kept by hand
-				   and are not refreshed with the prices.`
+				? `The question mark beside a model says what its vendor says it is
+				   for. Those lines come from the price card and refresh with it.`
 				: ''}</p>
 	</section>`;
 }

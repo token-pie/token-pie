@@ -40,17 +40,16 @@ order the decision is made in.
 | your cost/message | rollups + solved | only when the gate is met; otherwise the reason |
 | context | LM API | max input tokens, when reported |
 
-Each name opens a one-line description of what the vendor says the model is
-for, kept in the rate card beside its prices and paraphrased from GitHub's
-model comparison page. It expands in the row rather than floating over it: the
-table sits inside a sideways-scrolling wrapper, and an absolutely positioned
-panel inside one is clipped by it. The whole name is the control, not the
-marker alone -- at 300px a 13px target beside a wrapped model id is a miss.
+A **question mark** beside each name opens a one-line description of what the
+vendor says the model is for, from GitHub's model comparison page. Only the
+marker is the control; the name stays ordinary selectable text, because a
+Foundry-prefixed id is fifty characters and copying it is the other thing
+anyone does in this column.
 
-Those lines are hand-kept and have no machine-readable source, so they do not
-refresh with the prices. The footer says so, because a description that has
-quietly gone stale beside a price that has not is the kind of half-fresh page
-this project keeps shipping.
+The descriptions live in the rate card beside the prices, so the existing
+refresh keeps them current -- there is no second thing to update. A fetched
+card that carries no descriptions keeps the ones already held rather than
+blanking them, so a source that improves the figures cannot lose the words.
 
 A model with a **long-context variant** shows both rows, marked, because the
 card holds both and the long tier is roughly double. Only the default row
@@ -117,14 +116,11 @@ data the view did not itself produce.
    which it has not until you send it anything. A ratio between two published
    prices is a fact about a price list, and two figures state it without a
    graphic pretending to measure.
-9. **A description describes, and nothing else.** Every note in the card is
-   checkable prose: no ranking word (*recommended*, *better than*, *instead
-   of*, *you should*), no comparative against another model, no second person,
-   at most two sentences and 110 characters. This is the one place on the page
-   where free text sits beside a price, and the column next to it is what does
-   the comparing. A test reads every note in `rate-card.json` and fails on any
-   that advises -- which is the only way a line written by hand months from now
-   is held to the rule.
+9. **A description is not lost by a refresh.** Notes are card data, so they
+   update with the card. A fetched card that omits them falls back to the ones
+   already held: a source that publishes better prices and no prose must not
+   blank the column. The test loads a stripped card over the bundled one and
+   fails if a description disappears.
 10. **The API's silence is a state.** If `selectChatModels` returns nothing —
    no consent, older VS Code, no Copilot — the view renders the card's models
    with an explicit "this is the published list, not your list" banner. It
@@ -147,6 +143,7 @@ the ones this view can reach, and each needs a fixture *before* the code:
   (the boundary either side)
 - a model the card describes and one it does not (an empty bubble promises an
   explanation that is not there, so a model with no note gets no marker)
+- a fetched card carrying no descriptions at all
 - every description open at once, at 320px and in both themes -- a closed
   `details` measures as nothing, so its text would never be contrast-checked
   and never collide with anything
@@ -160,8 +157,8 @@ the ones this view can reach, and each needs a fixture *before* the code:
   counterfactual token count this extension cannot honestly produce.
 - **No editorialising.** No "recommended" badge. Cheapest is not best, and the
   view has no way to know whether Luna could have done the work. The
-  descriptions are held to the same line by invariant 9: they say what a model
-  is built for, never which one to pick.
+  descriptions say what a model is for; they are the vendor's words, not a
+  ranking of them.
 
 ## Open questions
 
@@ -187,7 +184,7 @@ after you saw them:
 The staleness rule was itself wrong on first contact with real data, and is
 rewritten above with the reason left in place.
 
-Invariant 9 caught the fold's own test, which counted standing rows by
-splitting the page at the first `details` on it. Once every row hid a
-description behind its own name, that probe stopped at row one and reported a
-fold after a single model -- green code, broken measurement.
+Adding the descriptions caught the fold's own test, which counted standing
+rows by splitting the page at the first `details` on it. Once every row hid a
+description behind a marker, that probe stopped at row one and reported a fold
+after a single model -- green code, broken measurement.

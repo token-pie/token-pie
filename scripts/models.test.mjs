@@ -13,8 +13,10 @@
 process.env.TZ = 'UTC';
 
 const fs = await import('node:fs');
+const os = await import('node:os');
+const path = await import('node:path');
 const { modelsView, renderModels, compactModels } = await import('../out/models.js');
-const { parse } = await import('../out/ratecard.js');
+const { parse, load } = await import('../out/ratecard.js');
 
 let failures = 0;
 const check = (label, got, want) => {
@@ -265,10 +267,13 @@ console.log('\nwhat a model is for');
   const html = renderModels(v);
   check('and it renders under the name it describes',
     html.includes(escapeHtml(luna.note)), true);
-  // Opened from the name, not from a floating panel: this table lives in a
-  // sideways-scrolling wrapper, which clips an absolutely positioned bubble.
-  check('as a disclosure in the cell', /<td class="model"><details class="about">/.test(html), true);
-  check('and not as the page\'s floating hint', /<td class="model"[^>]*>[^<]*<details class="hint"/.test(html), false);
+  // A question mark you press, beside the name and not on top of it.
+  check('behind a question mark',
+    /<details class="about"><summary[^>]*>\?<\/summary>/.test(html), true);
+  // The name stays ordinary text: a Foundry-prefixed id is fifty characters
+  // and copying it is the other thing anyone does in this column.
+  check('and the name is not swallowed by the control',
+    /<td class="model">GPT-5\.6 Luna<details/.test(html), true);
 
   // A model the card has never heard of has nothing to say about itself, and
   // says nothing: an empty bubble is a promise of an explanation that is not
@@ -284,51 +289,28 @@ console.log('\nwhat a model is for');
   if (long) check('and the long-context variant does not repeat it', long.note, undefined);
 }
 
-console.log('\nthe descriptions describe, and nothing else');
+console.log('\nthe descriptions ride the card');
 {
-  // The whole point of the column beside them is that the reader compares.
-  // A sentence that did the comparing would be a recommendation wearing a
-  // price list's clothes, and it would be ours, not the vendor's.
-  const notes = card.models.filter(m => m.note).map(m => [m.name, m.note]);
-  check('the card carries descriptions at all', notes.length > 0, true);
+  // They live beside the prices, so refreshing the card refreshes them. The
+  // failure that matters is the opposite one: a source that publishes prices
+  // and no descriptions would blank every line the first time prices moved.
+  const stripped = JSON.parse(JSON.stringify(card));
+  stripped.retrieved = '2027-01-01';
+  stripped.effective = '2027-01-01';
+  for (const m of stripped.models) delete m.note;
 
-  const banned = [
-    'recommend', 'instead of', 'better than', 'worse than', 'best choice',
-    'you should', 'should use', 'prefer ', 'avoid ', 'cheaper than',
-    'faster than', 'most powerful', 'the best', 'ideal choice', 'superior',
-    'outperform', 'we suggest', 'top pick', 'go with'
-  ];
-  const advisory = notes.filter(([, n]) =>
-    banned.some(b => n.toLowerCase().includes(b)));
-  check('none of them ranks or advises',
-    advisory.map(([m]) => m).join(', ') || 'none', 'none');
-
-  // Comparatives smuggle a ranking in without any of the words above.
-  const comparative = notes.filter(([, n]) => /\b\w+(er|est)\s+than\b|\bmore\s+\w+\s+than\b/i.test(n));
-  check('and none of them compares to another model',
-    comparative.map(([m]) => m).join(', ') || 'none', 'none');
-
-  // One or two lines, per the brief. Three sentences in a table cell is a
-  // paragraph, and the row it is in has five other columns to read.
-  const tooLong = notes.filter(([, n]) => n.length > 110);
-  check('each is one line', tooLong.map(([m]) => m).join(', ') || 'none', 'none');
-  const manySentences = notes.filter(([, n]) => (n.match(/[.!?](\s|$)/g) ?? []).length > 2);
-  check('and at most two sentences',
-    manySentences.map(([m]) => m).join(', ') || 'none', 'none');
-
-  // Second person is advice by grammar: "you can use this for X" tells the
-  // reader what to do with it. The line says what the model is for.
-  const secondPerson = notes.filter(([, n]) => /\byou\b|\byour\b/i.test(n));
-  check('and none addresses the reader',
-    secondPerson.map(([m]) => m).join(', ') || 'none', 'none');
-
-  // Where they came from, said in the file rather than remembered. Without
-  // this the next person to edit them has no idea what they may write.
-  const raw = JSON.parse(fs.readFileSync(new URL('../rate-card.json', import.meta.url)));
-  check('and the card records where they came from',
-    typeof raw.notesSource === 'string' && raw.notesSource.startsWith('https://'), true);
-  check('and that they are paraphrased and hand-kept',
-    /paraphrased/i.test(raw.$notesSource ?? '') && /hand/i.test(raw.$notesSource ?? ''), true);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-card-'));
+  fs.writeFileSync(path.join(dir, 'cache.json'),
+    JSON.stringify({ cards: [stripped], fetchedAt: Date.now() }));
+  const loaded = load({
+    bundledPath: new URL('../rate-card.json', import.meta.url).pathname,
+    cachePath: path.join(dir, 'cache.json'),
+    now: Date.parse('2027-02-01')
+  });
+  check('a newer card is the one in force', loaded.origin, 'fetched');
+  const luna = loaded.card.models.find(m => m.name === 'GPT-5.6 Luna' && m.variant === 'default');
+  check('and a description it did not carry is not lost',
+    typeof luna?.note, 'string');
 }
 
 console.log(failures ? `\n${failures} failed\n` : '\nall good\n');

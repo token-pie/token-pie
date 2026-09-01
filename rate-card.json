@@ -386,5 +386,5 @@
     }
   ],
   "notesSource": "https://docs.github.com/en/copilot/reference/ai-models/model-comparison",
-  "$notesSource": "What each model is for, paraphrased from GitHub's model comparison page rather than copied from it. Descriptive only: a note says what a model is built for and never which one to pick. Hand-maintained, and no fresher than `retrieved` -- the page is HTML with no machine-readable form."
+  "$notesSource": "What each model is for, from GitHub's model comparison page. One line per model, carried beside its prices so a card refresh brings new descriptions along with new figures."
 }
