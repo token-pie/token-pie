@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 - 2026-09-01
+
+### Fixed
+
+- a model id wraps rather than running into the next column
+
+
 ## 0.8.0 - 2026-09-01
 
 A new section on the panel and in the sidebar: **what you can pick, and what
