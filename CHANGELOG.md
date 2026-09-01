@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.9 - 2026-09-01
+
+### Fixed
+
+- say what the figures count, where they are read
+
+
 ## 0.7.8 - 2026-09-01
 
 ### Fixed
