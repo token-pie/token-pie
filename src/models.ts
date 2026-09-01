@@ -267,7 +267,7 @@ const num = (n: number) => n >= 100 ? fmtInt(n) : String(Math.round(n * 10) / 10
 function cell(r: ModelRow, key: keyof Rates, cheapest?: boolean): string {
 	const v = r.rates?.[key];
 	if (v === undefined) {
-		return '<td class="dim">&mdash;</td>';
+		return '<td class="num dim">&mdash;</td>';
 	}
 	return `<td class="num${cheapest ? ' best' : ''}">${num(v)}</td>`;
 }
@@ -284,7 +284,7 @@ export function renderModels(view: ModelsView): string {
 				: escapeHtml(r.name);
 		const yours = r.measured !== undefined
 			? `<td class="num">${fmtCredits(r.measured)}</td>`
-			: `<td class="dim">${escapeHtml(r.shortfall ?? '')}</td>`;
+			: `<td class="num dim gate">${escapeHtml(r.shortfall ?? '')}</td>`;
 		const money = r.state === 'unpriced'
 			? '<td class="dim" colspan="4">not in the published card</td>'
 			: cell(r, 'input', r.cheapestInput) + cell(r, 'output', r.cheapestOutput)
@@ -292,13 +292,20 @@ export function renderModels(view: ModelsView): string {
 		return `<tr class="${r.state}"><td class="model">${label}</td>${money}${yours}</tr>`;
 	};
 
+	const cols = `<colgroup>
+			<col class="c-model"><col class="c-num"><col class="c-num">
+			<col class="c-num"><col class="c-num"><col class="c-gate">
+		</colgroup>`;
 	const head = `<thead><tr>
 			<th>MODEL</th><th class="num">INPUT</th><th class="num">OUTPUT</th>
 			<th class="num">CACHE READ</th><th class="num">CACHE WRITE</th>
 			<th class="num">YOUR COST/MESSAGE</th>
 		</tr></thead>`;
-	const table = (rows: ModelRow[]) =>
-		`<div class="tw"><table>${head}<tbody>${rows.map(row).join('')}</tbody></table></div>`;
+	// The folded table repeats the geometry but not the header: a second row of
+	// column names inside the fold read as a second table, which is what it was.
+	const table = (rows: ModelRow[], withHead: boolean) =>
+		`<div class="tw"><table class="${withHead ? '' : 'fold'}">${cols}${withHead ? head : ''}` +
+		`<tbody>${rows.map(row).join('')}</tbody></table></div>`;
 
 	// Cheapest first, so the rows that fold away are the ones a decision
 	// rarely reaches for. The same `details` the findings use, rather than a
@@ -310,10 +317,10 @@ export function renderModels(view: ModelsView): string {
 		<h2>What you can pick</h2>
 		${view.banner ? `<p class="note">${escapeHtml(view.banner)}</p>` : ''}
 		${view.stale ? `<p class="note">${escapeHtml(view.stale)}</p>` : ''}
-		${table(shown)}
+		${table(shown, true)}
 		${rest.length > 0 ? `<details class="detail models-rest">
 			<summary>${fmtInt(rest.length)} more</summary>
-			<div class="detail-body">${table(rest)}</div>
+			<div class="detail-body">${table(rest, false)}</div>
 		</details>` : ''}
 		<p class="foot">Credits per 1M tokens, from the published card.
 			Your cost per message is measured from what you were billed.

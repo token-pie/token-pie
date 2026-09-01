@@ -2038,14 +2038,31 @@ const STYLES = `
 	   column rather than across a grid. */
 	.models { margin-top: 26px; }
 	.models table { min-width: 430px; }
-	.models th { padding-bottom: 8px; white-space: nowrap; }
-	.models td { border-bottom: none; padding: 7px 0 7px 14px; }
-	.models td:first-child { padding-left: 10px; }
+	/* One geometry for both tables. Without fixed widths the folded rows sized
+	   themselves independently and no column lined up across the fold. */
+	.models table { table-layout: fixed; }
+	.models .c-model { width: 29%; }
+	.models .c-num { width: 12.5%; }
+	.models .c-gate { width: 21%; }
+	/* Header and cell share their padding, or every label sits 10px off the
+	   figures beneath it -- which is what the inherited th rule did. */
+	.models th, .models td { padding: 7px 2px 7px 14px; }
+	.models th { padding-top: 0; padding-bottom: 9px; white-space: nowrap;
+	             overflow: hidden; text-overflow: ellipsis; }
+	.models th:first-child, .models td:first-child { padding-left: 10px; }
+	.models td { border-bottom: none; }
 	.models tbody tr:nth-child(odd) {
 	    background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.06)); }
+	/* Seven rows stand, so the fold opens on an even one. Without this the
+	   banding restarted and two shaded rows met across the boundary. */
+	.models table.fold tbody tr:nth-child(odd) { background: none; }
+	.models table.fold tbody tr:nth-child(even) {
+	    background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.06)); }
 	.models td.model { font-weight: 500; white-space: nowrap; }
-	.models td.num { padding-right: 2px; }
 	.models td.dim { font-size: 0.78rem; }
+	/* The gate text is prose in a numeric column; sized down and right-set so
+	   the column still scans as one edge. */
+	.models td.gate { font-size: 0.75rem; white-space: nowrap; }
 	/* An absent price is not zero and not a gap to skip: dimmed to the weight
 	   of punctuation so the column still reads as a column. */
 	.models td.dim:not([colspan]) { opacity: 0.45; }
