@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2 - 2026-09-01
+
+### Added
+
+- ten models stand before the fold
+
+
 ## 0.8.1 - 2026-09-01
 
 ### Fixed
