@@ -89,6 +89,10 @@ const DELIBERATELY_TIGHT = new Map([
   ['div.fig.t-near->div.line.dim', 'the same pair, coloured by the day\'s pressure'],
   ['div.fig.t-over->div.line.dim', 'and the same pair over budget'],
   ['div.line->div.bar', 'the caption labels the bar beneath it'],
+  // A model and what it is to you are one reading, set as two lines because
+  // 300px will not hold them side by side.
+  ['div.mname->div.mrole.best', 'the model and its role are one reading'],
+  ['div.mname->div.mrole.yours', 'and the same for the one you use most'],
   ['span.pv->span.pk', "a pace figure and its label are one reading"],
   ['div.pd-head->div.pd-plot', 'the caption labels the strip beneath it'],
   ['div.bar->div.line.dim', 'and the footnote labels the same bar'],

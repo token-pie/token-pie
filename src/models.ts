@@ -385,11 +385,18 @@ export function compactModels(view: ModelsView, rollups: Rollup[],
 		rows.push([mine, 'you use most']);
 	}
 
+	// The role goes under the name rather than beside it: at 300px it competed
+	// with the name for the same line and both had to be truncated. The rates
+	// are centred against the two-line block, not baselined to its first line,
+	// which would sit them high and read as belonging to the name alone.
 	const line = ([r, role]: [ModelRow, string]) => `<div class="mrow">
-		<span class="mname">${escapeHtml(r.name)}</span>
-		<span class="mrole">${escapeHtml(role)}</span>
-		<span class="mrate">${num(r.rates!.input)}<span class="msep">/</span>${
-			num(r.rates!.output)}</span>
+		<div class="mid">
+			<div class="mname">${escapeHtml(r.name)}</div>
+			<div class="mrole ${role === 'cheapest' ? 'best' : 'yours'}">${
+				escapeHtml(role)}</div>
+		</div>
+		<div class="mrate">${num(r.rates!.input)}<span class="msep">/</span>${
+			num(r.rates!.output)}</div>
 	</div>`;
 
 	return `<div class="sec models">

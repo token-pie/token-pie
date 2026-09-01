@@ -170,23 +170,28 @@ const STYLES = `
 	   the 3:1 large-text bar by a hair, and the same state reads orange in the
 	   panel's hero, where yellow could not clear it at all. One colour for one
 	   meaning, at 4.0:1 in both themes. */
-	/* One line per model: name, role, rates. No bar -- every other bar in this
-	   column is spend against a quota, and a price ratio drawn the same way
-	   says a model is consuming something it has not consumed. */
-	.mrow { display: flex; align-items: baseline; gap: 8px;
-	        font-size: 0.78rem; line-height: 1.9; }
-	.mname { font-weight: 600; white-space: nowrap; overflow: hidden;
-	         text-overflow: ellipsis; }
-	.mrole { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em;
-	         color: var(--vscode-descriptionForeground); white-space: nowrap;
-	         flex: 1 1 auto; }
+	/* Name over role on the left, rates on the right. No bar -- every other bar
+	   in this column is spend against a quota, and a price ratio drawn the same
+	   way says a model is consuming something it has not consumed.
+
+	   align-items: center, so the rates sit against the middle of the two-line
+	   block. Baselined to the first line they read as belonging to the name and
+	   leave the role hanging under nothing. */
+	.mrow { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+	.mid { min-width: 0; }
+	.mname { font-size: 0.8rem; font-weight: 600; line-height: 1.35;
+	         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.mrole { font-size: 0.68rem; line-height: 1.35; letter-spacing: 0.02em; }
+	/* The cheapest is the one worth noticing, so it takes the link colour a
+	   theme contrast-checks; the other is a plain fact and stays neutral. */
+	.mrole.best { color: var(--vscode-textLink-foreground, #4daafc); }
+	.mrole.yours { color: var(--vscode-descriptionForeground); }
 	/* Tabular, so the digits of one model sit under the digits of the other. */
-	.mrate { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums;
-	         font-weight: 600; }
+	.mrate { margin-left: auto; white-space: nowrap; font-size: 0.82rem;
+	         font-variant-numeric: tabular-nums; font-weight: 600; }
 	.msep { color: var(--vscode-descriptionForeground); font-weight: 400;
 	        margin: 0 3px; }
-	/* The heading is a heading, not the first line of the list. */
-	.models .wk-head { margin-bottom: 9px; }
+	.models .wk-head { margin-bottom: 4px; }
 	.t-near .n { color: var(--vscode-charts-orange, #bf6a02); }
 	.t-over .n { color: var(--vscode-errorForeground, #f14c4c); }
 	.line { font-size: 0.78rem; line-height: 1.5; }
