@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.7 - 2026-09-01
+
+### Fixed
+
+- the role goes under the name, and the rates sit against both lines
+
+
 ## 0.7.6 - 2026-09-01
 
 ### Fixed
