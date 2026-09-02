@@ -176,6 +176,18 @@ export const KNOBS: Knob[] = [
 			'true, so the label says neither.'
 	},
 	{
+		id: 'projection.minDaysForVerdict',
+		kind: 'evidence', default: 3, min: 0, unit: 'days',
+		gates: 'How much of a period must have run before a burn rate may take over '
+			+ 'the headline and turn the card red.',
+		basis: 'judged',
+		why: 'Separate from minDaysForRate, which only asks whether a rate exists at '
+			+ 'all. Two busy afternoons at the start of a month is 5% of the period, '
+			+ 'and projecting it across the other 95% produced "9.0 days left" in red '
+			+ 'over an allowance that was 86% intact. The projection still draws on '
+			+ 'the meter the whole time; this only governs whether it leads.'
+	},
+	{
 		id: 'projection.tightDaysMargin',
 		setting: 'warnAtDaysLeft',
 		kind: 'wording', default: 2, min: 0, unit: 'days',
@@ -247,7 +259,8 @@ export interface Tuning {
 		minShareOfAllowance: number; minCacheFactor: number; autoDominantShare: number;
 	};
 	report: { minBucketRequests: number; minPricedShare: number; cacheWriteDominant: number };
-	projection: { minDaysForRate: number; tightDaysMargin: number;
+	projection: { minDaysForRate: number; minDaysForVerdict: number;
+		tightDaysMargin: number;
 		dailyBudgetPercent: number; dailyWarnShare: number };
 	reconcile: { roundingSlack: number; relativeTolerance: number; minRecordedShare: number };
 	history: { days: number };

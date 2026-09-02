@@ -362,7 +362,12 @@ check('no script tags in webview', /<script/i.test(html), false);
     .map(m => [Number(m[1]), Number(m[2])]);
   check('cost per message is per conversation, not pooled',
     JSON.stringify(each), JSON.stringify([[10, 2.00], [4, 1.00]]));
-  check('dearest first', convHtml.indexOf('20.00') < convHtml.indexOf('4.00'), true);
+  // Scoped to the table it is about. A bare indexOf over the whole document
+  // reads prose, headings and HTML comments as if they were cells: this last
+  // matched "4.00" inside an example figure in a comment near the top of the
+  // page and reported the rows out of order while they were in order.
+  const convTable = convHtml.slice(convHtml.indexOf('<th>By conversation</th>'));
+  check('dearest first', convTable.indexOf('20.00') < convTable.indexOf('4.00'), true);
 
   // One conversation is not a comparison, and the comparison is the point.
   const single = renderReport({

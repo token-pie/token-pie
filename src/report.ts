@@ -1,7 +1,7 @@
 import { Rollup, Totals, DepthStats, ConversationStats, DEPTH_BUCKETS, groupBy, sum, dayStartMs } from './store';
 import { Projection } from './projection';
 import { PeriodCoverage, periodCoverage, conversionConfidence, resetInstantFrom } from './reconcile';
-import { dayPressure } from './projection';
+import { dayPressure, pctText } from './projection';
 import { bareModel, modelKey } from './ratecard';
 import { Tuning, defaults } from './tuning';
 import { Advice, advise, selectionMix } from './advice';
@@ -1144,6 +1144,15 @@ ${STYLES}
 		</div>
 	</section>
 
+	<!-- Beside the meter, not under a table. This sentence is the only thing on
+	     the page that reconciles GitHub's figure against this machine's, and it
+	     used to render inside the breakdown body several screens down -- so the
+	     card could show a day larger than the month containing it with the
+	     explanation out of sight. Two numbers that disagree have to be argued
+	     with where they are read. (No worked figures in shipped comments: they
+	     land in the DOM, where a test looking for one found this instead.) -->
+	${coverageLine(periodFit)}
+
 	${input.modelsHtml ?? ''}
 
 	${warnings}
@@ -1165,8 +1174,6 @@ ${STYLES}
 			${fmtInt(totals.requests)} message${totals.requests === 1 ? '' : 's'}${
 			hasMeter ? '' : creditHint(tuning.history.days)}</summary>
 		<div class="detail-body">
-
-		${coverageLine(periodFit)}
 
 		${sourceNote(rollups, creditsPerNanoAiu)}
 
@@ -1458,7 +1465,7 @@ function heroFigure(p: Projection, totalCredits: number): string {
 		case 'ok':
 		case 'no-rate':
 			return p.percentRemaining !== undefined
-				? `<div class="hero">${Math.round(p.percentRemaining)}<span class="unit">% left this month</span></div>`
+				? `<div class="hero">${pctText(p.percentRemaining)}<span class="unit">% left this month</span></div>`
 				: `<div class="hero">${fmtCredits(totalCredits)}<span class="unit">credits</span></div>`;
 		default:
 			return `<div class="hero">${fmtCredits(totalCredits)}<span class="unit">credits spent</span></div>`;

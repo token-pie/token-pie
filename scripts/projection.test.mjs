@@ -264,6 +264,45 @@ console.log('\nthe day is differenced from the month');
   check('an empty span table no longer reads as a quiet day', blind.todayCredits, 75);
 }
 
+console.log('\na young period does not get to shout');
+{
+  // Two busy afternoons at the start of a month. The rate is real, the
+  // projection is real, and extrapolating 5% of a period across the other 95%
+  // turned the whole card red and replaced "% left this month" with a
+  // days-left countdown, over an allowance still 86% intact.
+  const t = defaults();
+  const ent = (used, remaining) => ({
+    resetDate: '2026-10-01',
+    snapshots: [{ name: 'premium_interactions', entitlement: 7700, remaining,
+      remainingExact: remaining, creditsUsed: used, hasQuota: true,
+      percentRemaining: (remaining / 7700) * 100 }],
+    organizations: [], raw: {}
+  });
+  const at = iso => Date.parse(iso);
+
+  const young = project(ent(1054, 6646), [], 1e-9, at('2026-09-02T10:13:00Z'), t);
+  check('a day and a half in, the headline stays on the allowance',
+    young.verdict, 'ok');
+  // The warning is not withheld, only demoted: the meter draws its overshoot
+  // from these, so the card still shows where the pace lands.
+  check('but the rate is still measured', Math.round(young.burnPerDay), 739);
+  check('and the projection still reaches the meter',
+    young.daysToExhaust !== undefined && young.daysToExhaust < 10, true);
+
+  // Same pace, enough of the period behind it to mean something.
+  const settled = project(ent(2956, 4744), [], 1e-9, at('2026-09-04T18:30:00Z'), t);
+  check('once the period has run, the same pace does escalate',
+    settled.verdict, 'will-exhaust');
+
+  // Confidence is only worth waiting for while there is time to be wrong in.
+  const nearlyOut = project(ent(7300, 400), [], 1e-9, at('2026-09-02T10:13:00Z'), t);
+  check('an allowance about to run out is not made to wait for proof',
+    nearlyOut.verdict, 'will-exhaust');
+
+  const gentle = project(ent(400, 7300), [], 1e-9, at('2026-09-04T18:30:00Z'), t);
+  check('and a sustainable pace stays quiet', gentle.verdict, 'ok');
+}
+
 console.log('\nthe pace is billed spend over the period, not measured spend');
 {
   // The panel that prompted this: GitHub had billed 692 credits since 1 Aug

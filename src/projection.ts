@@ -117,6 +117,24 @@ function dayKeyOf(now: number): string {
 		`-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * A percentage that never claims a boundary it has not reached.
+ *
+ * 7,687.10 of 7,700 left is 99.83%, and rounding put "100 % left this month"
+ * over a meter that had already moved -- the same lie as "0% used today" told
+ * from the other end. Rounded toward the interior: a period with anything
+ * spent cannot read 100, and one with anything left cannot read 0.
+ */
+export function pctText(percent: number): string {
+	if (percent > 99 && percent < 100) {
+		return String(Math.floor(percent));
+	}
+	if (percent > 0 && percent < 1) {
+		return String(Math.ceil(percent));
+	}
+	return String(Math.round(percent));
+}
+
 export function project(
 	entitlement: Entitlement | undefined,
 	rollups: Rollup[],
@@ -254,8 +272,29 @@ export function project(
 	base.daysToExhaust = daysToExhaust;
 	base.exhaustDate = new Date(now + daysToExhaust * 86_400_000);
 
+	// A rate existing is not the same as a rate worth leading with.
+	//
+	// The headline, the colour of the whole card and the status bar all follow
+	// the verdict, so escalating it hands a few hours of work the loudest
+	// surface there is. Two busy afternoons at the start of a period is 5% of
+	// it, and extrapolating that over the other 95% read "9.0 days left" in red
+	// against an allowance still 86% intact.
+	//
+	// The exception is an allowance genuinely about to run out. Confidence is
+	// only worth waiting for while there is time to be wrong in: inside the
+	// warning margin the shortfall is no longer a forecast, so a young period
+	// is not a reason to keep quiet.
+	const imminent = daysToExhaust < tuning.projection.tightDaysMargin;
+	if (rate.days < tuning.projection.minDaysForVerdict && !imminent) {
+		// `ok` governs the headline only. burnPerDay and daysToExhaust are set
+		// above and the meter still draws the projected overshoot from them, so
+		// the warning is on the card the whole time -- it just is not shouted.
+		base.verdict = 'ok';
+		return base;
+	}
+
 	if (daysToReset === undefined) {
-		base.verdict = daysToExhaust < tuning.projection.tightDaysMargin ? 'will-exhaust' : 'ok';
+		base.verdict = imminent ? 'will-exhaust' : 'ok';
 		return base;
 	}
 	if (daysToExhaust < daysToReset) {
@@ -409,11 +448,11 @@ export function statusLabel(p: Projection): string {
 		// matches them.
 		case 'ok':
 			return p.percentRemaining !== undefined
-				? `${Math.round(p.percentRemaining)}% left`
+				? `${pctText(p.percentRemaining)}% left`
 				: `${fmtDays(p.daysToExhaust)} left`;
 		case 'no-rate':
 			return p.percentRemaining !== undefined
-				? `${Math.round(p.percentRemaining)}% left`
+				? `${pctText(p.percentRemaining)}% left`
 				: '--';
 		default:
 			return '--';

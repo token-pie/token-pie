@@ -221,5 +221,45 @@ console.log('\nevery headline figure survives a silent exporter');
   }
 }
 
+console.log('\nwhen the two sources disagree, the panel says so where they are read');
+{
+  // The screenshot that prompted this: 12.90 of 7,700 used this month, and
+  // 84.00 used today. A day cannot be larger than the month containing it.
+  // The panel already knew -- periodCoverage returns "over" and names the
+  // likely cause -- but rendered that sentence inside the breakdown body,
+  // below the models table and several screens down from the two figures it
+  // reconciles.
+  const html = renderReport({
+    rollups: [freeSpan({ day: TODAY, nanoAiu: 84e9, requests: 12 })],
+    creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(), costCoverage: 1,
+    warnings: [], prices: {}, depth: {},
+    entitlement: billing(7700, 7687.1),
+    // The trace database has been running since well before the period, so
+    // the "only recording for N of M days" escape does not apply: this is a
+    // genuine disagreement between two sources, not a coverage gap.
+    history: { traceStartDay: day(NOW - 20 * 86400000), transcriptStartDay: undefined },
+    projection: {
+      verdict: 'ok', quotaId: 'premium_interactions', entitlement: 7700,
+      remaining: 7687.1, percentRemaining: 99.83, creditsUsed: 12.9,
+      resetDate: day(NOW + 30 * 86400000),
+      daysToReset: 30, sustainableDailyBurn: 256, todayCredits: 84
+    }
+  });
+
+  const reconciliation = html.indexOf('over the same days');
+  const breakdown = html.indexOf('Where the credits went');
+  check('the disagreement is reported at all', reconciliation > -1, true);
+  check('and before the breakdown it used to hide in',
+    reconciliation > -1 && reconciliation < breakdown, true);
+
+  // 7,687.10 of 7,700 is 99.83% left. Rounded, that read "100 % left this
+  // month" over a meter that had already moved -- "0% used today" told from
+  // the other end.
+  check('a period with spend on it never reads 100% left',
+    /<div class="hero">100<span class="unit">% left this month/.test(html), false);
+  check('it reads the percentage it actually is',
+    /<div class="hero">99<span class="unit">% left this month/.test(html), true);
+}
+
 console.log(failures ? `\n${failures} failed\n` : '\nall good\n');
 process.exit(failures ? 1 : 0);
