@@ -1374,9 +1374,22 @@ function dayFigure(p: Projection, tuning: Tuning): string {
 		</div>`;
 	}
 	const pct = Math.round(p.todayShare * 100);
-	// The overflow is drawn in the same track rather than a longer one: the
-	// track is the budget, so a full bar is exactly the point it was spent.
-	const fill = Math.min(100, pct);
+	// Past the budget the track rescales to the spend and the budget becomes a
+	// line on it -- the same move the month meter makes when the projection
+	// runs off the end, so the two bars on this card speak one language.
+	//
+	// It used to clamp the fill at 100%, which drew 151% and 500% as the same
+	// full bar: the figure above carried the whole difference and the graphic
+	// carried none of it. Rescaled, the marker slides left as the overshoot
+	// grows, so how far past is legible without reading the number.
+	const spent = p.todayCredits ?? 0;
+	const over = spent > p.todayBudget;
+	const scaleMax = over ? spent : p.todayBudget;
+	const fill = scaleMax > 0 ? Math.min(100, (spent / scaleMax) * 100) : 0;
+	const mark = over && scaleMax > 0
+		? `<span class="day-limit" style="left:${((p.todayBudget / scaleMax) * 100).toFixed(2)}%"
+		     title="budget: ${escapeHtml(fmtCredits(p.todayBudget))} credits"></span>`
+		: '';
 	// Where the denominator came from, because it is two different numbers.
 	// Unset, it is what remains over the days left -- derived, and calling that
 	// "budgeted" would credit the reader with a decision the code made. Set, it
@@ -1385,7 +1398,8 @@ function dayFigure(p: Projection, tuning: Tuning): string {
 	const source = set ? 'your daily budget' : 'your pace to reset';
 	return `<div class="day day-${pressure}">
 		<div class="day-v">${pct}<span class="unit">% used today</span></div>
-		<div class="day-track"><span class="day-fill" style="width:${fill}%"></span></div>
+		<div class="day-track"><span class="day-fill"
+			style="width:${fill.toFixed(2)}%"></span>${mark}</div>
 		<div class="day-k"><span>${fmtCredits(p.todayCredits ?? 0)} of
 			${fmtCredits(p.todayBudget)} credits<br>${source}</span>${budgetHint(p, tuning)}</div>
 	</div>`;
@@ -1800,8 +1814,16 @@ const STYLES = `
 	         color: var(--vscode-foreground); }
 	.day-v .unit { font-size: 0.78rem; font-weight: 500; margin-left: 5px;
 	               color: var(--vscode-descriptionForeground); }
-	.day-track { height: 4px; border-radius: 2px; margin: 8px 0;
+	.day-track { position: relative; height: 4px; border-radius: 2px; margin: 8px 0;
 	             background: var(--vscode-editorWidget-border, #8884); overflow: hidden; }
+	/* Where the budget fell, once the track is measuring the spend instead.
+	   The month meter draws its allowance line proud of the track; this one
+	   cannot, because the track clips to keep the fill's rounded ends. Cut as a
+	   notch in the fill instead -- the marker only ever appears on a full bar,
+	   so a gap in it reads at 4px where a line on top of it did not, and it
+	   says the same thing: budget to the left, overspend to the right. */
+	.day-limit { position: absolute; top: -1px; bottom: -1px; width: 2px;
+	             background: var(--vscode-editor-background, #1f1f1f); }
 	.day-fill { display: block; height: 100%; background: var(--day-hue); }
 	/* The marker sits against the caption it explains. On a line of its own it
 	   read as an orphan and cost the card a row. */

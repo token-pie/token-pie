@@ -261,5 +261,50 @@ console.log('\nwhen the two sources disagree, the panel says so where they are r
     /<div class="hero">99<span class="unit">% left this month/.test(html), true);
 }
 
+console.log('\nan overspent day says how far past, not just that it is past');
+{
+  // The figure went over 100 and the bar could not: it clamped, so 150% and
+  // 300% drew the same full track. The number carried the whole difference and
+  // the graphic carried none of it.
+  const day = (spent, budget) => {
+    const html = renderReport({
+      rollups: [], creditsPerNanoAiu: 1e-9, dbCount: 1, lastRefresh: new Date(),
+      costCoverage: 1, warnings: [], prices: {}, depth: {},
+      projection: {
+        verdict: 'ok', quotaId: 'premium_interactions', entitlement: 7700,
+        remaining: 6646, percentRemaining: 86.3, creditsUsed: 1054, daysToReset: 29,
+        sustainableDailyBurn: 229,
+        todayCredits: spent, todayBudget: budget, todayShare: spent / budget
+      }
+    });
+    return {
+      pct: Number((html.match(/day-v">(\d+)<span class="unit">% used today/) || [])[1]),
+      fill: Number((html.match(/day-fill"\s*\n?\s*style="width:([\d.]+)%/) || [])[1]),
+      mark: (html.match(/day-limit" style="left:([\d.]+)%/) || [])[1]
+    };
+  };
+
+  const under = day(100, 242);
+  check('under budget the track is still the budget', Math.round(under.fill), 41);
+  check('and there is no budget marker to draw', under.mark, undefined);
+
+  const at = day(242, 242);
+  check('spent exactly, the bar is full', Math.round(at.fill), 100);
+  check('and still no marker, because nothing overshot', at.mark, undefined);
+
+  const over = day(364, 242);
+  check('past it, the figure still says how far past', over.pct, 150);
+  check('and the track rescales to the spend', Math.round(over.fill), 100);
+  check('with the budget marked where it fell', Math.round(Number(over.mark)), 66);
+
+  // The point of the whole change: two different overshoots must not draw the
+  // same picture.
+  const far = day(726, 242);
+  check('a worse day marks the budget further left',
+    Math.round(Number(far.mark)), 33);
+  check('so the two overshoots do not look identical',
+    over.mark === far.mark, false);
+}
+
 console.log(failures ? `\n${failures} failed\n` : '\nall good\n');
 process.exit(failures ? 1 : 0);
