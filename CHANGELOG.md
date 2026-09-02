@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.10.1 - 2026-09-02
+
+Four corrections, all of them the panel stating something it could not
+support.
+
+It told an account that had only ever used chat in one editor that most of a
+month's credits "went somewhere it cannot see -- another machine, another
+editor, the CLI, or github.com", while the chart above said every one of those
+credits fell on days it was watching. Underneath that sat a date comparison
+that dropped the first day of every billing period east of UTC, which is where
+most of the missing spend went. It now says what is true: all of it was seen
+here, this much could be pinned to individual messages, and Copilot recorded
+no cost for the rest.
+
+Two busy afternoons at the start of a month no longer turn the whole card red
+with a days-left countdown. The burn rate is still measured and the meter
+still draws where it lands; it just does not get the headline on a day and a
+half of evidence.
+
+A day past its budget now shows how far past. The bar clamped at 100%, so
+151% and 300% drew the same full track; the budget is now marked on it and
+slides as the overshoot grows.
+
+And Auto is listed as what it is -- a picker that bills at whatever model it
+chooses -- rather than a model the rate card had failed to price.
+
+### Fixed
+
+- **models:** auto is a picker, not a model the card forgot to price
+- **projection:** a young period does not get to take over the card
+- **report:** an overspent day shows how far past it went
+- **reconcile:** a shortfall this machine watched is not spend elsewhere
+
+
 ## 0.10.0 - 2026-09-01
 
 The calendar bar under the pace tiles is back. On the first day of a billing
