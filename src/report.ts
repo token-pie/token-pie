@@ -1074,6 +1074,11 @@ export function renderReport(input: ReportInput): string {
 		traceStartMs: input.history?.traceStartDay !== undefined
 			? dayStartMs(input.history.traceStartDay)
 			: undefined,
+		// Not merged into creditsByDay above: this is GitHub's figure, and
+		// comparing it with itself would agree by construction. It answers the
+		// separate question of whether this machine was here while the quota
+		// moved.
+		billedByDay: input.billedDays,
 		tuning
 	});
 
@@ -1312,6 +1317,13 @@ function coverageLine(c: PeriodCoverage | undefined): string {
 				${fmtCreditsWith(c.unaccounted)} went somewhere it cannot see &mdash;
 				another machine, another editor, the CLI, or github.com.
 				Everything below covers only what happened here.</p>`;
+		case 'unattributed':
+			return `<p class="note">${billed}, and all of it on days this machine was
+				watching. It could attribute <strong>${fmtCredits(c.localCredits)}</strong>
+				of that to particular messages; Copilot recorded no cost for the rest.
+				Nothing here went to another machine &mdash; the gap is cost this
+				install never saw written down, so the breakdown below understates
+				rather than misses.</p>`;
 		case 'over':
 			return `<div class="warn"><div>${billed}, but this machine measured
 				${fmtCreditsWith(c.localCredits)} over the same days. The credit

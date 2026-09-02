@@ -196,7 +196,16 @@ export interface PeriodCoverage {
 	unaccounted: number;
 	/** Fraction of GitHub's figure this machine explains. */
 	share?: number;
-	verdict: 'complete' | 'partial' | 'over' | 'inconclusive';
+	/**
+	 * GitHub's own billing, per day, for the days of this period it holds.
+	 *
+	 * Different evidence from `localCredits`: those are credits attributed to
+	 * particular messages, this is the quota total moving. When it accounts for
+	 * the period, every credit was spent on a day this machine was watching --
+	 * whatever the message-level attribution managed to explain.
+	 */
+	billedInPeriod?: number;
+	verdict: 'complete' | 'partial' | 'unattributed' | 'over' | 'inconclusive';
 	note: string;
 }
 
@@ -241,6 +250,16 @@ export function periodCoverage(input: {
 	creditsByDay: Map<string, { credits: number; requests: number }>;
 	/** When the trace database starts, epoch ms. Absent means nothing measured. */
 	traceStartMs?: number;
+	/**
+	 * GitHub's running total differenced per day, from the store.
+	 *
+	 * Deliberately not folded into `creditsByDay`: comparing GitHub's figure
+	 * against a copy of itself would agree by construction and prove nothing.
+	 * It is used only to answer a different question -- was this machine here
+	 * while the quota moved -- which decides whether a shortfall is spend
+	 * elsewhere or cost this machine failed to attribute.
+	 */
+	billedByDay?: Map<string, number>;
 	now?: number;
 	tuning?: Tuning;
 }): PeriodCoverage | undefined {
@@ -256,12 +275,22 @@ export function periodCoverage(input: {
 	}
 
 	const days = [...creditsByDay.entries()]
-		.map(([day, v]) => ({ at: dayMs(day), ...v }))
+		.map(([day, v]) => ({ day, at: dayMs(day), ...v }))
 		.filter(d => Number.isFinite(d.at))
 		.sort((a, b) => a.at - b.at);
 	const historyStart = days.length > 0 ? days[0].at : undefined;
 
-	const inPeriod = days.filter(d => d.at >= periodStart);
+	// Calendar dates compared as calendar dates.
+	//
+	// A day key is local midnight; a period start is UTC midnight, built from a
+	// bare YYYY-MM-DD reset date that carries no zone at all. Comparing them as
+	// instants meant that east of UTC the period's own first day landed before
+	// its start and was dropped -- in IST, 05-30 short of it -- so the busiest
+	// day of a fresh period was excluded from what this machine could account
+	// for, and the shortfall was reported as spend on another machine.
+	const periodStartDay = new Date(periodStart).toISOString().slice(0, 10);
+
+	const inPeriod = days.filter(d => d.day >= periodStartDay);
 	const localCredits = inPeriod.reduce((n, d) => n + d.credits, 0);
 	const localRequests = inPeriod.reduce((n, d) => n + d.requests, 0);
 	const unaccounted = githubCredits - localCredits;
@@ -294,6 +323,11 @@ export function periodCoverage(input: {
 		localRequests,
 		unaccounted,
 		share: githubCredits > 0 ? localCredits / githubCredits : undefined,
+		billedInPeriod: input.billedByDay !== undefined
+			? [...input.billedByDay.entries()]
+				.filter(([day]) => day >= periodStartDay)
+				.reduce((n, [, credits]) => n + credits, 0)
+			: undefined,
 		verdict: 'inconclusive',
 		note: ''
 	};
@@ -333,6 +367,25 @@ export function periodCoverage(input: {
 		result.verdict = 'complete';
 		result.note = 'This machine accounts for essentially all of it.';
 	} else if (unaccounted > 0) {
+		// Before blaming another machine, check whether this one was watching.
+		//
+		// `billedDays` is GitHub's own total differenced day over day, so when
+		// it accounts for the period every credit was spent on a day this
+		// install was running. The shortfall is then cost Copilot never wrote
+		// onto a span -- it stops recording cost for whole models, and the
+		// conversion multiplier is a default until something checks it -- not
+		// spend somewhere else. Reporting that as "another machine" sent
+		// someone looking for a second install that did not exist.
+		const seen = result.billedInPeriod;
+		if (seen !== undefined && seen >= githubCredits - tolerance) {
+			result.verdict = 'unattributed';
+			result.note =
+				'All of it was spent on days this machine was watching. It could not ' +
+				'attribute every credit to a message: Copilot records no cost for ' +
+				'some of them, and the credit conversion is a default until it is ' +
+				'checked.';
+			return result;
+		}
 		result.verdict = 'partial';
 		result.note =
 			'Spent outside this install -- another machine, another editor, the ' +

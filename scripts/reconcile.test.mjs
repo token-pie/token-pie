@@ -8,14 +8,20 @@
  * the one that looks like unseen spend but is only a short history.
  */
 /**
- * Pinned to UTC, before the modules under test load.
+ * Pinned to UTC, before the modules under test load, so the credit totals
+ * below are exact.
  *
- * A day key is a LOCAL calendar day; a reset date is a UTC instant from
- * GitHub. Comparing them means a day near the period boundary falls on either
- * side depending where the machine is, which is correct behaviour and useless
- * in a fixture asserting exact credit totals.
+ * This comment used to call the boundary behaviour correct: a day key is a
+ * local calendar day and a reset date is a UTC instant, so a day near the
+ * period edge fell either side depending where the machine was. That is not
+ * correct, it is the bug -- east of UTC the period's own first day sorted
+ * before its start and was dropped from what this machine could account for.
+ * Pinning the suite to UTC is what kept it from ever being seen. The boundary
+ * now has its own check below, run under a real offset zone.
  */
 process.env.TZ = 'UTC';
+
+import { execFileSync } from 'node:child_process';
 
 const { periodCoverage, periodStartFrom, conversionConfidence } = await import('../out/reconcile.js');
 const { advise } = await import('../out/advice.js');
@@ -186,6 +192,80 @@ check('and carries the reason to the reader',
   withConv(conversionConfidence(undefined))[0].why.includes('Check Quota'), true);
 check('the default is not to weaken, so existing callers are unaffected',
   advise([rollup], 1e-9, {}, undefined)[0].confidence, 'measured');
+
+console.log('\nthe first day of a period belongs to it, wherever you are');
+{
+  // Run out of process, because Date caches the zone: the point is a machine
+  // actually running east of UTC, not a variable set after the fact.
+  const probe = `
+    const { periodCoverage } = require('${new URL('../out/reconcile.js', import.meta.url).pathname}');
+    const r = periodCoverage({
+      resetDate: '2026-10-01',
+      githubCredits: 990,
+      creditsByDay: new Map([
+        ['2026-09-01', { credits: 240, requests: 500 }],
+        ['2026-09-02', { credits: 70, requests: 161 }]
+      ]),
+      traceStartMs: Date.parse('2026-08-27T00:00:00Z'),
+      billedByDay: new Map([['2026-09-01', 690], ['2026-09-02', 300]]),
+      now: Date.parse('2026-09-02T15:43:00Z')
+    });
+    process.stdout.write(JSON.stringify({
+      local: r.localCredits, billed: r.billedInPeriod, verdict: r.verdict }));
+  `;
+  const run = tz => JSON.parse(execFileSync(process.execPath, ['-e', probe],
+    { encoding: 'utf8', env: { ...process.env, TZ: tz } }));
+
+  const utc = run('UTC');
+  // +05:30: local midnight on the 1st is 18:30 on the 31st, half a day the
+  // wrong side of a UTC period start.
+  const ist = run('Asia/Kolkata');
+  // -08:00, to catch a fix that merely leans the other way.
+  const la = run('America/Los_Angeles');
+
+  check('the period\'s first day counts in UTC', utc.local, 310);
+  check('and east of it', ist.local, 310);
+  check('and west of it', la.local, 310);
+  check('the billed total does not move with the zone either', ist.billed, 990);
+
+  // What the drop actually cost: 690 of 990 credits reported as spend on a
+  // machine that does not exist.
+  check('so a fresh period is not blamed on another machine', ist.verdict, 'unattributed');
+}
+
+console.log('\nwhat this machine could not attribute is not spend elsewhere');
+{
+  const day = (a, b) => new Map([['2026-09-01', a], ['2026-09-02', b]]);
+  const base = {
+    resetDate: '2026-10-01', githubCredits: 990,
+    creditsByDay: new Map([['2026-09-01', { credits: 240, requests: 500 }],
+      ['2026-09-02', { credits: 70, requests: 161 }]]),
+    traceStartMs: Date.parse('2026-08-27T00:00:00Z'),
+    now: Date.parse('2026-09-02T10:13:00Z')
+  };
+
+  // GitHub's own total, differenced per day, accounts for the whole period --
+  // so every credit was spent on a day this install was running. It could only
+  // pin 310 of them to messages, which is a measurement gap, not a location.
+  const seen = periodCoverage({ ...base, billedByDay: day(690, 300) });
+  check('all of it seen here is not partial coverage', seen.verdict, 'unattributed');
+  check('and the note does not invent another machine',
+    /another machine|another editor|github\.com/.test(seen.note), false);
+  check('it names the real cause instead', /no cost|conversion/.test(seen.note), true);
+
+  // The genuine case survives: this machine was off for the first day, so the
+  // billed record cannot account for the period and the spend really is
+  // somewhere it could not see.
+  const missed = periodCoverage({ ...base, billedByDay: day(0, 300) });
+  check('a period this machine did not watch is still partial', missed.verdict, 'partial');
+  check('and that note does say elsewhere',
+    /another machine/.test(missed.note), true);
+
+  // No billed record at all -- an install too new to have one. Nothing is
+  // claimed either way beyond what was already claimed.
+  const blind = periodCoverage({ ...base, billedByDay: undefined });
+  check('and with no billed record it is unchanged', blind.verdict, 'partial');
+}
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
