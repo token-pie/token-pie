@@ -201,6 +201,32 @@ function creditsPerNanoAiu(): number {
 	return config().get<number>('creditsPerNanoAiu', 1e-9);
 }
 
+function copilotExtension(): vscode.Extension<unknown> | undefined {
+	return (
+		vscode.extensions.getExtension('github.copilot-chat') ??
+		vscode.extensions.getExtension('GitHub.copilot-chat') ??
+		vscode.extensions.getExtension('github.copilot')
+	);
+}
+
+async function promptCopilotSignIn(): Promise<void> {
+	try {
+		const commands = await vscode.commands.getCommands(true);
+		if (commands.includes('github.copilot.chat.triggerPermissiveSignIn')) {
+			await vscode.commands.executeCommand('github.copilot.chat.triggerPermissiveSignIn');
+			return;
+		}
+		if (commands.includes('github.copilot.signIn')) {
+			await vscode.commands.executeCommand('github.copilot.signIn');
+			return;
+		}
+		await vscode.commands.executeCommand('workbench.action.chat.open');
+	} catch (err) {
+		const safe = redactPaths(err instanceof Error ? err.message : String(err));
+		output.appendLine(`Token Pie: failed to trigger Copilot sign-in: ${safe}`);
+	}
+}
+
 /** Nudge once if collection was never switched on; there is nothing to show until it is. */
 async function firstRun(): Promise<void> {
 	if (findTraceDbs().length > 0) {
@@ -210,6 +236,11 @@ async function firstRun(): Promise<void> {
 		.getConfiguration()
 		.get<boolean>(DB_EXPORTER_SETTING, false);
 	if (enabled) {
+		return;
+	}
+
+	// Don't nudge if Copilot is not installed at all.
+	if (!copilotExtension()) {
 		return;
 	}
 
@@ -232,29 +263,93 @@ async function firstRun(): Promise<void> {
  * at localhost:4318. The database still gets written -- the SQLite processor is
  * attached independently of that flag -- but every span is also retried against
  * a port nobody is listening on. Local-only means this setting and no other.
+ *
+ * VS Code enforces that settings written via the API must be registered in the
+ * configuration schema. When Copilot Chat is not signed in or not installed,
+ * VS Code has not registered its configuration properties yet, so `root.update()`
+ * throws "is not a registered configuration". That is caught and handled with
+ * sign-in or manual configuration options rather than bubbling up as an error.
  */
 async function setup(): Promise<void> {
 	const root = vscode.workspace.getConfiguration();
+	const copilot = copilotExtension();
+
+	if (!copilot) {
+		const choice = await vscode.window.showWarningMessage(
+			'GitHub Copilot is not installed. Install and sign in to GitHub Copilot before enabling local trace collection.',
+			'Install GitHub Copilot',
+			'Open Settings (JSON)'
+		);
+		if (choice === 'Install GitHub Copilot') {
+			void vscode.commands.executeCommand(
+				'workbench.extensions.search',
+				'@id:github.copilot-chat'
+			);
+		} else if (choice === 'Open Settings (JSON)') {
+			void vscode.commands.executeCommand('workbench.action.openSettingsJson');
+		}
+		return;
+	}
 
 	// Global scope only: the exporter setting is documented as user-settings-only,
 	// and the database it produces is machine-wide regardless of workspace.
-	await root.update(DB_EXPORTER_SETTING, true, vscode.ConfigurationTarget.Global);
+	try {
+		if (root.inspect(DB_EXPORTER_SETTING)?.globalValue !== true) {
+			await root.update(DB_EXPORTER_SETTING, true, vscode.ConfigurationTarget.Global);
+		}
 
-	// Cap stored content.
-	//
-	// `captureContent` is the documented control, but in copilot-chat 0.62.0 the
-	// first-party chat path writes copilot_chat.user_request,
-	// gen_ai.input.messages and gen_ai.system_instructions with no captureContent
-	// check -- only the BYOK provider paths honour it. maxAttributeSizeChars is
-	// applied to every string attribute regardless, so it is the control that
-	// actually works today.
-	//
-	// The default of 0 means UNLIMITED, not "none": `truncate(s, 0)` returns `s`
-	// untouched. 1 truncates every string attribute to a single character.
-	// Numeric attributes -- token counts and copilot_usage_nano_aiu -- are never
-	// passed through the truncator, so everything Token Pie reads survives.
-	if (num(root.get(MAX_ATTR_SETTING)) !== 1) {
-		await root.update(MAX_ATTR_SETTING, 1, vscode.ConfigurationTarget.Global);
+		// Cap stored content.
+		//
+		// `captureContent` is the documented control, but in copilot-chat 0.62.0 the
+		// first-party chat path writes copilot_chat.user_request,
+		// gen_ai.input.messages and gen_ai.system_instructions with no captureContent
+		// check -- only the BYOK provider paths honour it. maxAttributeSizeChars is
+		// applied to every string attribute regardless, so it is the control that
+		// actually works today.
+		//
+		// The default of 0 means UNLIMITED, not "none": `truncate(s, 0)` returns `s`
+		// untouched. 1 truncates every string attribute to a single character.
+		// Numeric attributes -- token counts and copilot_usage_nano_aiu -- are never
+		// passed through the truncator, so everything Token Pie reads survives.
+		if (num(root.get(MAX_ATTR_SETTING)) !== 1) {
+			await root.update(MAX_ATTR_SETTING, 1, vscode.ConfigurationTarget.Global);
+		}
+	} catch (err: unknown) {
+		const rawMsg = err instanceof Error ? err.message : String(err);
+		const safe = redactPaths(rawMsg);
+		output.appendLine(`Token Pie: failed to write trace collection settings: ${safe}`);
+
+		if (rawMsg.includes('not a registered configuration')) {
+			output.appendLine(
+				'Token Pie: GitHub Copilot Chat settings are not registered in VS Code yet. ' +
+				'This happens when GitHub Copilot is not signed in. ' +
+				'Sign in to GitHub Copilot, or manually add the following to your user settings.json:\n' +
+				`  "${DB_EXPORTER_SETTING}": true,\n` +
+				`  "${MAX_ATTR_SETTING}": 1`
+			);
+
+			const choice = await vscode.window.showWarningMessage(
+				'GitHub Copilot Chat is not signed in. Sign in to GitHub Copilot before enabling local trace collection.',
+				'Sign in to GitHub Copilot',
+				'Open Settings (JSON)'
+			);
+			if (choice === 'Sign in to GitHub Copilot') {
+				await promptCopilotSignIn();
+			} else if (choice === 'Open Settings (JSON)') {
+				void vscode.commands.executeCommand('workbench.action.openSettingsJson');
+			}
+			return;
+		}
+
+		void vscode.window.showErrorMessage(
+			`Token Pie: Could not enable local trace collection: ${safe}`,
+			'Open Settings (JSON)'
+		).then(pick => {
+			if (pick === 'Open Settings (JSON)') {
+				void vscode.commands.executeCommand('workbench.action.openSettingsJson');
+			}
+		});
+		return;
 	}
 
 	const conflicts: string[] = [];
@@ -1213,7 +1308,7 @@ function doctor(): void {
 	output.appendLine('='.repeat(60));
 	output.appendLine(`VS Code           ${vscode.version}`);
 	output.appendLine(
-		`copilot-chat      ${vscode.extensions.getExtension('github.copilot-chat')?.packageJSON.version ?? 'not found'}`
+		`copilot-chat      ${copilotExtension()?.packageJSON?.version ?? 'not found'}`
 	);
 	output.appendLine(`${DB_EXPORTER_SETTING}  ${root.get(DB_EXPORTER_SETTING, false)}`);
 	output.appendLine(`${OTEL_ENABLED_SETTING}  ${root.get(OTEL_ENABLED_SETTING, false)}  (must be false for local-only)`);
