@@ -32,12 +32,15 @@ check('probes for github.copilot-chat',
 	src.includes("vscode.extensions.getExtension('github.copilot-chat')"), true);
 check('probes for github.copilot fallback',
 	src.includes("vscode.extensions.getExtension('github.copilot')"), true);
-check('doctor uses the unified probe',
-	src.includes('copilotExtension()?.packageJSON'), true);
+// Each diagnostic label reports its own extension. Chat's version is the one
+// that answers "which schema am I reading", so the `copilot-chat` line must
+// come from the chat probe and not from one that falls back to completions.
+check('doctor reports chat\'s own version under the chat label',
+	/copilot-chat\s+\$\{copilotChatExtension\(\)\?\.packageJSON/.test(src), true);
 
 console.log('\nfirst-run onboarding');
-check('firstRun checks if copilot is installed',
-	/if\s*\(!copilotExtension\(\)\)\s*\{\s*return;\s*\}/.test(src), true);
+check('firstRun checks if copilot chat is installed',
+	/if\s*\(!copilotChatExtension\(\)\)\s*\{\s*\n?\s*return;\s*\}/.test(src), true);
 
 console.log('\nsetup registration guard');
 check('setup inspects globalValue before updating',
@@ -52,6 +55,14 @@ check('offers open settings JSON fallback',
 	src.includes("'Open Settings (JSON)'"), true);
 check('triggers copilot sign-in flow',
 	src.includes('promptCopilotSignIn()'), true);
+// Two failures, two remedies. A missing extension is installed; an
+// unregistered setting on an installed one is a sign-in. Offering a sign-in to
+// someone with no Chat installed is an instruction that cannot work, which is
+// the fault the quota check made once already.
+check('a missing chat extension is gated on chat, not on completions',
+	/if\s*\(!copilotChatExtension\(\)\)\s*\{[\s\S]{0,400}?showWarningMessage/.test(src), true);
+check('and it offers an install rather than a sign-in',
+	src.includes("'Install GitHub Copilot Chat'"), true);
 
 console.log('\npath redaction');
 check('failed setup log is redacted',

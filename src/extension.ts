@@ -201,12 +201,22 @@ function creditsPerNanoAiu(): number {
 	return config().get<number>('creditsPerNanoAiu', 1e-9);
 }
 
-function copilotExtension(): vscode.Extension<unknown> | undefined {
-	return (
-		vscode.extensions.getExtension('github.copilot-chat') ??
-		vscode.extensions.getExtension('GitHub.copilot-chat') ??
-		vscode.extensions.getExtension('github.copilot')
-	);
+/**
+ * Copilot Chat, which is the extension that owns everything we read and write.
+ *
+ * Every setting `setup()` writes is `github.copilot.chat.otel.*`, contributed by
+ * this extension and by nothing else, and `agent-traces.db` is written by this
+ * extension and by nothing else. So this is the probe that gates both -- not
+ * `copilotExtension()` below, which also answers to Copilot completions.
+ * Accepting completions as good enough sent a user with no Chat installed to a
+ * "sign in to GitHub Copilot" prompt, which cannot register a setting that the
+ * missing extension is the only source of.
+ *
+ * `getExtension` matches the id case-insensitively, so one spelling is every
+ * spelling: a `GitHub.copilot-chat` variant beside this one is dead code.
+ */
+function copilotChatExtension(): vscode.Extension<unknown> | undefined {
+	return vscode.extensions.getExtension('github.copilot-chat');
 }
 
 async function promptCopilotSignIn(): Promise<void> {
@@ -239,8 +249,10 @@ async function firstRun(): Promise<void> {
 		return;
 	}
 
-	// Don't nudge if Copilot is not installed at all.
-	if (!copilotExtension()) {
+	// Nothing will ever write a trace database without Copilot Chat, so there is
+	// nothing to nudge towards. Chat specifically: completions being installed
+	// does not make this setting registerable.
+	if (!copilotChatExtension()) {
 		return;
 	}
 
@@ -272,15 +284,19 @@ async function firstRun(): Promise<void> {
  */
 async function setup(): Promise<void> {
 	const root = vscode.workspace.getConfiguration();
-	const copilot = copilotExtension();
 
-	if (!copilot) {
+	// Chat, not Copilot generally. Two different failures with two different
+	// remedies: a missing extension is installed, an unregistered setting on an
+	// installed one is a sign-in. Offering the second for the first is the fault
+	// the quota check already made once -- an instruction that cannot work.
+	if (!copilotChatExtension()) {
 		const choice = await vscode.window.showWarningMessage(
-			'GitHub Copilot is not installed. Install and sign in to GitHub Copilot before enabling local trace collection.',
-			'Install GitHub Copilot',
+			'GitHub Copilot Chat is not installed. Token Pie reads the trace database '
+			+ 'that extension writes, so install it before enabling local trace collection.',
+			'Install GitHub Copilot Chat',
 			'Open Settings (JSON)'
 		);
-		if (choice === 'Install GitHub Copilot') {
+		if (choice === 'Install GitHub Copilot Chat') {
 			void vscode.commands.executeCommand(
 				'workbench.extensions.search',
 				'@id:github.copilot-chat'
@@ -1307,8 +1323,17 @@ function doctor(): void {
 	output.appendLine('Token Pie diagnostics');
 	output.appendLine('='.repeat(60));
 	output.appendLine(`VS Code           ${vscode.version}`);
+	// Each label reports its own extension. The schema this whole pipeline is
+	// written against is copilot-chat's -- every finding in CLAUDE.md is dated to
+	// 0.62.0 -- so printing completions' version under a `copilot-chat` label
+	// would answer "which schema am I reading" with the version of something that
+	// does not write the database. Completions gets its own line: it is worth
+	// knowing which of the two is installed when neither is behaving.
 	output.appendLine(
-		`copilot-chat      ${copilotExtension()?.packageJSON?.version ?? 'not found'}`
+		`copilot-chat      ${copilotChatExtension()?.packageJSON?.version ?? 'not found'}`
+	);
+	output.appendLine(
+		`copilot           ${vscode.extensions.getExtension('github.copilot')?.packageJSON?.version ?? 'not found'}`
 	);
 	output.appendLine(`${DB_EXPORTER_SETTING}  ${root.get(DB_EXPORTER_SETTING, false)}`);
 	output.appendLine(`${OTEL_ENABLED_SETTING}  ${root.get(OTEL_ENABLED_SETTING, false)}  (must be false for local-only)`);
