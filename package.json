@@ -205,7 +205,8 @@
     "test:identity": "tsc -p . && node scripts/identity.test.mjs",
     "test:redaction": "node scripts/redaction.test.mjs",
     "test:sources": "tsc -p . && node scripts/sources.test.mjs",
-    "test:models": "tsc -p . && node scripts/models.test.mjs"
+    "test:models": "tsc -p . && node scripts/models.test.mjs",
+    "test:setup": "node scripts/setup.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
